@@ -165,7 +165,8 @@ curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scrip
 > 2. **自动配置 Hysteria 2 端口跳跃**：内核级 NAT 重定向（`UDP 20000:40000 -> 443`）；
 > 3. **OCI API 密钥全自动化**：自动生成 2048 位标准 RSA 密钥对并排版打印，在终端直接粘贴甲骨文后台配置，免去格式错误烦恼；
 > 4. **Cloudflare 域名自动拉取**：输入 Token 后自动验证并列出名下所有活跃域名供数字选择，全自动绑定/刷新 A 记录；
-> 5. **SSL 证书静默自动签发**：基于 Cloudflare DNS-01 挑战协议，**无需占用 80/443 端口**，自动签发并挂载 ECC-256 证书。
+> 5. **SSL 证书静默自动签发**：基于 Cloudflare DNS-01 挑战协议，**无需占用 80/443 端口**，自动签发并挂载 ECC-256 证书；
+> 6. **3x-ui 黄金主力节点一键注入**：自动生成 X25519 密钥对，一键向数据库写入 VLESS-Reality (:8443)、Hysteria 2 (:443 端口跳跃) 与 Trojan (:2083)，装完即出海！
 
 随时重新运行向导：
 ```bash

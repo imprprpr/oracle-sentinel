@@ -5,6 +5,20 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-26
+
+### 🚀 3x-ui Golden Inbounds Auto-Provisioning (出海全家桶预置注入)
+- **Node Provisioner Engine (`scripts/node_provisioner.py`)**: Direct SQLite database injector for `/etc/x-ui/x-ui.db`.
+- **Pure Python X25519 Key Generation**: Native Curve25519 public/private keypair and shortId generator for Reality without external xray binaries.
+- **Three Golden Production Inbounds**:
+  - `Oracle-US` (VLESS-Reality :8443) with auto-generated keys, Chrome fingerprint, and swdist.apple.com disguise.
+  - `Oracle-Hy2` (Hysteria 2 :443) with auto-generated 16-char password, domain certificate mounting, and kernel-level port hopping.
+  - `Oracle-Trojan` (Trojan-TLS :2083) with auto certificate binding and SNI matching.
+- **Safe Non-Destructive Ingestion**: Auto-detects existing inbounds and avoids port collisions, preserving user's existing proxies.
+- **Wizard Integration**: Seamlessly integrated into `scripts/wizard.py` as Step 5/5.
+
+---
+
 ## [1.1.0] - 2026-09-26
 
 ### ✨ Interactive CLI Deployment Wizard (极简部署套件)

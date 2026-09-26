@@ -100,7 +100,7 @@ def get_public_ip():
 
 # --- STEP 1: Firewall & BBR ---
 def step_firewall_and_bbr():
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 1/4] 🚀 甲骨文底层防火墙与 BBR 拥塞控制调优{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 1/5] 🚀 甲骨文底层防火墙与 BBR 拥塞控制调优{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" 甲骨文官方 Ubuntu 镜像默认启用了严苛的 iptables DROP 规则，会导致外部端口无法连通。")
     ans = prompt("是否自动清理甲骨文原生 iptables 阻断并开启 BBR？(y/n)", "y").lower()
@@ -133,7 +133,7 @@ def step_firewall_and_bbr():
 
 # --- STEP 2: OCI API Configuration ---
 def step_oci_config():
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 2/4] 🛡️ 甲骨文 OCI API 自动换 IP 凭据配置{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 2/5] 🛡️ 甲骨文 OCI API 自动换 IP 凭据配置{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" OCI API 是实现“GFW 封锁后自动申请新公网 IP 并解绑旧 IP”的核心凭证。")
     print(f" {C_YELLOW}选项 1{C_RESET}: 自动生成全新的 RSA API 密钥对，并打印公钥供您在甲骨文后台粘贴 (推荐)")
@@ -214,7 +214,7 @@ def step_oci_config():
 
 # --- STEP 3: Cloudflare API & Domain Verification ---
 def step_cloudflare_config(current_ip):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 3/4] ☁️ Cloudflare 自动化 DNS 解析联动{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 3/5] ☁️ Cloudflare 自动化 DNS 解析联动{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" 当甲骨文换 IP 后，Sentinel 将调用此 Token 自动将您的域名 A 记录秒级刷新至新 IP。")
     print(" Token 申请路径: Cloudflare Dash -> 个人资料 -> API 令牌 -> 创建令牌 -> 编辑区域 DNS 模板\n")
@@ -266,7 +266,7 @@ def step_cloudflare_config(current_ip):
 
 # --- STEP 4: SSL/TLS Certificate Provisioning ---
 def step_ssl_cert(cf_token, domain):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 4/4] 🔒 SSL / TLS 证书自动签发 (DNS-01 零端口依赖){C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 4/5] 🔒 SSL / TLS 证书自动签发 (DNS-01 零端口依赖){C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     os.makedirs(CERT_DIR, exist_ok=True)
     priv_file = os.path.join(CERT_DIR, "privkey.pem")
@@ -304,6 +304,40 @@ def step_ssl_cert(cf_token, domain):
 
     run_cmd(f"chmod 600 {priv_file}")
     return priv_file, cert_file
+
+# --- STEP 5: 3x-ui Golden Inbounds Auto-Provisioning ---
+def step_3x_ui_nodes(domain):
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 5/5] 🚀 3x-ui 节点全家桶自动入库与初始化{C_RESET}")
+    print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
+    print(" 自动向 3x-ui 写入经过生产调优的『黄金三剑客』出海节点，装完免去任何面板手动配置：")
+    print(f"  1. {C_GREEN}Oracle-US{C_RESET}     : VLESS-Reality (TCP :8443) 自动生成 X25519 密钥对")
+    print(f"  2. {C_GREEN}Oracle-Hy2{C_RESET}    : Hysteria 2 (UDP :443 + 内核端口跳跃 20000:40000)")
+    print(f"  3. {C_GREEN}Oracle-Trojan{C_RESET} : Trojan-TLS (TCP :2083)")
+
+    script_path = os.path.join(SENTINEL_DIR, "scripts", "node_provisioner.py")
+    if not os.path.exists(script_path):
+        script_path = os.path.join(os.path.dirname(__file__), "node_provisioner.py")
+
+    ans = prompt("是否自动注入上述三大黄金出海节点？(y/n)", "y").lower()
+    if ans == 'y':
+        try:
+            # Try importing node_provisioner directly
+            sys.path.insert(0, os.path.dirname(script_path))
+            import node_provisioner
+            added = node_provisioner.provision_nodes(domain=domain)
+            if added:
+                log_success(f"成功注入 {len(added)} 个黄金节点！服务已热重载生效。")
+            else:
+                log_info("节点对应端口已存在，已保持现有配置不覆盖。")
+        except Exception as e:
+            # Fallback to subprocess
+            ok, out = run_cmd(f"python3 {script_path} {domain}")
+            if ok:
+                log_success("3x-ui 节点注入命令已成功执行！")
+            else:
+                log_warn(f"注入节点时遇到提示: {out}")
+    else:
+        log_info("已跳过节点自动预置，您可稍后在 3x-ui 面板手动创建入站。")
 
 # --- Finalize Configuration & Systemd ---
 def finalize_setup(cf_token, zone_name, record_name, oci_path):
@@ -364,6 +398,9 @@ def main():
 
     # Step 4: SSL Cert
     step_ssl_cert(cf_token, record_name or "vps.example.com")
+
+    # Step 5: 3x-ui Golden Inbounds Auto-Provisioning
+    step_3x_ui_nodes(record_name or "vps.example.com")
 
     # Finalize
     finalize_setup(cf_token, zone_name, record_name, oci_path)
