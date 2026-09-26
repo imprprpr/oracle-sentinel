@@ -30,6 +30,10 @@ if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
     fi
 fi
 
+# Free memory cache and clean tmp
+sync 2>/dev/null || true
+rm -rf /tmp/* /opt/sing-box 2>/dev/null || true
+
 # Download official sing-box
 SB_VER="1.14.2"
 ARCH="$(uname -m)"
@@ -39,13 +43,10 @@ case "$ARCH" in
     *) echo "[!] Unsupported arch: $ARCH"; exit 1 ;;
 esac
 
-echo ">>> Downloading sing-box v${SB_VER} (${SB_ARCH})..."
-mkdir -p /opt/sing-box /etc/sing-box
-curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SB_VER}/sing-box-${SB_VER}-${SB_ARCH}.tar.gz" -o /tmp/sb.tar.gz
-tar -zxvf /tmp/sb.tar.gz -C /opt/sing-box --strip-components=1
-cp /opt/sing-box/sing-box /usr/local/bin/sing-box
+echo ">>> Streaming sing-box v${SB_VER} (${SB_ARCH}) directly (Zero-RAM mode)..."
+mkdir -p /etc/sing-box
+curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SB_VER}/sing-box-${SB_VER}-${SB_ARCH}.tar.gz" | tar -zx -O "sing-box-${SB_VER}-${SB_ARCH}/sing-box" > /usr/local/bin/sing-box
 chmod +x /usr/local/bin/sing-box
-rm -f /tmp/sb.tar.gz
 
 echo ">>> Generating VLESS-Reality credentials..."
 UUID=$(/usr/local/bin/sing-box generate uuid)
@@ -118,6 +119,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
+Environment=GOGC=20
 ExecStart=/usr/local/bin/sing-box run -c /etc/sing-box/config.json
 Restart=always
 RestartSec=3
