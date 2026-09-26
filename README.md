@@ -1,4 +1,4 @@
-# 🛡️ VPSentinel
+# VPSentinel
 
 <div align="center">
 
@@ -13,13 +13,13 @@
 [![OCI SDK](https://img.shields.io/badge/Oracle%20Cloud-OCI%20SDK-F80000.svg)](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/pythonsdk.htm)
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-DNS%20API-F38020.svg)](https://developers.cloudflare.com/api/)
 
-[特性速览](#-特性速览) • [极速部署](#-极速部署) • [进阶玩法: 家庭实验室](#-进阶玩法-云端家庭实验室-homelab) • [订阅引擎](#-订阅引擎与客户端适配) • [中转与独立节点](#-链式中转与外部独立节点) • [告警配置](#-多渠道即时告警) • [常见排查 (FAQ)](#-常见问题排查-faq)
+[特性速览](#特性速览) • [极速部署](#极速部署) • [进阶玩法: 家庭实验室](#进阶玩法-云端家庭实验室-homelab) • [订阅引擎](#订阅引擎与客户端适配) • [中转与独立节点](#链式中转与外部独立节点) • [告警配置](#多渠道即时告警) • [常见排查 (FAQ)](#常见问题排查-faq)
 
 </div>
 
 ---
 
-## 📌 项目简介
+## 项目简介
 
 玩境外 VPS（特别是甲骨文云 Oracle Cloud、搬瓦工、RackNerd 等）常遇到几个恶心的问题：
 * **IP 被封**：SSH 连不上、节点全断，手动去控制台换 IP 再改 Cloudflare DNS，费时费力。
@@ -34,7 +34,7 @@
 
 ---
 
-## ⚡ 特性速览
+## 特性速览
 
 | 模块 | 核心功能 |
 | :--- | :--- |
@@ -49,7 +49,7 @@
 
 ---
 
-## 🚀 极速部署
+## 极速部署
 
 ### 方式一：Web 首次启动向导（推荐，零门槛）
 
@@ -82,7 +82,7 @@ sudo python3 /opt/vpsentinel/scripts/wizard.py
 
 ---
 
-## 🛠️ 进阶玩法: 云端家庭实验室 (Homelab)
+## 进阶玩法: 云端家庭实验室 (Homelab)
 
 为彻底压榨 VPS 性能（尤其甲骨文 ARM 12G/24G 大内存机），系统提供了全套进阶优化与容器服务。
 
@@ -187,11 +187,11 @@ cd /opt/containers && docker compose up -d
 | **Alist** | `5244` | 账号 `admin`，密码查日志或命令重置 | 挂载阿里云盘、夸克、百度网盘、OneDrive，WebDAV 4K 在线串流播放。 |
 | **Sub-Store** | `3000` | 免密直接打开全功能 Web 页面 | 订阅清洗、多机场聚合、正则重命名、国旗 Emoji 注入。 |
 
-> 💡 **Alist 密码重置命令**：`docker exec -it alist ./alist admin random` 或 `docker exec -it alist ./alist admin set 新密码`。
+> **Alist 密码重置命令**：`docker exec -it alist ./alist admin random` 或 `docker exec -it alist ./alist admin set 新密码`。
 
 ---
 
-## 📱 订阅引擎与客户端适配
+## 订阅引擎与客户端适配
 
 在控制面板的【多协议订阅中心】可直接获取各客户端专用链接：
 
@@ -209,7 +209,7 @@ cd /opt/containers && docker compose up -d
 
 ---
 
-## ⚡ 链式中转与外部独立节点
+## 链式中转与外部独立节点
 
 ### 1. 国内中转机一键配置 (Realm)
 在中转跳板机（国内轻量云、NAT VPS、公网软路由）上执行：
@@ -226,7 +226,7 @@ curl -fsSL https://<你的域名>:20540/scripts/setup-relay.sh | sudo bash -s --
   python3 /opt/vpsentinel/scripts/add-custom-node.py "<节点链接>"
   ```
 
-> 💡 **小内存与 NAT 机器部署技巧**：
+> **小内存与 NAT 机器部署技巧**：
 > * 针对 64MB/128MB 极限小鸡（如 GreenCloud Podman 容器），使用配套脚本 `scripts/setup-japan-node.sh`，自带磁盘串行提取、自动挂载 Swap 与 `GOMEMLIMIT=40MiB` 内存封顶，杜绝 OOM 崩溃。
 > * 针对 NAT VPS，部署时可直接传参指定公网映射端点：
 >   ```bash
@@ -235,18 +235,18 @@ curl -fsSL https://<你的域名>:20540/scripts/setup-relay.sh | sudo bash -s --
 
 ---
 
-## 📢 多渠道即时告警
+## 多渠道即时告警
 
 节点遭遇 GFW 阻断、换 IP 流程启动、Cloudflare 记录更新或失败时，毫秒级推送卡片至手机：
 
 * **Telegram Bot**：填入 `@BotFather` 生成的 `bot_token` 和你的 `chat_id`。
 * **Discord Webhook**：频道设置 -> 整合 -> 创建 Webhook 复制 URL。
 * **Bark (iOS)**：App Store 下载 Bark，填入首页显示的 `Device Key`。
-* **推送测试**：控制台右上角【设置】面板内有【发送测试推送 🔔】按钮，无需等被墙即可现场测试。
+* **推送测试**：控制台右上角【设置】面板内有【发送测试推送】按钮，无需等被墙即可现场测试。
 
 ---
 
-## ⚙️ 配置文件参数说明
+## 配置文件参数说明
 
 配置文件路径：`/opt/vpsentinel/config.json`
 
@@ -290,7 +290,7 @@ curl -fsSL https://<你的域名>:20540/scripts/setup-relay.sh | sudo bash -s --
 
 ---
 
-## 🛠️ 常用运维命令
+## 常用运维命令
 
 ```bash
 # 查看守卫实时日志
@@ -311,7 +311,7 @@ sudo bash /opt/vpsentinel/scripts/update-geo.sh
 
 ---
 
-## ❓ 常见问题排查 (FAQ)
+## 常见问题排查 (FAQ)
 
 <details>
 <summary><b>Q1: 自动换 IP 后，Cloudflare 解析更新了，但本地连不上？</b></summary>
@@ -329,7 +329,7 @@ sudo bash /opt/vpsentinel/scripts/update-geo.sh
 
 <details>
 <summary><b>Q3: OpenClash 节点测速全绿（有延迟），但内网手机电脑全断网打不开网页？</b></summary>
-<b>故障排查</b>：典型 Fake-IP 分流死锁。检查规则集中是否误包含了 `IP-CIDR, 198.18.0.0/15, 🎯 全球直连, no-resolve`。因为 `198.18.0.1/16` 是 Clash 的 Fake-IP 虚拟池，加上 `no-resolve` 后流量被当作物理 IP 直接甩给运营商 WAN 光猫，网关丢弃导致外网全灭。
+<b>故障排查</b>：典型 Fake-IP 分流死锁。检查规则集中是否误包含了 `IP-CIDR, 198.18.0.0/15, 全球直连, no-resolve`。因为 `198.18.0.1/16` 是 Clash 的 Fake-IP 虚拟池，加上 `no-resolve` 后流量被当作物理 IP 直接甩给运营商 WAN 光猫，网关丢弃导致外网全灭。
 <b>解决办法</b>：最新版已彻底移除了此冲突规则并加入海外 DoH 回退。在 OpenClash 刷新订阅即可。
 </details>
 
@@ -362,6 +362,6 @@ EXT_IP="公网IP" EXT_PORT="映射端口" bash scripts/setup-japan-node.sh
 
 ---
 
-## 📄 开源许可证
+## 开源许可证
 
 本项目基于 [MIT License](LICENSE) 开源发布，欢迎自由 Star、Fork 与提交 Pull Request！
