@@ -5,6 +5,17 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-26
+
+### ✨ Interactive CLI Deployment Wizard (极简部署套件)
+- **Zero-Dependency CLI Wizard (`scripts/wizard.py`)**: Built entirely with standard library Python, requiring no external packages.
+- **Oracle Cloud Firewall & BBR Automation**: Unlocks Oracle Ubuntu default iptables DROP rules and activates Linux native BBR congestion control.
+- **Kernel-Level Port Hopping**: Configures Hysteria 2 PREROUTING redirect rule (`UDP 20000:40000 -> 443`) via iptables.
+- **OCI API Key Automation**: Generates 2048-bit RSA key pair, pretty-prints the public key for Oracle Console, and parses the config block directly into `/root/.oci/config`.
+- **Cloudflare Zone Discovery**: Validates API token and dynamically lists active domains for interactive numerical selection.
+- **ACME DNS-01 Silent SSL Issuance**: Integrates with acme.sh to issue ECC-256 SSL certificates via Cloudflare DNS challenge without opening ports 80/443.
+- **Upgraded 1-Click Installer (`scripts/install.sh`)**: Prompting to launch the interactive wizard immediately upon dependency installation.
+
 ---
 
 ## [1.0.0] - 2026-09-26

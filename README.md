@@ -149,22 +149,28 @@ flowchart TB
 
 ---
 
-## 🚀 快速安装
+## 🚀 极速部署
 
-### 方式一：一键脚本全自动安装（推荐）
+### 方式一：全自动极简交互式安装向导（极力推荐）
 
-通过 SSH 登录您的甲骨文 VPS，执行以下命令：
+针对甲骨文云环境量身打造，一键搞定底层环境、OCI API 密钥生成、Cloudflare 动态绑定、BBR、防火墙及证书签发：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/16893863/oracle-sentinel/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scripts/install.sh | sudo bash
 ```
 
-脚本将自动执行以下任务：
-- 安装 Python 3、venv 及编译必要套件；
-- 克隆项目源码至 `/opt/oracle-sentinel`；
-- 构建隔离的 Python 运行虚拟环境并安装锁定的依赖库；
-- 创建 `config.json` 模板；
-- 注册并配置 Systemd 系统守护服务 `oracle-sentinel.service`。
+> [!TIP]
+> **交互式向导（Setup Wizard）自动完成的任务**：
+> 1. **自动破除甲骨文底层防火墙阻断**：清理 Ubuntu 默认严苛的 iptables 规则，一键开启 Linux 原生 BBR 加速；
+> 2. **自动配置 Hysteria 2 端口跳跃**：内核级 NAT 重定向（`UDP 20000:40000 -> 443`）；
+> 3. **OCI API 密钥全自动化**：自动生成 2048 位标准 RSA 密钥对并排版打印，在终端直接粘贴甲骨文后台配置，免去格式错误烦恼；
+> 4. **Cloudflare 域名自动拉取**：输入 Token 后自动验证并列出名下所有活跃域名供数字选择，全自动绑定/刷新 A 记录；
+> 5. **SSL 证书静默自动签发**：基于 Cloudflare DNS-01 挑战协议，**无需占用 80/443 端口**，自动签发并挂载 ECC-256 证书。
+
+随时重新运行向导：
+```bash
+sudo python3 /opt/oracle-sentinel/scripts/wizard.py
+```
 
 ---
 
@@ -173,7 +179,7 @@ curl -fsSL https://raw.githubusercontent.com/16893863/oracle-sentinel/main/scrip
 ```bash
 # 1. 切换至管理员权限并克隆仓库
 sudo -i
-git clone https://github.com/16893863/oracle-sentinel.git /opt/oracle-sentinel
+git clone https://github.com/imprprpr/oracle-sentinel.git /opt/oracle-sentinel
 cd /opt/oracle-sentinel
 
 # 2. 创建 Python 虚拟环境并安装依赖
@@ -181,11 +187,10 @@ python3 -m venv venv
 ./venv/bin/pip install --upgrade pip
 ./venv/bin/pip install -r requirements.txt
 
-# 3. 初始化配置文件
-cp config.example.json config.json
-nano config.json  # 填入 Cloudflare 与 OCI 相关配置
+# 3. 运行交互式向导 (或手动配置)
+python3 scripts/wizard.py
 
-# 4. 注册 Systemd 守护进程
+# 4. 注册并启动 Systemd 守护进程
 cp systemd/oracle-sentinel.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now oracle-sentinel

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Oracle Sentinel - One-Click Installer for Oracle Cloud VPS
+# Oracle Sentinel - One-Click Installer & Deployment Wizard
 # Supports: Ubuntu 20.04+, Ubuntu 22.04+, Debian 11+, Debian 12+ (x86_64 / ARM64)
 # ==============================================================================
 
 set -euo pipefail
 
 INSTALL_DIR="/opt/oracle-sentinel"
-REPO_URL="https://github.com/16893863/oracle-sentinel.git"
+REPO_URL="https://github.com/imprprpr/oracle-sentinel.git"
 
 echo "===================================================================="
 echo "    🚀 Installing Oracle Cloud Sentinel Control Center & Daemon     "
@@ -20,9 +20,9 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # Update package lists and install system dependencies
-echo ">>> Installing prerequisites (Python3, venv, curl, git)..."
+echo ">>> Installing prerequisites (Python3, venv, curl, git, openssl)..."
 apt-get update -y
-apt-get install -y python3 python3-pip python3-venv git curl ufw
+apt-get install -y python3 python3-pip python3-venv git curl ufw openssl
 
 # Ensure installation directory exists
 mkdir -p "$INSTALL_DIR"
@@ -40,6 +40,7 @@ else
 fi
 
 cd "$INSTALL_DIR"
+chmod +x "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/scripts/*.py 2>/dev/null || true
 
 # Setup Python Virtual Environment
 echo ">>> Setting up Python virtual environment..."
@@ -54,7 +55,6 @@ fi
 if [ ! -f "$INSTALL_DIR/config.json" ]; then
     echo ">>> Creating initial config.json from template..."
     cp "$INSTALL_DIR/config.example.json" "$INSTALL_DIR/config.json"
-    echo "[!] Please edit $INSTALL_DIR/config.json with your Cloudflare API token and OCI details."
 fi
 
 # Install systemd service
@@ -72,12 +72,24 @@ if command -v ufw >/dev/null 2>&1; then
 fi
 
 echo "===================================================================="
-echo "🎉 Installation completed successfully!"
+echo "🎉 Core components and dependencies installed successfully!"
+echo "===================================================================="
+
+# Check if running interactively in terminal
+if [ -t 0 ]; then
+    read -rp ">>> 是否立即启动全交互式配置向导 (自动配置 OCI、Cloudflare、BBR、防火墙)？[Y/n]: " RUN_WIZARD
+    RUN_WIZARD=${RUN_WIZARD:-y}
+    if [[ "$RUN_WIZARD" =~ ^[Yy]$ ]]; then
+        python3 "$INSTALL_DIR/scripts/wizard.py"
+        exit 0
+    fi
+fi
+
 echo "--------------------------------------------------------------------"
-echo " Next steps:"
-echo " 1. Configure credentials: nano $INSTALL_DIR/config.json"
-echo " 2. (Optional) Setup SSL certificate with acme.sh or certbot"
-echo " 3. Start service: systemctl restart oracle-sentinel"
-echo " 4. View status:   systemctl status oracle-sentinel"
-echo " 5. Open Web UI:   https://<YOUR_IP_OR_DOMAIN>:20540/"
+echo " 您可以随时运行以下命令启动全流程交互式配置向导："
+echo "   sudo python3 $INSTALL_DIR/scripts/wizard.py"
+echo "--------------------------------------------------------------------"
+echo " 或者手动维护配置文件："
+echo "   nano $INSTALL_DIR/config.json"
+echo "   systemctl restart oracle-sentinel"
 echo "===================================================================="
