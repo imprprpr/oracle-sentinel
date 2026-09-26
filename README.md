@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Oracle Sentinel Banner](https://raw.githubusercontent.com/16893863/oracle-sentinel/main/static/index.html)
+<img src="docs/images/dashboard.png" alt="Oracle Sentinel 控制中心仪表盘" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin-bottom: 16px;" />
 
 **专为 Oracle Cloud (甲骨文云 ARM / AMD) 量身打造的自动化“涅槃自愈”与多协议可视化聚合分发枢纽**
 
@@ -57,9 +57,14 @@
 - **订阅动态重写**：后台添加中转机 IP/域名与端口后，订阅系统自动生成“中转加速”专用节点，客户端更新订阅即用。
 
 ### 4. 🎨 极简工业暗色仪表盘（Linear / Shadcn UI 风格）
+
+<div align="center" style="margin: 16px 0;">
+  <img src="docs/images/dashboard.png" alt="Oracle Sentinel 控制中心全景截图" width="95%" style="border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+</div>
+
 - **纯粹黑灰质感**：剔除任何浮夸动画，采用现代专业控制台暗黑风格，全量原生 Lucide SVG 矢量图标。
 - **实时遥测监控**：CPU、RAM、磁盘、系统负载、WARP 双栈出口状态、公网 IP、延迟雷达 WebSocket 实时推送。
-- **隐私马赛克滤镜 (`.privacy-blur`)**：公网 IP 段、域名、WARP 节点等敏感字段默认高斯模糊遮罩，点击即可一键展开/隐藏，录屏分享零顾虑。
+- **隐私马赛克滤镜 (`.privacy-blur`)**：如上方实拍截图所示，公网 IP 段、域名、WARP 节点等敏感字段默认高斯模糊遮罩，鼠标点击即可一键展开/隐藏，录屏分享零泄密风险。
 - **内置 MetaCubeX 看板**：可随时进入内置的 WebUI 直观检查规则匹配与节点通断。
 
 ---
