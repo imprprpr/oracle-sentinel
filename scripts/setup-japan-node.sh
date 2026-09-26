@@ -55,8 +55,9 @@ PRIV_KEY=$(echo "$KEYPAIR" | grep "PrivateKey" | awk '{print $2}' | tr -d ' "\r\
 PUB_KEY=$(echo "$KEYPAIR" | grep "PublicKey" | awk '{print $2}' | tr -d ' "\r\n')
 SHORT_ID=$(/usr/local/bin/sing-box generate rand --hex 8)
 
+EXT_PORT="${1:-50094}"
+LISTEN_PORT="${2:-28443}"
 SNI="swdist.apple.com"
-LISTEN_PORT=28443
 
 echo ">>> Configuring /etc/sing-box/config.json..."
 cat << CONFIG_EOF > /etc/sing-box/config.json
@@ -138,11 +139,11 @@ else
     nohup /usr/local/bin/sing-box run -c /etc/sing-box/config.json > /opt/sing-box/sing-box.log 2>&1 &
 fi
 
-EXT_IP="158.51.111.141"
-EXT_PORT="53446"
-NODE_NAME="🇯🇵 日本原生大口子 (超低延迟)"
+EXT_IP="${3:-$(curl -s4 https://api.ipify.org 2>/dev/null || curl -s4 https://ifconfig.me 2>/dev/null || echo '45.153.246.167')}"
+NODE_NAME="🇯🇵 日本软银原生 (GreenCloud超低延迟)"
+NAME_ENCODED=$(echo -n "$NODE_NAME" | od -An -tx1 | tr ' ' '%' | tr -d '\n')
 
-VLESS_LINK="vless://${UUID}@${EXT_IP}:${EXT_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${SNI}&fp=chrome&pbk=${PUB_KEY}&sid=${SHORT_ID}&type=tcp#%F0%9F%87%AF%F0%9F%87%B5%20%E6%97%A5%E6%9C%AC%E5%8E%9F%E7%94%9F%E5%A4%A7%E5%8F%A3%E5%AD%90"
+VLESS_LINK="vless://${UUID}@${EXT_IP}:${EXT_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${SNI}&fp=chrome&pbk=${PUB_KEY}&sid=${SHORT_ID}&type=tcp#${NAME_ENCODED}"
 
 echo ""
 echo "===================================================================="
