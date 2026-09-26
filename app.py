@@ -587,7 +587,7 @@ async def get_services():
             "category": "admin",
             "proto": "https",
             "port": 3000,
-            "path": "/",
+            "path": "/?api=/api",
             "badge": "Subscription",
             "desc": "节点清洗过滤、多机场聚合、正则批量重命名与 Clash / Sing-box / Surge 跨平台分流规则转换。",
             "running": is_listening(3000)
