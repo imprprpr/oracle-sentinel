@@ -170,6 +170,7 @@ class SystemMonitor:
         }
 
     def get_full_state(self):
+        cfg = ConfigManager.load()
         metrics = self.get_metrics()
         probes = self.check_domestic_probes()
         pub_ip = self.get_public_ip()
