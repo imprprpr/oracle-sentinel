@@ -302,6 +302,103 @@ async def test_cf_token(data: dict):
     ok, msg = cf.verify_token()
     return {'success': ok, 'message': msg}
 
+# --- Web Onboarding / Setup Wizard Endpoints ---
+
+class SetupSaveModel(BaseModel):
+    provider_type: str = 'auto'
+    provider_hook: Optional[str] = ''
+    oci_config_text: Optional[str] = ''
+    oci_key_path: Optional[str] = ''
+    cf_token: Optional[str] = ''
+    cf_zone: Optional[str] = ''
+    cf_record: Optional[str] = ''
+    auto_heal: bool = True
+    provision_nodes: bool = True
+    notifications: Optional[dict] = None
+
+@app.get('/api/setup/status')
+async def setup_status():
+    cfg = cfg_mgr.load()
+    is_init = cfg.get('initialized', False) or bool(cfg.get('cloudflare', {}).get('api_token'))
+    cloud_info = sentinel_core.get_cloud_info()
+    pub_ip = monitor.get_public_ip()
+    return {
+        'initialized': is_init,
+        'cloud_info': cloud_info,
+        'public_ip': pub_ip,
+        'config': {
+            'provider': cfg.get('provider', {}),
+            'cloudflare': {
+                'zone_name': cfg.get('cloudflare', {}).get('zone_name', ''),
+                'record_name': cfg.get('cloudflare', {}).get('record_name', '')
+            },
+            'notifications': cfg.get('notifications', {})
+        }
+    }
+
+@app.post('/api/setup/verify-cf')
+async def verify_cf(data: dict):
+    token = data.get('token', '').strip()
+    if not token:
+        return {'success': False, 'message': 'API Token 不能为空'}
+    cf = sentinel_core.CloudflareManager(token)
+    ok, zones, msg = cf.list_zones()
+    return {'success': ok, 'zones': zones, 'message': msg}
+
+@app.post('/api/setup/generate-key')
+async def generate_key():
+    try:
+        pub_key, key_path = sentinel_core.generate_rsa_keypair()
+        return {'success': True, 'public_key': pub_key, 'key_path': key_path}
+    except Exception as e:
+        return {'success': False, 'message': str(e)}
+
+@app.post('/api/setup/save')
+async def complete_setup(data: SetupSaveModel):
+    cfg = cfg_mgr.load()
+    cfg['initialized'] = True
+    cfg['provider'] = {
+        'type': data.provider_type,
+        'hook_cmd': data.provider_hook or ''
+    }
+    if data.cf_token:
+        cfg['cloudflare']['api_token'] = data.cf_token
+    if data.cf_zone:
+        cfg['cloudflare']['zone_name'] = data.cf_zone
+    if data.cf_record:
+        cfg['cloudflare']['record_name'] = data.cf_record
+    
+    cfg['monitor']['auto_heal_enabled'] = data.auto_heal
+    
+    # If OCI config provided
+    if data.provider_type == 'oracle' and data.oci_config_text:
+        key_path = data.oci_key_path or '/root/.oci/oci_api_key.pem'
+        try:
+            cfg_path = sentinel_core.save_oci_config(data.oci_config_text, key_path)
+            cfg['oci']['config_path'] = cfg_path
+            cfg['oci']['auth_method'] = 'config_file'
+        except Exception as e:
+            logger.warning(f"Error saving OCI config: {e}")
+
+    if data.notifications:
+        cfg['notifications'] = data.notifications
+
+    cfg_mgr.save(cfg)
+
+    # Optionally provision 3x-ui inbounds
+    if data.provision_nodes and data.cf_record:
+        try:
+            script_path = os.path.join(BASE_DIR, 'scripts')
+            if script_path not in sys.path:
+                sys.path.insert(0, script_path)
+            import node_provisioner
+            node_provisioner.provision_nodes(domain=data.cf_record)
+        except Exception as e:
+            logger.warning(f"Auto-provision nodes warning: {e}")
+
+    await broadcast_log('🎉 Web 初始化向导配置已完成，Sentinel 引擎已全面接管自愈守护！', 'INFO')
+    return {'success': True, 'message': 'Setup completed successfully'}
+
 # --- Subscription Engine Endpoints ---
 
 @app.get('/sub/clash')

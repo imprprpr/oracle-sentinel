@@ -487,6 +487,20 @@ class CloudflareManager:
         except Exception as e:
             return False, str(e)
 
+    def list_zones(self):
+        if not self.api_token:
+            return False, [], 'API Token is empty'
+        try:
+            r = requests.get('https://api.cloudflare.com/client/v4/zones?status=active', headers=self.headers, timeout=6)
+            res = r.json()
+            if res.get('success'):
+                zones = [{'id': z['id'], 'name': z['name']} for z in res.get('result', [])]
+                return True, zones, 'Zones retrieved successfully'
+            errors = res.get('errors', [{}])[0].get('message', 'Failed to retrieve zones')
+            return False, [], errors
+        except Exception as e:
+            return False, [], str(e)
+
     def update_dns_record(self, record_name='', new_ip=None):
         if not self.api_token:
             raise ValueError('Cloudflare API Token not configured')
@@ -540,6 +554,43 @@ class CloudflareManager:
         
         logger.info(f'Cloudflare DNS updated: {record_name} -> {new_ip}')
         return True
+
+def generate_rsa_keypair(key_dir="/root/.oci"):
+    os.makedirs(key_dir, exist_ok=True)
+    key_path = os.path.join(key_dir, "oci_api_key.pem")
+    pub_path = os.path.join(key_dir, "oci_api_key_public.pem")
+
+    res = subprocess.run(
+        f"openssl genrsa -out {key_path} 2048 && chmod 600 {key_path} && openssl rsa -pubout -in {key_path} -out {pub_path}",
+        shell=True, capture_output=True, text=True
+    )
+    if res.returncode != 0:
+        raise RuntimeError(f"OpenSSL failed: {res.stderr}")
+    
+    with open(pub_path, 'r', encoding='utf-8') as f:
+        pub_content = f.read().strip()
+    return pub_content, key_path
+
+def save_oci_config(raw_config_text, key_path, oci_dir="/root/.oci"):
+    os.makedirs(oci_dir, exist_ok=True)
+    lines = raw_config_text.strip().splitlines()
+    new_lines = []
+    has_key_file = False
+    for l in lines:
+        l_s = l.strip()
+        if l_s.startswith("key_file="):
+            new_lines.append(f"key_file={key_path}")
+            has_key_file = True
+        elif l_s:
+            new_lines.append(l_s)
+    if not has_key_file:
+        new_lines.append(f"key_file={key_path}")
+    
+    cfg_file = os.path.join(oci_dir, "config")
+    with open(cfg_file, 'w', encoding='utf-8') as f:
+        f.write("\n".join(new_lines) + "\n")
+    os.chmod(cfg_file, 0o600)
+    return cfg_file
 
 if __name__ == '__main__':
     info = get_cloud_info()

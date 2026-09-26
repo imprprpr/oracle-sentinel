@@ -5,6 +5,26 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-09-26
+
+### 🧙‍♂️ Web First-Time Setup Wizard (Web 可视化开箱向导)
+- **Zero-CLI Web Onboarding Stepper (`static/index.html`)**:
+  - Implements a responsive 6-step dark-mode setup wizard dialog triggered automatically on unconfigured instances.
+  - Step 1: **Host Diagnostics** - Real-time inspection of hypervisor, provider, architecture, and IPv4.
+  - Step 2: **Operation Mode** - Choose between Oracle Cloud (OCI Re-IP), Generic VPS (monitoring & alerts), or Custom Hook scripts. Includes 1-click 2048-bit RSA keypair generation right in the browser.
+  - Step 3: **Cloudflare DNS Integration** - Interactive token verification with live domain (Zone) auto-discovery and preview.
+  - Step 4: **3x-ui Golden Inbounds Provisioning** - Optional 1-click injection of VLESS-Reality, Hysteria 2 (with port hopping), and Trojan-TLS into SQLite DB.
+  - Step 5: **Multi-Channel Alert Dispatcher** - Live configuration and in-wizard instant push testing for Telegram, Discord, and Bark.
+  - Step 6: **Review & Instant Deployment** - One-click save and auto-refresh into healthy monitoring state.
+- **Backend Setup APIs (`app.py` & `sentinel_core.py`)**:
+  - `GET /api/setup/status`: Retrieves initialization state, detected cloud info, and public IP.
+  - `POST /api/setup/verify-cf`: Calls Cloudflare API `/client/v4/zones` to validate tokens and dynamically list active domains.
+  - `POST /api/setup/generate-key`: Generates standard 2048-bit RSA key pairs with pure standard library / cryptography.
+  - `POST /api/setup/save`: Atomic persistent update of `config.json`, OCI credentials, and optional node provisioning.
+- **Re-run Wizard Entry**: Added "重新运行 Web 部署向导 🚀" button in the Settings modal for effortless reconfiguration anytime.
+
+---
+
 ## [2.0.0] - 2026-09-26
 
 ### 🌐 Universal Multi-Cloud & Cross-Distro Expansion (泛用性多云与通用 VPS 演进)

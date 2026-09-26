@@ -156,18 +156,38 @@ flowchart TB
 
 ---
 
-## 🚀 极速部署
+### 方式一：Web 首次启动可视化配置向导（极力推荐，小白零门槛）
 
-### 方式一：全自动极简交互式安装向导（极力推荐）
+服务安装启动后，直接在浏览器中打开：
+```text
+http://<你的服务器IP>:20540/
+```
+首次访问时，系统将**全自动弹窗启动 6 步配置向导 (Web Onboarding Stepper)**，无需进入 SSH 敲命令，直接在现代感暗黑控制台中完成所有初始化工作：
 
-脚本自动识别 Linux 发行版与包管理器（完美支持 Ubuntu/Debian `apt`、RHEL/CentOS/Fedora/AlmaLinux `dnf/yum` 以及 Arch Linux `pacman`），一键搞定底层环境、多云模式选择、多通道告警、BBR、防火墙及证书签发：
+1. **宿主环境智能体检**：自动识别云厂商（Oracle / AWS / 搬瓦工 / 腾讯云等）、CPU 架构（`x86_64` / `aarch64`）与公网 IPv4；
+2. **运行模式自适应**：
+   - **Oracle Cloud 模式**：点击按钮**一键生成 2048 位 RSA 密钥对**并在线打印公钥，直接粘贴甲骨文后台配置；
+   - **通用 VPS 模式**：适用于搬瓦工、RackNerd、Hetzner、阿里云等普通 VPS，免去繁复 API，专注国内多探针监控、阻断告警与全能订阅；
+   - **自定义 Hook 脚本模式**：高级玩家可指定自定义更换 IP 脚本命令；
+3. **Cloudflare 域名秒级联动**：填入 API Token 点击“验证”，系统**自动在线拉取您名下的所有域名**供下拉选择，彻底杜绝手工拼写错误，实时预览解析记录；
+4. **3x-ui 黄金出海节点一键入库**：自动向数据库注入 VLESS-Reality (:8443)、Hysteria 2 (:443 端口跳跃) 与 Trojan (:2083)，开箱即用；
+5. **多渠道告警中心**：在线配置 Telegram、Discord 或 Bark，并可**现场点击“发送测试推送 🔔”**，手机立即接收排版卡片；
+6. **一键启动守护**：点击保存后，Sentinel 自愈守护引擎即刻进入工作状态！
+
+> 💡 **提示**：如果后续需要更改配置，随时可以在 Web 控制台右上角的【设置】面板中点击 **“重新运行 Web 部署向导 🚀”** 重新进入。
+
+---
+
+### 方式二：全自动极简交互式安装向导（终端 SSH 用户推荐）
+
+如果您更习惯在终端直接完成配置，一键执行安装脚本：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scripts/install.sh | sudo bash
 ```
 
 > [!TIP]
-> **交互式向导（Setup Wizard）自动完成的任务**：
+> **终端向导（CLI Setup Wizard）自动完成的任务**：
 > 1. **全平台宿主识别与模式选择**：自动探测当前云厂商，支持甲骨文云（OCI 换 IP）、通用 VPS（搬瓦工/RackNerd/Hetzner 监控告警）与自定义 Hook 模式；
 > 2. **自动放通底层防火墙阻断**：清理严苛的 iptables 规则，适配 UFW / firewalld，一键开启 Linux 原生 BBR 加速；
 > 3. **自动配置 Hysteria 2 端口跳跃**：内核级 NAT 重定向（`UDP 20000:40000 -> 443`）；
@@ -177,14 +197,14 @@ curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scrip
 > 7. **3x-ui 黄金主力节点一键注入**：自动生成 X25519 密钥对，一键向数据库写入 VLESS-Reality (:8443)、Hysteria 2 (:443 端口跳跃) 与 Trojan (:2083)，装完即出海！
 > 8. **多渠道即时阻断告警中枢**：一键绑定 Telegram Bot、Discord Webhook 或 Bark，节点遭受阻断/自愈秒级推送卡片！
 
-随时重新运行向导：
+随时在终端重新运行向导：
 ```bash
 sudo python3 /opt/oracle-sentinel/scripts/wizard.py
 ```
 
 ---
 
-### 方式二：手动分步安装
+### 方式三：手动分步安装
 
 ```bash
 # 1. 切换至管理员权限并克隆仓库

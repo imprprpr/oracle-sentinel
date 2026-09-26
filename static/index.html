@@ -582,10 +582,306 @@
 
       </div>
 
-      <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
-        <button class="btn-neutral" onclick="closeSettings()">取消</button>
-        <button class="btn-primary" onclick="saveSettings()">保存配置</button>
+      <div class="flex items-center justify-between pt-3 border-t border-zinc-800">
+        <button class="btn-neutral text-xs" onclick="closeSettings(); openSetupWizard();">
+          <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          <span>重新运行 Web 部署向导 🚀</span>
+        </button>
+        <div class="flex gap-2">
+          <button class="btn-neutral" onclick="closeSettings()">取消</button>
+          <button class="btn-primary" onclick="saveSettings()">保存配置</button>
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Web First-Time Setup Wizard Modal -->
+  <div class="modal-overlay" id="setup-wizard-modal">
+    <div class="card max-w-2xl w-full p-6 sm:p-8 m-4 space-y-6 max-h-[92vh] flex flex-col justify-between">
+      
+      <!-- Wizard Header & Progress -->
+      <div>
+        <div class="flex items-center justify-between pb-3 border-b border-zinc-800">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            </div>
+            <div>
+              <h2 class="text-sm font-semibold text-white tracking-tight">Universal Sentinel 初始化配置向导</h2>
+              <div class="text-[11px] text-zinc-500" id="wiz-step-indicator">步骤 1 / 6 • 宿主环境体检</div>
+            </div>
+          </div>
+          <button class="text-zinc-500 hover:text-white text-lg p-1" onclick="closeSetupWizard()">&times;</button>
+        </div>
+
+        <!-- Stepper Bar -->
+        <div class="w-full bg-zinc-900 h-1.5 rounded-full mt-4 overflow-hidden">
+          <div id="wiz-progress-bar" class="bg-blue-600 h-full transition-all duration-300" style="width: 16.66%;"></div>
+        </div>
+      </div>
+
+      <!-- Wizard Step Content Panels -->
+      <div class="flex-1 overflow-y-auto pr-1 py-2">
+        
+        <!-- STEP 1: Environment Check -->
+        <div id="wiz-step-1" class="space-y-4">
+          <div class="space-y-1">
+            <h3 class="text-sm font-medium text-white">🌐 宿主机硬件与云端环境智能体检</h3>
+            <p class="text-xs text-zinc-400">系统已自动识别当前服务器底层架构及网络环境：</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 space-y-1">
+              <div class="text-[11px] text-zinc-500">检测云服务商</div>
+              <div class="text-xs font-semibold text-emerald-400 font-mono" id="wiz-detected-provider">Detecting...</div>
+            </div>
+            <div class="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 space-y-1">
+              <div class="text-[11px] text-zinc-500">底层 CPU 架构</div>
+              <div class="text-xs font-semibold text-blue-400 font-mono" id="wiz-detected-arch">Detecting...</div>
+            </div>
+            <div class="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 space-y-1">
+              <div class="text-[11px] text-zinc-500">公网 IPv4 地址</div>
+              <div class="text-xs font-semibold text-purple-400 font-mono privacy-blur" onclick="togglePrivacy(this)" id="wiz-detected-ip">Detecting...</div>
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-lg bg-blue-950/20 border border-blue-900/30 text-xs text-zinc-300 space-y-1.5 leading-relaxed">
+            <div class="font-medium text-blue-400 flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>云原生自适应架构就绪</span>
+            </div>
+            <p class="text-[11px] text-zinc-400">无论是甲骨文云、搬瓦工、RackNerd、Hetzner 还是阿里云/腾讯云，Sentinel 均已准备好为您提供高频阻断探针、多协议客户端智能订阅与即时告警中枢。</p>
+          </div>
+        </div>
+
+        <!-- STEP 2: Operation Mode Selection -->
+        <div id="wiz-step-2" class="space-y-4 hidden">
+          <div class="space-y-1">
+            <h3 class="text-sm font-medium text-white">⚙️ 选择自愈与监控运行模式</h3>
+            <p class="text-xs text-zinc-400">根据当前 VPS 提供商的能力，选择最适合的自愈策略：</p>
+          </div>
+
+          <div class="space-y-2.5 text-xs">
+            <label class="flex items-start gap-3 p-3.5 rounded-lg bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all">
+              <input type="radio" name="wiz-mode" value="oracle" class="mt-0.5 text-blue-600 bg-zinc-900 border-zinc-700" onchange="onWizModeChange()">
+              <div class="space-y-1">
+                <div class="font-medium text-white flex items-center gap-2">
+                  <span>Oracle Cloud (甲骨文云) 涅槃自愈</span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">OCI API 换 IP</span>
+                </div>
+                <p class="text-zinc-400 text-[11px] leading-relaxed">遭遇 GFW 阻断后，自动调用 OCI 官方 API 释放被封 IP 并秒级重新绑定干净公网 IP，联动 Cloudflare 刷新解析。</p>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 p-3.5 rounded-lg bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all">
+              <input type="radio" name="wiz-mode" value="generic" checked class="mt-0.5 text-blue-600 bg-zinc-900 border-zinc-700" onchange="onWizModeChange()">
+              <div class="space-y-1">
+                <div class="font-medium text-white flex items-center gap-2">
+                  <span>通用 VPS 模式 (Generic VPS)</span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">推荐广大普通 VPS</span>
+                </div>
+                <p class="text-zinc-400 text-[11px] leading-relaxed">适用于搬瓦工、RackNerd、Hetzner、AWS、阿里云、腾讯云等。免去任何 API 凭据，开启国内高频探针巡检、多渠道阻断告警与多协议订阅聚合。</p>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 p-3.5 rounded-lg bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all">
+              <input type="radio" name="wiz-mode" value="hook" class="mt-0.5 text-blue-600 bg-zinc-900 border-zinc-700" onchange="onWizModeChange()">
+              <div class="space-y-1">
+                <div class="font-medium text-white flex items-center gap-2">
+                  <span>自定义 Hook 脚本模式 (Custom Script)</span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">高级扩展</span>
+                </div>
+                <p class="text-zinc-400 text-[11px] leading-relaxed">遭受阻断后，执行宿主机上的自定义 Shell 脚本调用云服务商 API 进行重置 IP 动作。</p>
+              </div>
+            </label>
+          </div>
+
+          <!-- OCI Extra Section -->
+          <div id="wiz-oci-fields" class="p-3.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-3 hidden">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-zinc-300">甲骨文 RSA API 凭据配置</span>
+              <button class="btn-neutral text-[11px] py-1" onclick="wizGenerateRSA()">一键生成 2048 位密钥对 🔑</button>
+            </div>
+            <div id="wiz-rsa-pub-box" class="hidden space-y-1.5">
+              <div class="text-[11px] text-zinc-400">请将以下公钥复制并粘贴在甲骨文后台【用户设置 -> API 密钥】中：</div>
+              <textarea id="wiz-rsa-pub-text" readonly class="w-full bg-black/60 border border-zinc-800 rounded p-2 text-zinc-300 font-mono text-[10px] h-20 select-all"></textarea>
+            </div>
+            <div class="space-y-1">
+              <label class="block text-[11px] text-zinc-400">粘贴甲骨文网页弹出的配置文本 (包含 user=, tenancy= 等)：</label>
+              <textarea id="wiz-oci-config-text" class="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-200 font-mono text-[11px] h-24" placeholder="[DEFAULT]&#10;user=ocid1.user.oc1...&#10;fingerprint=xx:xx...&#10;tenancy=ocid1.tenancy...&#10;region=us-phoenix-1"></textarea>
+            </div>
+          </div>
+
+          <!-- Hook Extra Section -->
+          <div id="wiz-hook-fields" class="p-3.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-2 hidden text-xs">
+            <label class="block text-zinc-300 font-medium">触发换 IP 的脚本路径或 Shell 命令</label>
+            <input type="text" id="wiz-hook-cmd" class="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono text-xs" placeholder="/usr/local/bin/change_ip.sh">
+          </div>
+        </div>
+
+        <!-- STEP 3: Cloudflare DNS Integration -->
+        <div id="wiz-step-3" class="space-y-4 hidden">
+          <div class="space-y-1">
+            <h3 class="text-sm font-medium text-white">☁️ Cloudflare 自动化域名解析联动</h3>
+            <p class="text-xs text-zinc-400">换 IP 后自动秒级刷新 A 记录，彻底摆脱人工修改解析：</p>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block text-zinc-400 mb-1">Cloudflare API Token (需具备 DNS 编辑权限)</label>
+              <div class="flex gap-2">
+                <input type="password" id="wiz-cf-token" class="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" placeholder="输入 cfut_ 开头的 API Token">
+                <button class="btn-neutral shrink-0" onclick="wizFetchZones()" id="wiz-btn-fetch-zones">验证并拉取域名</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-zinc-400 mb-1">托管主域名 (Zone)</label>
+                <select id="wiz-cf-zone-select" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" onchange="wizUpdatePreviewRecord()">
+                  <option value="">-- 请先验证 Token 拉取域名 --</option>
+                </select>
+                <input type="text" id="wiz-cf-zone-manual" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 mt-1 hidden" placeholder="或手动输入 example.com" oninput="wizUpdatePreviewRecord()">
+              </div>
+              <div>
+                <label class="block text-zinc-400 mb-1">解析主机前缀</label>
+                <input type="text" id="wiz-cf-subdomain" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" value="vps" oninput="wizUpdatePreviewRecord()">
+              </div>
+            </div>
+
+            <div class="p-2.5 rounded bg-zinc-900/60 border border-zinc-800 text-[11px] text-zinc-400 flex items-center justify-between">
+              <span>完整解析域名预览：</span>
+              <span class="font-mono text-blue-400 font-semibold" id="wiz-preview-record">vps.example.com</span>
+            </div>
+
+            <div class="pt-1">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="wiz-auto-heal-enable" checked class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+                <span class="text-zinc-300 font-medium">开启 GFW 阻断连续超标全自动自愈与换 IP</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4: Golden Inbounds Provisioning -->
+        <div id="wiz-step-4" class="space-y-4 hidden">
+          <div class="space-y-1">
+            <h3 class="text-sm font-medium text-white">🚀 3x-ui 黄金三大出海节点自动入库</h3>
+            <p class="text-xs text-zinc-400">无需在 3x-ui 手工逐个添加入站，自动向 SQLite 数据库预置精调参数节点：</p>
+          </div>
+
+          <div class="p-3.5 rounded-lg bg-zinc-900/60 border border-zinc-800 space-y-3 text-xs">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="font-medium text-white">自动灌入『黄金三剑客』出海节点全家桶</span>
+              <input type="checkbox" id="wiz-provision-nodes" checked class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+            </label>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] pt-1">
+              <div class="p-2.5 rounded bg-zinc-950 border border-zinc-800/80 space-y-1">
+                <div class="font-medium text-emerald-400 font-mono">1. VLESS-Reality</div>
+                <div class="text-zinc-400">端口 8443 (TCP)</div>
+                <div class="text-zinc-500 text-[10px]">自动生成 X25519 密钥对</div>
+              </div>
+              <div class="p-2.5 rounded bg-zinc-950 border border-zinc-800/80 space-y-1">
+                <div class="font-medium text-blue-400 font-mono">2. Hysteria 2</div>
+                <div class="text-zinc-400">端口 443 (UDP)</div>
+                <div class="text-zinc-500 text-[10px]">附带 20000:40000 端口跳跃</div>
+              </div>
+              <div class="p-2.5 rounded bg-zinc-950 border border-zinc-800/80 space-y-1">
+                <div class="font-medium text-purple-400 font-mono">3. Trojan-TLS</div>
+                <div class="text-zinc-400">端口 2083 (TCP)</div>
+                <div class="text-zinc-500 text-[10px]">绑定域名 SSL 证书与 SNI</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 5: Multi-Channel Notifications -->
+        <div id="wiz-step-5" class="space-y-4 hidden">
+          <div class="space-y-1">
+            <h3 class="text-sm font-medium text-white">📢 多渠道即时阻断告警中枢配置</h3>
+            <p class="text-xs text-zinc-400">当节点遭受阻断、触发自愈或换 IP 完成时，毫秒级推送卡片至管理员手机：</p>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="wiz-notify-enable" checked class="rounded bg-zinc-900 border-zinc-700 text-blue-600" onchange="wizToggleNotify()">
+                <span class="text-zinc-200 font-medium">启用阻断与自愈告警通知</span>
+              </label>
+              <button class="btn-neutral text-[11px] py-1" onclick="wizTestNotify()">现场发送测试推送 🔔</button>
+            </div>
+
+            <div id="wiz-notify-inputs" class="space-y-3 pl-2.5 border-l-2 border-zinc-800">
+              <div class="space-y-1.5">
+                <label class="flex items-center gap-1.5 text-zinc-300">
+                  <input type="checkbox" id="wiz-tg-enable" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+                  <span>Telegram Bot 推送</span>
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input type="password" id="wiz-tg-token" class="bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" placeholder="Bot Token (如 123456:ABC...)">
+                  <input type="text" id="wiz-tg-chat" class="bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" placeholder="Chat ID (个人或群组)">
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="flex items-center gap-1.5 text-zinc-300">
+                  <input type="checkbox" id="wiz-discord-enable" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+                  <span>Discord 频道 Webhook</span>
+                </label>
+                <input type="password" id="wiz-discord-webhook" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" placeholder="https://discord.com/api/webhooks/...">
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="flex items-center gap-1.5 text-zinc-300">
+                  <input type="checkbox" id="wiz-bark-enable" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+                  <span>Bark (iOS 原生手机推送)</span>
+                </label>
+                <input type="password" id="wiz-bark-key" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" placeholder="Bark Device Key">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 6: Complete & Launch -->
+        <div id="wiz-step-6" class="space-y-4 hidden">
+          <div class="space-y-1">
+            <h3 class="text-sm font-medium text-white">🎉 恭喜！各项准备工作已就绪</h3>
+            <p class="text-xs text-zinc-400">点击下方按钮保存配置并启动 Universal Sentinel 自愈守卫：</p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2.5 text-xs">
+            <div class="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+              <span class="text-zinc-400">选定运行模式</span>
+              <span class="font-medium text-white font-mono" id="wiz-summary-mode">Generic VPS</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+              <span class="text-zinc-400">绑定解析域名</span>
+              <span class="font-medium text-blue-400 font-mono" id="wiz-summary-record">vps.example.com</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+              <span class="text-zinc-400">3x-ui 节点注入</span>
+              <span class="font-medium text-emerald-400" id="wiz-summary-nodes">开启</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-zinc-400">告警通知渠道</span>
+              <span class="font-medium text-purple-400" id="wiz-summary-notify">已配置</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Wizard Navigation Buttons -->
+      <div class="flex items-center justify-between pt-4 border-t border-zinc-800">
+        <button id="wiz-btn-prev" class="btn-neutral text-xs" onclick="wizPrevStep()" style="display: none;">← 上一步</button>
+        <div class="flex items-center gap-2 ml-auto">
+          <button id="wiz-btn-skip" class="btn-neutral text-xs text-zinc-400 hover:text-zinc-200" onclick="closeSetupWizard()">跳过向导</button>
+          <button id="wiz-btn-next" class="btn-primary text-xs" onclick="wizNextStep()">下一步：选择运行模式 →</button>
+          <button id="wiz-btn-finish" class="btn-primary text-xs bg-emerald-600 hover:bg-emerald-500 border-emerald-500 hidden" onclick="wizFinishSetup()">立即启动自愈中枢 🚀</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1121,8 +1417,348 @@
       }
     }
 
+    // --- Web First-Time Setup Wizard Controller ---
+    let currentWizStep = 1;
+    let wizGeneratedKeyPath = '';
+    const wizStepTitles = [
+      '宿主环境体检',
+      '运行模式选择',
+      'Cloudflare 联动',
+      '3x-ui 节点入库',
+      '告警通知中枢',
+      '完成并启动自愈'
+    ];
+
+    async function checkFirstRun() {
+      try {
+        const res = await fetch('/api/setup/status');
+        const data = await res.json();
+        if (data && data.initialized === false) {
+          openSetupWizard(data);
+        }
+      } catch (e) {
+        console.warn('Failed to check first run status:', e);
+      }
+    }
+
+    async function openSetupWizard(preloadedData) {
+      currentWizStep = 1;
+      const modal = document.getElementById('setup-wizard-modal');
+      if (modal) modal.classList.add('active');
+      wizUpdateUI();
+
+      try {
+        const data = preloadedData || await (await fetch('/api/setup/status')).json();
+        if (data) {
+          const prov = data.cloud_info?.provider || 'Generic Linux VPS';
+          const arch = data.cloud_info?.arch || 'x86_64';
+          const ip = data.public_ip || 'Unknown';
+          
+          const provEl = document.getElementById('wiz-detected-provider');
+          if (provEl) provEl.innerText = prov.toUpperCase();
+          const archEl = document.getElementById('wiz-detected-arch');
+          if (archEl) archEl.innerText = arch;
+          const ipEl = document.getElementById('wiz-detected-ip');
+          if (ipEl) ipEl.innerText = ip;
+
+          if (prov.toLowerCase().includes('oracle')) {
+            const rOracle = document.querySelector('input[name="wiz-mode"][value="oracle"]');
+            if (rOracle) rOracle.checked = true;
+          } else {
+            const rGen = document.querySelector('input[name="wiz-mode"][value="generic"]');
+            if (rGen) rGen.checked = true;
+          }
+          onWizModeChange();
+
+          if (data.config?.cloudflare?.zone_name) {
+            const zSel = document.getElementById('wiz-cf-zone-select');
+            zSel.innerHTML = `<option value="${data.config.cloudflare.zone_name}">${data.config.cloudflare.zone_name}</option>`;
+          }
+          if (data.config?.cloudflare?.record_name) {
+            const sub = data.config.cloudflare.record_name.split('.')[0] || 'vps';
+            document.getElementById('wiz-cf-subdomain').value = sub;
+          }
+          wizUpdatePreviewRecord();
+
+          if (data.config?.notifications) {
+            const n = data.config.notifications;
+            if (n.telegram?.bot_token) {
+              document.getElementById('wiz-tg-enable').checked = !!n.telegram.enabled;
+              document.getElementById('wiz-tg-token').value = n.telegram.bot_token;
+              document.getElementById('wiz-tg-chat').value = n.telegram.chat_id || '';
+            }
+            if (n.discord?.webhook_url) {
+              document.getElementById('wiz-discord-enable').checked = !!n.discord.enabled;
+              document.getElementById('wiz-discord-webhook').value = n.discord.webhook_url;
+            }
+            if (n.bark?.device_key) {
+              document.getElementById('wiz-bark-enable').checked = !!n.bark.enabled;
+              document.getElementById('wiz-bark-key').value = n.bark.device_key;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Wizard status fetch error:', err);
+      }
+    }
+
+    function closeSetupWizard() {
+      const modal = document.getElementById('setup-wizard-modal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function onWizModeChange() {
+      const selected = document.querySelector('input[name="wiz-mode"]:checked')?.value || 'generic';
+      const ociFields = document.getElementById('wiz-oci-fields');
+      const hookFields = document.getElementById('wiz-hook-fields');
+      if (ociFields) {
+        if (selected === 'oracle') ociFields.classList.remove('hidden');
+        else ociFields.classList.add('hidden');
+      }
+      if (hookFields) {
+        if (selected === 'hook') hookFields.classList.remove('hidden');
+        else hookFields.classList.add('hidden');
+      }
+    }
+
+    async function wizGenerateRSA() {
+      try {
+        const res = await fetch('/api/setup/generate-key', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          wizGeneratedKeyPath = data.key_path;
+          document.getElementById('wiz-rsa-pub-text').value = data.public_key;
+          document.getElementById('wiz-rsa-pub-box').classList.remove('hidden');
+          alert('🔑 RSA 密钥对生成成功！\n请将生成的公钥复制粘贴到 Oracle Cloud 控制台的【API 密钥】中。');
+        } else {
+          alert('生成密钥失败: ' + (data.message || '未知错误'));
+        }
+      } catch (e) {
+        alert('生成密钥请求异常: ' + e.message);
+      }
+    }
+
+    async function wizFetchZones() {
+      const token = document.getElementById('wiz-cf-token').value.trim();
+      if (!token) {
+        alert('请输入 Cloudflare API Token！');
+        return;
+      }
+      const btn = document.getElementById('wiz-btn-fetch-zones');
+      if (btn) { btn.innerText = '正在验证...'; btn.disabled = true; }
+
+      try {
+        const res = await fetch('/api/setup/verify-cf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token })
+        });
+        const data = await res.json();
+        if (data.success && data.zones && data.zones.length > 0) {
+          const sel = document.getElementById('wiz-cf-zone-select');
+          sel.innerHTML = data.zones.map(z => `<option value="${z.name}">${z.name}</option>`).join('');
+          document.getElementById('wiz-cf-zone-manual').classList.add('hidden');
+          wizUpdatePreviewRecord();
+          alert(`✅ 成功拉取到 ${data.zones.length} 个 Cloudflare 域名！`);
+        } else {
+          alert('拉取域名提示: ' + (data.message || '未找到域名，您可以手动输入'));
+          document.getElementById('wiz-cf-zone-manual').classList.remove('hidden');
+        }
+      } catch (e) {
+        alert('验证 Cloudflare Token 异常: ' + e.message);
+        document.getElementById('wiz-cf-zone-manual').classList.remove('hidden');
+      } finally {
+        if (btn) { btn.innerText = '验证并拉取域名'; btn.disabled = false; }
+      }
+    }
+
+    function wizUpdatePreviewRecord() {
+      const sub = (document.getElementById('wiz-cf-subdomain')?.value || '').trim();
+      const zSel = document.getElementById('wiz-cf-zone-select')?.value || '';
+      const zMan = (document.getElementById('wiz-cf-zone-manual')?.value || '').trim();
+      const zone = zSel || zMan || 'example.com';
+      const full = sub ? `${sub}.${zone}` : zone;
+      const prevEl = document.getElementById('wiz-preview-record');
+      if (prevEl) prevEl.innerText = full;
+    }
+
+    function wizToggleNotify() {
+      const enabled = document.getElementById('wiz-notify-enable')?.checked;
+      const box = document.getElementById('wiz-notify-inputs');
+      if (box) {
+        if (enabled) box.classList.remove('opacity-40', 'pointer-events-none');
+        else box.classList.add('opacity-40', 'pointer-events-none');
+      }
+    }
+
+    async function wizTestNotify() {
+      const notifyCfg = {
+        enabled: document.getElementById('wiz-notify-enable')?.checked,
+        telegram: {
+          enabled: document.getElementById('wiz-tg-enable')?.checked,
+          bot_token: document.getElementById('wiz-tg-token')?.value.trim(),
+          chat_id: document.getElementById('wiz-tg-chat')?.value.trim()
+        },
+        discord: {
+          enabled: document.getElementById('wiz-discord-enable')?.checked,
+          webhook_url: document.getElementById('wiz-discord-webhook')?.value.trim()
+        },
+        bark: {
+          enabled: document.getElementById('wiz-bark-enable')?.checked,
+          device_key: document.getElementById('wiz-bark-key')?.value.trim()
+        }
+      };
+
+      try {
+        const res = await fetch('/api/notifications/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notifications: notifyCfg })
+        });
+        const data = await res.json();
+        alert('📢 告警测试结果:\n' + JSON.stringify(data.results, null, 2));
+      } catch (e) {
+        alert('测试推送请求失败: ' + e.message);
+      }
+    }
+
+    function wizNextStep() {
+      if (currentWizStep < 6) {
+        currentWizStep++;
+        wizUpdateUI();
+      }
+    }
+
+    function wizPrevStep() {
+      if (currentWizStep > 1) {
+        currentWizStep--;
+        wizUpdateUI();
+      }
+    }
+
+    function wizUpdateUI() {
+      const ind = document.getElementById('wiz-step-indicator');
+      if (ind) ind.innerText = `步骤 ${currentWizStep} / 6 • ${wizStepTitles[currentWizStep - 1]}`;
+
+      const bar = document.getElementById('wiz-progress-bar');
+      if (bar) bar.style.width = `${(currentWizStep / 6) * 100}%`;
+
+      for (let i = 1; i <= 6; i++) {
+        const p = document.getElementById(`wiz-step-${i}`);
+        if (p) {
+          if (i === currentWizStep) p.classList.remove('hidden');
+          else p.classList.add('hidden');
+        }
+      }
+
+      const btnPrev = document.getElementById('wiz-btn-prev');
+      if (btnPrev) {
+        btnPrev.style.display = currentWizStep > 1 ? 'inline-flex' : 'none';
+      }
+
+      const btnNext = document.getElementById('wiz-btn-next');
+      const btnFinish = document.getElementById('wiz-btn-finish');
+      if (currentWizStep === 6) {
+        if (btnNext) btnNext.classList.add('hidden');
+        if (btnFinish) btnFinish.classList.remove('hidden');
+
+        const mode = document.querySelector('input[name="wiz-mode"]:checked')?.value || 'generic';
+        const sub = (document.getElementById('wiz-cf-subdomain')?.value || '').trim();
+        const zSel = document.getElementById('wiz-cf-zone-select')?.value || '';
+        const zMan = (document.getElementById('wiz-cf-zone-manual')?.value || '').trim();
+        const zone = zSel || zMan;
+        const fullDomain = zone ? (sub ? `${sub}.${zone}` : zone) : '未绑定';
+
+        document.getElementById('wiz-summary-mode').innerText = mode.toUpperCase();
+        document.getElementById('wiz-summary-record').innerText = fullDomain;
+        document.getElementById('wiz-summary-nodes').innerText = document.getElementById('wiz-provision-nodes')?.checked ? '开启 (3x-ui 黄金入站)' : '跳过';
+        
+        const notifyOn = document.getElementById('wiz-notify-enable')?.checked;
+        const tgOn = document.getElementById('wiz-tg-enable')?.checked;
+        const dcOn = document.getElementById('wiz-discord-enable')?.checked;
+        const bkOn = document.getElementById('wiz-bark-enable')?.checked;
+        const channels = [];
+        if (tgOn) channels.push('TG');
+        if (dcOn) channels.push('Discord');
+        if (bkOn) channels.push('Bark');
+        document.getElementById('wiz-summary-notify').innerText = notifyOn ? (channels.length ? `已启用 (${channels.join(', ')})` : '已开启') : '已禁用';
+      } else {
+        if (btnNext) {
+          btnNext.classList.remove('hidden');
+          btnNext.innerText = `下一步：${wizStepTitles[currentWizStep]} →`;
+        }
+        if (btnFinish) btnFinish.classList.add('hidden');
+      }
+    }
+
+    async function wizFinishSetup() {
+      const btn = document.getElementById('wiz-btn-finish');
+      if (btn) { btn.innerText = '正在保存并初始化系统...'; btn.disabled = true; }
+
+      const mode = document.querySelector('input[name="wiz-mode"]:checked')?.value || 'generic';
+      const ociConfigText = document.getElementById('wiz-oci-config-text')?.value || '';
+      const hookCmd = document.getElementById('wiz-hook-cmd')?.value.trim() || '';
+      const cfToken = document.getElementById('wiz-cf-token')?.value.trim() || '';
+      const zSel = document.getElementById('wiz-cf-zone-select')?.value || '';
+      const zMan = (document.getElementById('wiz-cf-zone-manual')?.value || '').trim();
+      const cfZone = zSel || zMan || '';
+      const cfSub = (document.getElementById('wiz-cf-subdomain')?.value || '').trim();
+      const cfRecord = cfZone ? (cfSub ? `${cfSub}.${cfZone}` : cfZone) : '';
+      const autoHeal = document.getElementById('wiz-auto-heal-enable')?.checked ?? true;
+      const provNodes = document.getElementById('wiz-provision-nodes')?.checked ?? true;
+
+      const payload = {
+        provider_type: mode,
+        provider_hook: hookCmd,
+        oci_config_text: ociConfigText,
+        oci_key_path: wizGeneratedKeyPath,
+        cf_token: cfToken,
+        cf_zone: cfZone,
+        cf_record: cfRecord,
+        auto_heal: autoHeal,
+        provision_nodes: provNodes,
+        notifications: {
+          enabled: document.getElementById('wiz-notify-enable')?.checked ?? true,
+          telegram: {
+            enabled: document.getElementById('wiz-tg-enable')?.checked ?? false,
+            bot_token: document.getElementById('wiz-tg-token')?.value.trim() || '',
+            chat_id: document.getElementById('wiz-tg-chat')?.value.trim() || ''
+          },
+          discord: {
+            enabled: document.getElementById('wiz-discord-enable')?.checked ?? false,
+            webhook_url: document.getElementById('wiz-discord-webhook')?.value.trim() || ''
+          },
+          bark: {
+            enabled: document.getElementById('wiz-bark-enable')?.checked ?? false,
+            device_key: document.getElementById('wiz-bark-key')?.value.trim() || ''
+          }
+        }
+      };
+
+      try {
+        const res = await fetch('/api/setup/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('🎉 配置已成功保存！Sentinel 自愈守护引擎已启动。');
+          closeSetupWizard();
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          alert('保存配置失败: ' + (data.message || '未知错误'));
+        }
+      } catch (e) {
+        alert('提交配置异常: ' + e.message);
+      } finally {
+        if (btn) { btn.innerText = '立即启动自愈中枢 🚀'; btn.disabled = false; }
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       connectWS();
+      checkFirstRun();
       document.getElementById('sub-url-box').innerText = `${window.location.origin}/sub/clash`;
       const xbtn = document.getElementById('btn-xui-link'); if (xbtn) xbtn.href = 'https://' + window.location.hostname + ':20530/';
       document.getElementById('transit-curl-cmd').innerText = `curl -fsSL ${window.location.origin}/scripts/setup-relay.sh | sudo bash`;
