@@ -1,0 +1,36 @@
+{
+  "cloudflare": {
+    "api_token": "YOUR_CLOUDFLARE_API_TOKEN_HERE",
+    "zone_name": "example.com",
+    "record_name": "vps.example.com"
+  },
+  "oci": {
+    "auth_method": "config_file",
+    "config_path": "/root/.oci/config"
+  },
+  "monitor": {
+    "interval_sec": 15,
+    "loss_threshold": 75.0,
+    "consecutive_failures": 3,
+    "auto_heal_enabled": true
+  },
+  "rules_config": {
+    "adblock": true,
+    "ai_group": true,
+    "media_group": true,
+    "auto_test": true,
+    "direct_cn": true,
+    "hy2_hop": true
+  },
+  "transits": [
+    {
+      "id": "transit_example_01",
+      "name": "国内联通优化中转 (示例)",
+      "host": "relay.example.com",
+      "hy2_port": 20443,
+      "reality_port": 28443,
+      "trojan_port": 22083,
+      "enabled": false
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=Oracle Sentinel - Anti-GFW Auto-Re-IP & Telemetry Control Center
+After=network.target x-ui.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/oracle-sentinel
+EnvironmentFile=-/etc/default/oracle-sentinel
+ExecStart=/opt/oracle-sentinel/venv/bin/python3 -m uvicorn app:app --host 0.0.0.0 --port 20540 --ssl-keyfile /etc/oracle-sentinel/cert/privkey.pem --ssl-certfile /etc/oracle-sentinel/cert/fullchain.pem
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

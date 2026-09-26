@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle Sentinel 控制中枢</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      background-color: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    /* Subtle scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+    .card {
+      background-color: #121215;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .btn-neutral {
+      background-color: #18181b;
+      border: 1px solid #27272a;
+      color: #fafafa;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-neutral:hover {
+      background-color: #27272a;
+      border-color: #3f3f46;
+    }
+    .btn-primary {
+      background-color: #2563eb;
+      border: 1px solid #3b82f6;
+      color: #ffffff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary:hover {
+      background-color: #1d4ed8;
+    }
+    .btn-destructive {
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-destructive:hover {
+      background-color: rgba(239, 68, 68, 0.2);
+    }
+    .nav-tab {
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #a1a1aa;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .nav-tab:hover {
+      color: #fafafa;
+    }
+    .nav-tab.active {
+      color: #fafafa;
+      border-bottom-color: #3b82f6;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    /* Privacy Blur / Mosaic Effect */
+    .privacy-blur {
+      filter: blur(6px);
+      user-select: none;
+      cursor: pointer;
+      transition: filter 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+      display: inline-block;
+      vertical-align: baseline;
+      border-radius: 4px;
+      padding: 0 4px;
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+    .privacy-blur:hover {
+      filter: blur(3px);
+      background-color: rgba(255, 255, 255, 0.08);
+    }
+    .privacy-blur.revealed {
+      filter: none;
+      user-select: text;
+      background-color: transparent;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-[#27272a] bg-[#0c0c0e] px-6 py-3.5 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-sm tracking-tight text-white">Oracle Sentinel</span>
+              <span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">v2.5</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 font-mono">PHX-AD-1 • Linux ARM64</div>
+          </div>
+        </div>
+
+        <nav class="hidden md:flex items-center gap-1 border-l border-zinc-800 pl-6">
+          <div class="nav-tab active" onclick="switchTab('overview')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+            <span>系统概览</span>
+          </div>
+          <div class="nav-tab" onclick="switchTab('rules')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+            <span>订阅与规则中心</span>
+          </div>
+          <div class="nav-tab" onclick="switchTab('transits')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+            <span>链式中转调度</span>
+          </div>
+          <a id="btn-xui-link" href="/panel/" target="_blank" class="nav-tab text-zinc-400 hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+            <span>3x-ui 节点面板</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[11px]" id="status-pill">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="status-text">HEALTHY</span>
+        </div>
+        <button class="btn-destructive" onclick="triggerRebirth()">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <span>触发换 IP 自愈</span>
+        </button>
+        <button class="btn-neutral" onclick="openSettings()">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+    <!-- TAB 1: OVERVIEW -->
+    <div id="tab-overview" class="space-y-6">
+      
+      <!-- Metric Cards Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Public IP -->
+        <div class="card p-4">
+          <div class="flex items-center justify-between text-xs text-zinc-400 mb-2">
+            <span>当前公网 IP</span>
+            <div class="flex items-center gap-2">
+              <button onclick="togglePrivacy(document.getElementById('disp-ip'))" class="text-zinc-500 hover:text-zinc-300 font-mono text-[11px] flex items-center gap-1" title="切换显隐">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              </button>
+              <button onclick="copyText(document.getElementById('disp-ip').innerText)" class="text-zinc-500 hover:text-zinc-300 font-mono text-[11px]">复制</button>
+            </div>
+          </div>
+          <div class="text-lg font-mono font-semibold text-white tracking-tight">
+            <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏" id="disp-ip">--.--.--.--</span>
+          </div>
+          <div class="text-xs text-zinc-400 font-mono mt-1">
+            <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏" id="disp-domain">vps.yourdomain.com</span>
+          </div>
+        </div>
+
+        <!-- China Latency -->
+        <div class="card p-4">
+          <div class="flex items-center justify-between text-xs text-zinc-400 mb-2">
+            <span>国内主干连通度</span>
+            <span class="text-emerald-400 font-mono text-[11px]" id="disp-loss">0% 丢包</span>
+          </div>
+          <div class="text-lg font-mono font-semibold text-white flex items-baseline gap-1">
+            <span id="disp-latency">58.4</span>
+            <span class="text-xs text-zinc-400 font-normal">ms RTT</span>
+          </div>
+          <div class="text-xs text-zinc-400 mt-1">AliDNS / Baidu / Tencent TCP</div>
+        </div>
+
+        <!-- WARP Egress -->
+        <div class="card p-4">
+          <div class="flex items-center justify-between text-xs text-zinc-400 mb-2">
+            <span>WARP 出站解锁</span>
+            <span class="badge bg-emerald-950/60 border border-emerald-600/30 text-emerald-400 text-[10px]">Wireproxy</span>
+          </div>
+          <div class="text-lg font-mono font-semibold text-emerald-400">ACTIVE</div>
+          <div class="text-xs text-zinc-400 font-mono mt-1 flex items-center gap-1.5" id="disp-warp-ip">
+            <span>出口:</span>
+            <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏" id="disp-warp-val">104.28.205.115 (US)</span>
+          </div>
+        </div>
+
+        <!-- Rebirth Stats -->
+        <div class="card p-4">
+          <div class="flex items-center justify-between text-xs text-zinc-400 mb-2">
+            <span>自愈守护状态</span>
+            <span class="font-mono text-zinc-400 text-[11px]" id="disp-guard-status">已就绪</span>
+          </div>
+          <div class="text-lg font-mono font-semibold text-white flex items-baseline gap-1.5">
+            <span id="disp-heal-count">0</span>
+            <span class="text-xs text-zinc-400 font-normal">次自愈记录</span>
+          </div>
+          <div class="text-xs text-zinc-400 mt-1 font-mono" id="disp-last-heal">上次: 从未触发</div>
+        </div>
+      </div>
+
+      <!-- Mid Layout: Proxies Table + System Resource -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Proxies Table (7 cols) -->
+        <div class="lg:col-span-7 card p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+            <div>
+              <h2 class="text-sm font-semibold text-white">现役代理核心 (Proxy Fleet)</h2>
+              <p class="text-xs text-zinc-400 mt-0.5">Xray-core 原生运行节点，守护状态正常</p>
+            </div>
+            <a href="/sub/clash" target="_blank" class="text-xs text-blue-400 hover:underline font-mono">Clash 订阅导出 &rarr;</a>
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between p-3 rounded-md bg-[#161619] border border-zinc-800/80">
+              <div class="space-y-0.5">
+                <div class="text-xs font-semibold text-zinc-200">Oracle-US</div>
+                <div class="text-[11px] text-zinc-400 font-mono">VLESS-Reality • TCP :8443 • swdist.apple.com</div>
+              </div>
+              <span class="badge bg-emerald-950/60 border border-emerald-700/40 text-emerald-400 text-[11px] font-mono">ONLINE</span>
+            </div>
+
+            <div class="flex items-center justify-between p-3 rounded-md bg-[#161619] border border-zinc-800/80">
+              <div class="space-y-0.5">
+                <div class="text-xs font-semibold text-zinc-200">Oracle-Hy2 (端口跳跃)</div>
+                <div class="text-[11px] text-zinc-400 font-mono">Hysteria 2 • UDP :443 (iptables 20000-40000)</div>
+              </div>
+              <span class="badge bg-emerald-950/60 border border-emerald-700/40 text-emerald-400 text-[11px] font-mono">ONLINE</span>
+            </div>
+
+            <div class="flex items-center justify-between p-3 rounded-md bg-[#161619] border border-zinc-800/80">
+              <div class="space-y-0.5">
+                <div class="text-xs font-semibold text-zinc-200">Oracle-Trojan</div>
+                <div class="text-[11px] text-zinc-400 font-mono">Trojan-TLS • TCP :2083 • vps.yourdomain.com</div>
+              </div>
+              <span class="badge bg-emerald-950/60 border border-emerald-700/40 text-emerald-400 text-[11px] font-mono">ONLINE</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hardware & Traffic (5 cols) -->
+        <div class="lg:col-span-5 card p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+            <h2 class="text-sm font-semibold text-white">主机负载与流量</h2>
+            <span class="text-xs text-zinc-400 font-mono" id="disp-uptime">Uptime: --</span>
+          </div>
+
+          <div class="space-y-3.5">
+            <div>
+              <div class="flex justify-between text-xs font-mono text-zinc-400 mb-1.5">
+                <span>CPU 使用率</span>
+                <span class="text-zinc-200" id="disp-cpu">0%</span>
+              </div>
+              <div class="w-full bg-zinc-800/70 h-1.5 rounded-full overflow-hidden">
+                <div class="bg-blue-500 h-full w-0 transition-all duration-300" id="bar-cpu"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-mono text-zinc-400 mb-1.5">
+                <span>内存占用 (RAM)</span>
+                <span class="text-zinc-200" id="disp-mem">0 MB / 0 MB</span>
+              </div>
+              <div class="w-full bg-zinc-800/70 h-1.5 rounded-full overflow-hidden">
+                <div class="bg-indigo-500 h-full w-0 transition-all duration-300" id="bar-mem"></div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs font-mono">
+              <span class="text-zinc-400">实时网络速率</span>
+              <span class="text-zinc-200" id="disp-speed">⬇ 0.0 KB/s  ⬆ 0.0 KB/s</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Live Audit Terminal -->
+      <div class="card p-5 space-y-3">
+        <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-300 font-mono">实时核心审计流 (WebSocket Live Audit)</span>
+          </div>
+          <span class="text-xs text-zinc-400 font-mono">Port 20540 (WSS)</span>
+        </div>
+
+        <div class="bg-[#09090b] rounded border border-zinc-800/80 p-3 h-48 overflow-y-auto font-mono text-xs space-y-1.5 text-zinc-400" id="terminal-box">
+          <div class="text-zinc-600">[--:--:--] Initializing audit event stream...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 2: SUBSCRIPTION & RULES -->
+    <div id="tab-rules" class="hidden space-y-6">
+      
+      <!-- Sub URL Card -->
+      <div class="card p-5 space-y-4">
+        <!-- Platform Switcher Tabs -->
+        <div class="flex flex-wrap items-center gap-1.5 p-1 bg-[#161619] border border-zinc-800 rounded-lg text-xs font-medium">
+          <button class="sub-tab px-3 py-1.5 rounded transition-all bg-zinc-800 text-white shadow-sm" onclick="switchSubTab('clash')">Clash / Mihomo</button>
+          <button class="sub-tab px-3 py-1.5 rounded transition-all text-zinc-400 hover:text-white" onclick="switchSubTab('v2ray')">v2rayN / v2rayNG (Base64)</button>
+          <button class="sub-tab px-3 py-1.5 rounded transition-all text-zinc-400 hover:text-white" onclick="switchSubTab('singbox')">Sing-box (JSON)</button>
+          <button class="sub-tab px-3 py-1.5 rounded transition-all text-zinc-400 hover:text-white" onclick="switchSubTab('shadowrocket')">小火箭 Shadowrocket</button>
+        </div>
+
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-800 pb-4 pt-1">
+          <div>
+            <h2 class="text-sm font-semibold text-white" id="sub-title">Clash / Mihomo 高级智能订阅</h2>
+            <p class="text-xs text-zinc-400 mt-0.5" id="sub-desc">原生根据下方规则开关实时动态编译，包含智能分流与自动测速策略组</p>
+          </div>
+          <div class="flex items-center gap-2" id="sub-actions">
+            <button class="btn-neutral" onclick="previewSub()">预览配置</button>
+            <button class="btn-primary" id="btn-import-client" onclick="importToClient()">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              <span id="import-btn-text">一键导入 Clash Verge</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="flex-1 bg-[#09090b] border border-zinc-800 rounded px-3 py-2 text-xs font-mono text-zinc-300 truncate" id="sub-url-box">
+            https://vps.yourdomain.com:20540/sub/clash
+          </div>
+          <button class="btn-neutral shrink-0" onclick="copyText(document.getElementById('sub-url-box').innerText)">复制链接</button>
+        </div>
+      </div>
+
+      <!-- Rule Toggles Form -->
+      <div class="card p-5 space-y-4">
+        <h3 class="text-sm font-semibold text-white border-b border-zinc-800 pb-3">可视化分流与策略组配置 (Sub-Web 规范)</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          
+          <label class="flex items-start gap-3 p-3 rounded bg-[#161619] border border-zinc-800/80 cursor-pointer hover:border-zinc-700">
+            <input type="checkbox" id="rule-adblock" class="mt-0.5 rounded bg-zinc-900 border-zinc-700 text-blue-600 focus:ring-0">
+            <div>
+              <div class="font-medium text-zinc-200">广告与隐私行为拦截 (AdBlock)</div>
+              <div class="text-zinc-500 mt-0.5">基于 Category-Ads-All 规则库，直接 REJECT 网页与应用常见推广与追踪代码。</div>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 p-3 rounded bg-[#161619] border border-zinc-800/80 cursor-pointer hover:border-zinc-700">
+            <input type="checkbox" id="rule-ai" class="mt-0.5 rounded bg-zinc-900 border-zinc-700 text-blue-600 focus:ring-0">
+            <div>
+              <div class="font-medium text-zinc-200">AI 智能独立策略组 (OpenAI / Claude / Gemini)</div>
+              <div class="text-zinc-500 mt-0.5">自动创建独立 AI 分组，优先走服务器的 WARP 原生出站以保障 100% 解锁。</div>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 p-3 rounded bg-[#161619] border border-zinc-800/80 cursor-pointer hover:border-zinc-700">
+            <input type="checkbox" id="rule-media" class="mt-0.5 rounded bg-zinc-900 border-zinc-700 text-blue-600 focus:ring-0">
+            <div>
+              <div class="font-medium text-zinc-200">国际流媒体智能分流 (Netflix / Disney+ / YouTube)</div>
+              <div class="text-zinc-500 mt-0.5">单独聚合国际主流视听流媒体网站并分配独立控制组。</div>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 p-3 rounded bg-[#161619] border border-zinc-800/80 cursor-pointer hover:border-zinc-700">
+            <input type="checkbox" id="rule-autotest" class="mt-0.5 rounded bg-zinc-900 border-zinc-700 text-blue-600 focus:ring-0">
+            <div>
+              <div class="font-medium text-zinc-200">自动测速优选组 (URL-Test)</div>
+              <div class="text-zinc-500 mt-0.5">每 300 秒向 Google 204 端点测速，自动切换至当前最低延迟节点。</div>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 p-3 rounded bg-[#161619] border border-zinc-800/80 cursor-pointer hover:border-zinc-700">
+            <input type="checkbox" id="rule-directcn" class="mt-0.5 rounded bg-zinc-900 border-zinc-700 text-blue-600 focus:ring-0">
+            <div>
+              <div class="font-medium text-zinc-200">国内流量 Direct 直连 (GEOIP / GEOSITE)</div>
+              <div class="text-zinc-500 mt-0.5">所有国内域名与大陆 IP 强制不走代理，杜绝内网变慢或访问异常。</div>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 p-3 rounded bg-[#161619] border border-zinc-800/80 cursor-pointer hover:border-zinc-700">
+            <input type="checkbox" id="rule-hy2hop" class="mt-0.5 rounded bg-zinc-900 border-zinc-700 text-blue-600 focus:ring-0">
+            <div>
+              <div class="font-medium text-zinc-200">优先 Hysteria 2 端口跳跃 (20000-40000)</div>
+              <div class="text-zinc-500 mt-0.5">在订阅中自动写入 ports 范围，使客户端自动实现 UDP 动态抗封锁。</div>
+            </div>
+          </label>
+
+        </div>
+
+        <div class="flex justify-end pt-3 border-t border-zinc-800">
+          <button class="btn-primary" onclick="saveRules()">保存分流规则</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 3: TRANSIT / RELAY DISPATCHER -->
+    <div id="tab-transits" class="hidden space-y-6">
+      
+      <div class="card p-5 space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">前置中转专线调度库 (Transit Relays)</h2>
+            <p class="text-xs text-zinc-400 mt-0.5">录入国内中转机或 IPLC 专线，订阅中将自动复合生成游戏级极低延迟节点</p>
+          </div>
+          <button class="btn-primary" onclick="openAddTransitModal()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>添加中转接入点</span>
+          </button>
+        </div>
+
+        <div id="transits-container" class="space-y-3">
+          <!-- Dynamically populated -->
+          <div class="text-xs text-zinc-500 p-4 text-center">暂未配置中转专线接入点。点击上方按钮可快速录入。</div>
+        </div>
+      </div>
+
+      <!-- One-click Transit Deploy Script -->
+      <div class="card p-5 space-y-3">
+        <h3 class="text-sm font-semibold text-white">中转机一键配置命令 (基于 Realm 高性能转发)</h3>
+        <p class="text-xs text-zinc-400">在中转机（Ubuntu / Debian / CentOS）终端中直接粘贴执行以下单行命令，将自动配置开机自启端口映射：</p>
+        
+        <div class="flex items-center gap-2 bg-[#09090b] border border-zinc-800 rounded p-3 text-xs font-mono text-zinc-300">
+          <code class="flex-1 truncate" id="transit-curl-cmd">curl -fsSL https://vps.yourdomain.com:20540/scripts/setup-relay.sh | sudo bash</code>
+          <button class="btn-neutral shrink-0" onclick="copyText(document.getElementById('transit-curl-cmd').innerText)">复制命令</button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="card max-w-lg w-full p-6 m-4 space-y-4">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <h3 class="text-sm font-semibold text-white">全局系统与 API 凭据设置</h3>
+        <button class="text-zinc-500 hover:text-white" onclick="closeSettings()">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-zinc-400 mb-1">Cloudflare API Token</label>
+          <div class="flex gap-2">
+            <input type="password" class="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="cfg-cf-token" placeholder="输入 token">
+            <button class="btn-neutral" onclick="testCFToken()">测试</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-zinc-400 mb-1">Zone 名称</label>
+            <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="cfg-cf-zone" placeholder="example.com">
+          </div>
+          <div>
+            <label class="block text-zinc-400 mb-1">解析 A 记录</label>
+            <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="cfg-cf-record" placeholder="vps.example.com">
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="cfg-auto-heal" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+            <span class="text-zinc-300 font-medium">启用 GFW 阻断连续超标全自动换 IP 自愈守卫</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+        <button class="btn-neutral" onclick="closeSettings()">取消</button>
+        <button class="btn-primary" onclick="saveSettings()">保存配置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Transit Modal -->
+  <div class="modal-overlay" id="add-transit-modal">
+    <div class="card max-w-md w-full p-6 m-4 space-y-4">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <h3 class="text-sm font-semibold text-white">添加中转接入点</h3>
+        <button class="text-zinc-500 hover:text-white" onclick="closeAddTransitModal()">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-zinc-400 mb-1">中转专线节点名称</label>
+          <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="tr-name" placeholder="例如：深港专线-01">
+        </div>
+        <div>
+          <label class="block text-zinc-400 mb-1">中转机公网 IP 或域名</label>
+          <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="tr-host" placeholder="例如：118.24.56.78">
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block text-zinc-400 mb-1">Hy2 端口</label>
+            <input type="number" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-zinc-200 font-mono" id="tr-hy2" value="20443">
+          </div>
+          <div>
+            <label class="block text-zinc-400 mb-1">Reality 端口</label>
+            <input type="number" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-zinc-200 font-mono" id="tr-reality" value="28443">
+          </div>
+          <div>
+            <label class="block text-zinc-400 mb-1">Trojan 端口</label>
+            <input type="number" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-zinc-200 font-mono" id="tr-trojan" value="22083">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+        <button class="btn-neutral" onclick="closeAddTransitModal()">取消</button>
+        <button class="btn-primary" onclick="submitAddTransit()">保存并生成专线节点</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- YAML Preview Modal -->
+  <div class="modal-overlay" id="yaml-modal">
+    <div class="card max-w-2xl w-full p-6 m-4 space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <h3 class="text-sm font-semibold text-white">Clash.Meta (Mihomo) 配置实时预览</h3>
+        <button class="text-zinc-500 hover:text-white" onclick="document.getElementById('yaml-modal').classList.remove('active')">&times;</button>
+      </div>
+
+      <div class="flex-1 bg-[#09090b] border border-zinc-800 rounded p-3 overflow-y-auto font-mono text-xs text-zinc-300 select-all" id="yaml-preview-box">
+        正在拉取编译后的 YAML...
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+        <button class="btn-neutral" onclick="copyText(document.getElementById('yaml-preview-box').innerText)">复制全量 YAML</button>
+        <button class="btn-primary" onclick="document.getElementById('yaml-modal').classList.remove('active')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      ['overview', 'rules', 'transits'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+      });
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      event.currentTarget.classList.add('active');
+
+      if (tabId === 'rules') loadRulesConfig();
+      if (tabId === 'transits') loadTransits();
+    }
+
+    function togglePrivacy(el) {
+      if (el) el.classList.toggle('revealed');
+    }
+
+    function copyText(txt) {
+      navigator.clipboard.writeText(txt.trim()).then(() => alert('已复制到剪贴板！'));
+    }
+
+    let currentSubFmt = 'clash';
+
+    function switchSubTab(fmt) {
+      currentSubFmt = fmt;
+      document.querySelectorAll('.sub-tab').forEach(b => {
+        b.className = 'sub-tab px-3 py-1.5 rounded transition-all text-zinc-400 hover:text-white';
+      });
+      event.currentTarget.className = 'sub-tab px-3 py-1.5 rounded transition-all bg-zinc-800 text-white shadow-sm';
+
+      const titleEl = document.getElementById('sub-title');
+      const descEl = document.getElementById('sub-desc');
+      const urlBox = document.getElementById('sub-url-box');
+      const importBtnText = document.getElementById('import-btn-text');
+      const importBtn = document.getElementById('btn-import-client');
+      const origin = window.location.origin;
+
+      if (fmt === 'clash') {
+        titleEl.innerText = 'Clash / Mihomo 高级智能订阅';
+        descEl.innerText = '原生根据下方规则开关实时动态编译，包含智能分流与自动测速策略组';
+        urlBox.innerText = `${origin}/sub/clash`;
+        importBtnText.innerText = '一键导入 Clash Verge';
+        importBtn.style.display = 'inline-flex';
+      } else if (fmt === 'v2ray') {
+        titleEl.innerText = 'v2rayN / 通用 Base64 订阅';
+        descEl.innerText = '标准 Base64 格式，支持 v2rayN (Windows)、v2rayNG (Android)、Nekoray、Matsuri 等主流客户端';
+        urlBox.innerText = `${origin}/sub/v2ray`;
+        importBtnText.innerText = '复制订阅链接';
+        importBtn.style.display = 'none';
+      } else if (fmt === 'singbox') {
+        titleEl.innerText = 'Sing-box 官方标准订阅 (JSON)';
+        descEl.innerText = '适用于 Sing-box (iOS/Android/macOS/Windows)、Karing、Nekobox 等下一代核心';
+        urlBox.innerText = `${origin}/sub/singbox`;
+        importBtnText.innerText = '一键导入 Sing-box';
+        importBtn.style.display = 'inline-flex';
+      } else if (fmt === 'shadowrocket') {
+        titleEl.innerText = 'Shadowrocket (小火箭) 专属订阅';
+        descEl.innerText = '支持 iOS / iPadOS / macOS 小火箭客户端一键拉取并自动解析协议';
+        urlBox.innerText = `${origin}/sub/shadowrocket`;
+        importBtnText.innerText = '一键导入小火箭';
+        importBtn.style.display = 'inline-flex';
+      }
+    }
+
+    function importToClient() {
+      const url = document.getElementById('sub-url-box').innerText.trim();
+      if (currentSubFmt === 'clash') {
+        window.location.href = `clash://install-config?url=${encodeURIComponent(url)}&name=${encodeURIComponent('Oracle-Sentinel')}`;
+      } else if (currentSubFmt === 'singbox') {
+        window.location.href = `sing-box://import-remote-profile?url=${encodeURIComponent(url)}#Oracle-Sentinel`;
+      } else if (currentSubFmt === 'shadowrocket') {
+        const b64url = btoa(url);
+        window.location.href = `sub://${b64url}`;
+      }
+    }
+
+    async function previewSub() {
+      document.getElementById('yaml-modal').classList.add('active');
+      const box = document.getElementById('yaml-preview-box');
+      const modalTitle = document.querySelector('#yaml-modal h3');
+      modalTitle.innerText = `${currentSubFmt.toUpperCase()} 订阅配置实时预览`;
+      box.innerText = '正在动态提取 3x-ui 节点并编译中...';
+      try {
+        let endpoint = '/sub/clash';
+        if (currentSubFmt === 'v2ray' || currentSubFmt === 'shadowrocket') endpoint = '/sub/v2ray';
+        else if (currentSubFmt === 'singbox') endpoint = '/sub/singbox';
+        
+        const res = await fetch(endpoint);
+        const text = await res.text();
+        box.innerText = text;
+      } catch (e) {
+        box.innerText = '获取失败: ' + e;
+      }
+    }
+
+    // Load Rules
+    async function loadRulesConfig() {
+      try {
+        const res = await fetch('/api/sub/rules');
+        const r = await res.json();
+        document.getElementById('rule-adblock').checked = r.adblock !== false;
+        document.getElementById('rule-ai').checked = r.ai_group !== false;
+        document.getElementById('rule-media').checked = r.media_group !== false;
+        document.getElementById('rule-autotest').checked = r.auto_test !== false;
+        document.getElementById('rule-directcn').checked = r.direct_cn !== false;
+        document.getElementById('rule-hy2hop').checked = r.hy2_hop !== false;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function saveRules() {
+      const payload = {
+        adblock: document.getElementById('rule-adblock').checked,
+        ai_group: document.getElementById('rule-ai').checked,
+        media_group: document.getElementById('rule-media').checked,
+        auto_test: document.getElementById('rule-autotest').checked,
+        direct_cn: document.getElementById('rule-directcn').checked,
+        hy2_hop: document.getElementById('rule-hy2hop').checked
+      };
+      try {
+        const res = await fetch('/api/sub/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) alert('分流规则已更新！下次更新订阅时将立即生效。');
+      } catch (e) {
+        alert('保存失败: ' + e);
+      }
+    }
+
+    // Load Transits
+    async function loadTransits() {
+      const container = document.getElementById('transits-container');
+      try {
+        const res = await fetch('/api/transits');
+        const list = await res.json();
+        if (!list || list.length === 0) {
+          container.innerHTML = '<div class="text-xs text-zinc-500 p-4 text-center">暂未配置中转专线接入点。点击上方按钮可快速录入。</div>';
+          return;
+        }
+
+        container.innerHTML = list.map(t => `
+          <div class="flex items-center justify-between p-3.5 rounded bg-[#161619] border border-zinc-800">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-xs text-zinc-100">${t.name}</span>
+                <span class="badge ${t.enabled ? 'bg-blue-950/60 text-blue-400 border border-blue-800/40' : 'bg-zinc-800 text-zinc-400'} text-[10px] font-mono">
+                  ${t.enabled ? '已启用' : '已停用'}
+                </span>
+              </div>
+              <div class="text-[11px] text-zinc-400 font-mono mt-1">
+                目标: <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏">${t.host}</span> • 端口转发: Hy2(${t.hy2_port}) | Reality(${t.reality_port}) | Trojan(${t.trojan_port})
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn-neutral text-[11px] py-1" onclick="toggleTransit('${t.id}', ${!t.enabled})">${t.enabled ? '停用' : '启用'}</button>
+              <button class="btn-destructive text-[11px] py-1" onclick="deleteTransit('${t.id}')">删除</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<div class="text-xs text-rose-500 p-4">加载失败</div>';
+      }
+    }
+
+    function openAddTransitModal() {
+      document.getElementById('add-transit-modal').classList.add('active');
+    }
+    function closeAddTransitModal() {
+      document.getElementById('add-transit-modal').classList.remove('active');
+    }
+
+    async function submitAddTransit() {
+      const name = document.getElementById('tr-name').value.trim();
+      const host = document.getElementById('tr-host').value.trim();
+      const hy2_port = parseInt(document.getElementById('tr-hy2').value) || 20443;
+      const reality_port = parseInt(document.getElementById('tr-reality').value) || 28443;
+      const trojan_port = parseInt(document.getElementById('tr-trojan').value) || 22083;
+
+      if (!name || !host) {
+        alert('请完整填写名称和中转机 IP/域名');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/transits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, host, hy2_port, reality_port, trojan_port })
+        });
+        if (res.ok) {
+          closeAddTransitModal();
+          loadTransits();
+          alert('中转接入点添加成功！订阅已自动聚合专线节点。');
+        }
+      } catch (e) {
+        alert('添加失败: ' + e);
+      }
+    }
+
+    async function toggleTransit(id, enabled) {
+      await fetch(`/api/transits/${id}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      loadTransits();
+    }
+
+    async function deleteTransit(id) {
+      if (!confirm('确定删除该中转节点配置？')) return;
+      await fetch(`/api/transits/${id}`, { method: 'DELETE' });
+      loadTransits();
+    }
+
+    // Settings Modal
+    function openSettings() {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('cfg-cf-token').value = '';
+          document.getElementById('cfg-cf-zone').value = data.cloudflare.zone_name;
+          document.getElementById('cfg-cf-record').value = data.cloudflare.record_name;
+          document.getElementById('cfg-auto-heal').checked = data.monitor.auto_heal_enabled;
+          document.getElementById('settings-modal').classList.add('active');
+        });
+    }
+
+    function closeSettings() {
+      document.getElementById('settings-modal').classList.remove('active');
+    }
+
+    async function saveSettings() {
+      const cf_token = document.getElementById('cfg-cf-token').value.trim();
+      const cf_zone = document.getElementById('cfg-cf-zone').value.trim();
+      const cf_record = document.getElementById('cfg-cf-record').value.trim();
+      const auto_heal = document.getElementById('cfg-auto-heal').checked;
+
+      const payload = { cf_token, cf_zone, cf_record, auto_heal };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        alert('设置已保存！');
+        closeSettings();
+      }
+    }
+
+    async function testCFToken() {
+      const token = document.getElementById('cfg-cf-token').value.trim();
+      const res = await fetch('/api/settings/test-cf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      if (data.success) alert('Cloudflare API Token 验证成功！✅');
+      else alert('验证失败: ' + data.message);
+    }
+
+    async function triggerRebirth() {
+      if (!confirm('确定触发一次 Oracle 公网 IP 换血重生？系统将自动请求甲骨文 API 释放并绑定新 IP，并同步刷新 Cloudflare 解析。')) return;
+      const res = await fetch('/api/heal/trigger', { method: 'POST' });
+      if (res.ok) alert('自愈流程已下发，请在控制台下方查看实时进度！');
+    }
+
+    // --- WebSocket Stream ---
+    let ws = null;
+    function connectWS() {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${proto}//${window.location.host}/ws/live`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'initial' || payload.type === 'telemetry') {
+            updateOverview(payload.state, payload.sentinel);
+            if (payload.logs) payload.logs.forEach(l => appendLog(l));
+          } else if (payload.type === 'log') {
+            appendLog(payload.data);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => setTimeout(connectWS, 3000);
+    }
+
+    function appendLog(log) {
+      const body = document.getElementById('terminal-box');
+      const row = document.createElement('div');
+      const levelColor = log.level === 'WARN' ? 'text-amber-400' : (log.level === 'ERROR' ? 'text-rose-400' : 'text-blue-400');
+      row.className = 'flex gap-2.5';
+      row.innerHTML = `
+        <span class="text-zinc-600 shrink-0">[${log.time || '--:--:--'}]</span>
+        <span class="${levelColor} shrink-0">[${log.level || 'INFO'}]</span>
+        <span class="text-zinc-300 break-all">${log.msg || ''}</span>
+      `;
+      body.appendChild(row);
+      body.scrollTop = body.scrollHeight;
+    }
+
+    function updateOverview(state, sentinel) {
+      if (!state) return;
+      if (state.current_ip) document.getElementById('disp-ip').innerText = state.current_ip;
+      
+      if (state.probes) {
+        document.getElementById('disp-latency').innerText = state.probes.avg_latency || '--';
+        document.getElementById('disp-loss').innerText = `${state.probes.loss_pct}% 丢包`;
+        document.getElementById('disp-loss').className = state.probes.loss_pct > 0 ? 'text-amber-400 font-mono text-[11px]' : 'text-emerald-400 font-mono text-[11px]';
+      }
+
+      if (state.metrics) {
+        const m = state.metrics;
+        document.getElementById('disp-cpu').innerText = `${m.cpu_pct}%`;
+        document.getElementById('bar-cpu').style.width = `${m.cpu_pct}%`;
+        document.getElementById('disp-mem').innerText = `${m.mem_used_mb} MB / ${m.mem_total_mb} MB (${m.mem_pct}%)`;
+        document.getElementById('bar-mem').style.width = `${m.mem_pct}%`;
+        document.getElementById('disp-speed').innerText = `⬇ ${m.rx_speed_kb} KB/s  ⬆ ${m.tx_speed_kb} KB/s`;
+        document.getElementById('disp-uptime').innerText = `Uptime: ${m.uptime}`;
+      }
+
+      if (state.warp) {
+        const wVal = document.getElementById('disp-warp-val');
+        if (wVal) {
+          wVal.innerText = `${state.warp.ip || 'N/A'} (${state.warp.loc || 'US'})`;
+        } else {
+          document.getElementById('disp-warp-ip').innerHTML = `<span>出口:</span> <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏" id="disp-warp-val">${state.warp.ip || 'N/A'} (${state.warp.loc || 'US'})</span>`;
+        }
+      }
+
+      if (sentinel) {
+        document.getElementById('disp-heal-count').innerText = sentinel.heal_count || 0;
+        document.getElementById('disp-last-heal').innerText = `上次: ${sentinel.last_healed || '从未触发'}`;
+        document.getElementById('disp-guard-status').innerText = sentinel.auto_heal ? '守卫已开启' : '守卫关闭';
+        document.getElementById('disp-guard-status').className = sentinel.auto_heal ? 'font-mono text-emerald-400 text-[11px]' : 'font-mono text-zinc-500 text-[11px]';
+        
+        const pill = document.getElementById('status-pill');
+        const text = document.getElementById('status-text');
+        if (sentinel.status === 'healing') {
+          pill.className = 'badge bg-purple-950/70 border border-purple-600/30 text-purple-400 font-mono text-[11px]';
+          text.innerText = 'HEALING...';
+        } else if (sentinel.status === 'critical') {
+          pill.className = 'badge bg-rose-950/70 border border-rose-600/30 text-rose-400 font-mono text-[11px]';
+          text.innerText = 'BLOCKED';
+        } else {
+          pill.className = 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[11px]';
+          text.innerText = 'HEALTHY';
+        }
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      connectWS();
+      document.getElementById('sub-url-box').innerText = `${window.location.origin}/sub/clash`;
+      const xbtn = document.getElementById('btn-xui-link'); if (xbtn) xbtn.href = 'https://' + window.location.hostname + ':20530/';
+      document.getElementById('transit-curl-cmd').innerText = `curl -fsSL ${window.location.origin}/scripts/setup-relay.sh | sudo bash`;
+    });
+  </script>
+</body>
+</html>
