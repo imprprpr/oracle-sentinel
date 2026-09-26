@@ -57,13 +57,20 @@ class SubEngine:
     def get_server_ip():
         try:
             import sentinel_core
-            mgr = sentinel_core.get_oracle_manager()
-            ip = mgr.get_public_ip()
-            if ip:
+            mon = sentinel_core.SystemMonitor()
+            ip = mon.get_public_ip()
+            if ip and ip != '127.0.0.1':
                 return ip
         except Exception:
             pass
-        return '127.0.0.1'
+        try:
+            import urllib.request
+            ip = urllib.request.urlopen('https://api.ipify.org', timeout=3).read().decode('utf-8').strip()
+            if ip and ip != '127.0.0.1':
+                return ip
+        except Exception:
+            pass
+        return '129.146.230.81'
 
     @staticmethod
     def get_server_domain():
@@ -92,6 +99,7 @@ class SubEngine:
 
         nodes = []
         domain = SubEngine.get_server_domain()
+        server_ip = SubEngine.get_server_ip()
 
         for row in rows:
             inbound_id, tag, port, proto, st_raw, ss_raw, enabled = row
@@ -110,7 +118,7 @@ class SubEngine:
                 node = {
                     'name': 'Oracle-US',
                     'type': 'vless',
-                    'server': domain,
+                    'server': server_ip,
                     'port': port,
                     'uuid': client.get('id', ''),
                     'network': ss.get('network', 'tcp'),
@@ -130,7 +138,7 @@ class SubEngine:
                 node = {
                     'name': 'Oracle-Hy2',
                     'type': 'hysteria2',
-                    'server': domain,
+                    'server': server_ip,
                     'port': port,
                     'password': client.get('auth', ''),
                     'sni': ss.get('tlsSettings', {}).get('serverName', domain),
@@ -142,7 +150,7 @@ class SubEngine:
                 node = {
                     'name': 'Oracle-Trojan',
                     'type': 'trojan',
-                    'server': domain,
+                    'server': server_ip,
                     'port': port,
                     'password': client.get('password', ''),
                     'sni': ss.get('tlsSettings', {}).get('serverName', domain),
@@ -281,7 +289,6 @@ class SubEngine:
             'IP-CIDR,192.168.0.0/16,🎯 全球直连,no-resolve',
             'IP-CIDR,10.0.0.0/8,🎯 全球直连,no-resolve',
             'IP-CIDR,100.64.0.0/10,🎯 全球直连,no-resolve',
-            'IP-CIDR,198.18.0.0/15,🎯 全球直连,no-resolve',
             'IP-CIDR6,fc00::/7,🎯 全球直连,no-resolve',
             'IP-CIDR6,fe80::/10,🎯 全球直连,no-resolve',
             'IP-CIDR6,::1/128,🎯 全球直连,no-resolve'
@@ -369,7 +376,18 @@ class SubEngine:
                 'nameserver': [
                     '223.5.5.5',
                     '119.29.29.29'
-                ]
+                ],
+                'fallback': [
+                    'https://1.1.1.1/dns-query',
+                    'https://8.8.8.8/dns-query'
+                ],
+                'fallback-filter': {
+                    'geoip': True,
+                    'geoip-code': 'CN',
+                    'ipcidr': [
+                        '240.0.0.0/4'
+                    ]
+                }
             },
             'geox-url': {
                 'geoip': f'https://{domain}:20540/static/geo/geoip.dat',
