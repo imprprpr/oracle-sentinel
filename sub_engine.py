@@ -116,7 +116,7 @@ class SubEngine:
                 rs = ss.get('realitySettings', {})
                 rs_st = rs.get('settings', {})
                 node = {
-                    'name': 'Oracle-US',
+                    'name': '🇺🇸 Oracle-美西-Reality',
                     'type': 'vless',
                     'server': server_ip,
                     'port': port,
@@ -136,7 +136,7 @@ class SubEngine:
 
             elif proto == 'hysteria':
                 node = {
-                    'name': 'Oracle-Hy2',
+                    'name': '🇺🇸 Oracle-美西-Hy2',
                     'type': 'hysteria2',
                     'server': server_ip,
                     'port': port,
@@ -148,7 +148,7 @@ class SubEngine:
 
             elif proto == 'trojan':
                 node = {
-                    'name': 'Oracle-Trojan',
+                    'name': '🇺🇸 Oracle-美西-Trojan',
                     'type': 'trojan',
                     'server': server_ip,
                     'port': port,
@@ -177,7 +177,7 @@ class SubEngine:
             n = node_data.copy()
             if ntype == 'hy2' and rules_cfg.get('hy2_hop', True):
                 n['ports'] = '20000-40000'
-                n['name'] = 'Oracle-Hy2 (端口跳跃)'
+                n['name'] = '🇺🇸 Oracle-美西-Hy2 (跳跃)'
             proxies.append(n)
             node_names.append(n['name'])
 
