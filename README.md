@@ -1,4 +1,4 @@
-# Oracle Sentinel (甲骨文云自动换 IP 自愈守卫)
+#    Oracle Sentinel (甲骨文云自动换 IP 自愈守卫)
 
 <div align="center">
 
