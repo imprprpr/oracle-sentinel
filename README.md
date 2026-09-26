@@ -423,6 +423,72 @@ sudo bash /opt/vpsentinel/scripts/update-geo.sh
 这是我们专门设计的 <b>隐私保护滤镜 (`.privacy-blur`)</b>，以防止用户在截图、录屏或群内答疑时泄露敏感 IP 遭到定向 DDOS。只需用鼠标<b>单击对应字段</b>，即可平滑切换显示/隐藏状态。
 </details>
 
+<details>
+<summary><b>Q4: 导入订阅后，软路由 OpenClash 中所有节点全部变黑（<code>---</code>）或连接被拒，但手机/电脑代理软件正常？</b></summary>
+
+<b>故障原因</b>：
+1. <b>回环 IP 污染</b>：在某些未正确初始化公网探针的环境下，订阅引擎若静默回退为 <code>127.0.0.1</code>，会导致生成的 Clash 配置中 <code>hosts</code> 与节点 <code>server</code> 指向本地回环地址。OpenClash 导入后将节点请求发往软路由本地，因无对应端口监听而直接拒绝连接（显示 <code>---</code>）。
+2. <b>国内 DNS 投毒</b>：国内运营商或公共 DNS（如 <code>223.5.5.5</code>）对部分 DDNS 域名存在 DNS 污染（直接解析为 <code>127.0.0.1</code>）。若客户端依赖域名解析且未启用 hosts 覆写，会导致节点不可达。
+
+<b>解决办法</b>：
+* <b>服务端更新</b>：最新版本 VPSentinel 订阅引擎（v2.2.1+）已全面采用<b>真实公网 IP 直写机制</b>（<code>server: <Public_IP></code>），握手层彻底免除域名解析过程，并自动矫正 <code>hosts</code> 映射，彻底免疫国内 DNS 污染。
+* <b>软路由操作</b>：打开 OpenClash 后台 -> 切换到<b>【配置订阅】</b> -> 点击对应订阅的<b>【更新配置】</b>并<b>【应用配置】</b>；随后在仪表盘（MetaCubeXD）中点击测速即可瞬间点亮所有绿色延迟。
+</details>
+
+<details>
+<summary><b>Q5: 软路由 OpenClash 节点测速正常（延迟 100+ms 绿色），但内网所有电脑与手机完全无法上网（报连接超时）？</b></summary>
+
+<b>故障原因</b>：
+* <b>典型 Fake-IP 分流自环黑洞</b>：如果分流规则集中误包含了 <code>IP-CIDR, 198.18.0.0/15, 🎯 全球直连, no-resolve</code>，由于 <code>198.18.0.1/16</code> 是 Clash / OpenClash 体系的<b>专用 Fake-IP 虚拟地址池</b>，内网设备访问外网域名（如 Google、YouTube）时，DNS 会首先为该域名映射一个 <code>198.18.x.x</code> 的虚拟 IP。
+* 当请求数据包到达软路由内核时，该规则带有 <code>no-resolve</code>（禁止域名反查还原），软路由将虚拟 IP 强行当作真实国内物理 IP 分流到 <b>DIRECT 直连发往 WAN 口运营商光猫</b>。国内宽带网关无法路由此保留网段，导致全屋所有外网流量全被丢入黑洞死循环。
+
+<b>解决办法</b>：
+* <b>规则修正</b>：从分流规则中彻底清除任何针对 <code>198.18.0.0/15</code> 的直连规则。VPSentinel 订阅库已在最新版中剔除此规则，并在配置中加入了海外安全 DoH 递归解析（<code>https://1.1.1.1/dns-query</code> 与 <code>https://8.8.8.8/dns-query</code>）。
+* 在 OpenClash 中重新点击<b>【更新配置】</b>并保存生效即可，内网所有终端设备立即恢复正常访问。
+</details>
+
+<details>
+<summary><b>Q6: 在 64MB / 128MB 极小内存容器（Podman / Alpine / LXC 容器）部署外部节点时频繁 OOM 闪退？</b></summary>
+
+<b>故障原因</b>：
+1. <b>解压内存突发峰值</b>：通过管道并发 <code>curl ... | tar -xz</code> 直接在 tmpfs 内存流式解压 <code>sing-box</code> 二进制核心时，短时间内会产生 60MB+ 的解压内存尖峰，直接击穿 64MB 限制并触发 Linux 内核 cgroup OOM Killer 强杀容器。
+2. <b>Go 运行时 GC 水位偏高</b>：默认情况下 Go 运行时不会主动压制堆内存，在小规格容器内容易超出 cgroup 内存限额。
+
+<b>解决办法</b>：
+* <b>串行磁盘落地</b>：使用最新部署脚本 <code>scripts/setup-japan-node.sh</code>，脚本采用分段下载至磁盘物理目录后就地提取，杜绝内存 tmpfs 膨胀。
+* <b>自动 Swap 兜底</b>：脚本自动检测宿主可用内存，在内存低于 128MB 的环境下自动创建并挂载 256MB 虚拟内存盘。
+* <b>强制内存水位限制</b>：在后台守护进程启动环境中注入 <code>GOMEMLIMIT=40MiB</code> 与 <code>GOGC=50</code>，强制垃圾回收器在内存达到 40MB 前完成主动清理，确保在 64MB 极限小鸡上长期常驻稳定运行。
+</details>
+
+<details>
+<summary><b>Q7: NAT VPS（共享 IP、端口映射机）部署外部节点后，客户端扫码无法连接？</b></summary>
+
+<b>故障原因</b>：
+* NAT 主机对外仅开放特定的端口段映射（例如内部监听 <code>28443</code>，外部公网映射端口为 <code>26554</code>）；且服务器本地网卡 IP 通常为局域网地址（如 <code>10.x.x.x</code>），直接生成分享链接会导致客户端尝试连接错误的私有 IP 或内部端口。
+
+<b>解决办法</b>：
+* 部署脚本原生支持外部参数透传，在部署时显式指定公网 IP 和映射端口：
+  ```bash
+  EXT_IP="85.113.70.183" EXT_PORT="26554" bash scripts/setup-japan-node.sh
+  ```
+* 随后在 VPSentinel 仪表盘【外部节点】或使用 CLI（<code>python3 scripts/add-custom-node.py "&lt;分享链接&gt;"</code>）导入时，系统会自动持久化公网端点，并自动分发至所有 Clash / Sing-box / V2Ray 聚合订阅中。
+</details>
+
+<details>
+<summary><b>Q8: 国内直连更新订阅或解析 DDNS 域名被劫持为 <code>127.0.0.1</code>？</b></summary>
+
+<b>故障原因</b>：
+* GFW 对部分免费/二级域名后缀（如 <code>*.ccwu.cc</code>）实施了 DNS 投毒，使用国内公共 DNS 解析时被强行篡改为回环地址 <code>127.0.0.1</code>。
+
+<b>解决办法</b>：
+1. <b>IP 直连优先</b>：VPSentinel 订阅生成的节点已默认直连公网 IP，握手层仅保留 TLS SNI 伪装标头，完全绕过国内 DNS 污染链路。
+2. <b>本地 Hosts 固化</b>：若需要国内网络直连订阅 API（<code>https://&lt;domain&gt;:20540/sub/clash</code>），可在软路由的<b>【Hosts 覆写】</b>或本地系统的 <code>/etc/hosts</code> 中手动固定解析记录：
+   ```text
+   <Oracle_VPS_公网IP>  <你的DDNS域名>
+   ```
+3. <b>推荐使用主流顶级域名</b>：如 <code>.com</code>、<code>.net</code>、<code>.xyz</code> 并由 Cloudflare 托管，并开启 DNSSEC 增强解析安全性。
+</details>
+
 ---
 
 ## 📄 开源许可证

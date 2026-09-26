@@ -5,6 +5,24 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-09-26
+
+### 🩹 Reliability & OpenClash Router Integration Fixes (订阅兼容性与软路由深度加固)
+- **Subscription IP Direct Injection (`sub_engine.py`)**:
+  - Fixed `get_server_ip()` fallback to properly query `sentinel_core.SystemMonitor().get_public_ip()` and external IP probes, avoiding unintended `127.0.0.1` loopback fallback.
+  - Automatically writes direct public IP into node `server` configurations, bypassing domestic GFW DNS pollution (`127.0.0.1` poisoning) and eliminating OpenClash `hosts` stripping dependencies.
+- **Fake-IP Routing Blackhole Bugfix (`sub_engine.py`)**:
+  - Removed erroneous `IP-CIDR, 198.18.0.0/15, 🎯 全球直连, no-resolve` rule that was intercepting Clash's Fake-IP pool (`198.18.0.1/16`) and dumping LAN web traffic to WAN gateways.
+  - Added secure overseas DoH fallback resolvers (`1.1.1.1` and `8.8.8.8`) with CN GeoIP filters.
+- **64MB Container Protection for Remote Nodes (`scripts/setup-japan-node.sh`)**:
+  - Replaced piping tar extractions with sequential disk downloading to eliminate memory tmpfs spikes.
+  - Added automatic 256MB swap creation for environments with under 128MB RAM.
+  - Enforced `GOMEMLIMIT=40MiB` and `GOGC=50` to cap memory usage on ultra-small containers.
+- **NAT Port Forwarding Support (`scripts/setup-japan-node.sh`)**:
+  - Added support for `EXT_IP` and `EXT_PORT` parameter injection for NAT VPS environments.
+
+---
+
 ## [2.2.0] - 2026-09-26
 
 ### 🌐 Custom Standalone Nodes Hub (外部独立与原生节点统一聚合)
