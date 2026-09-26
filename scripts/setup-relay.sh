@@ -48,6 +48,20 @@ case "$ARCH" in
         ;;
 esac
 
+# Ensure essential tools (curl, tar)
+if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
+    echo ">>> Installing dependencies (curl, tar)..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -y && apt-get install -y curl tar ca-certificates
+    elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache curl tar ca-certificates
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y curl tar ca-certificates
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y curl tar ca-certificates
+    fi
+fi
+
 mkdir -p /opt/realm
 cd /opt/realm
 
@@ -83,8 +97,15 @@ listen = "0.0.0.0:22083"
 remote = "${TARGET}:2083"
 EOF
 
-echo ">>> Registering and starting systemd service: realm.service..."
-cat << EOF > /etc/systemd/system/realm.service
+# Detect systemd or container environment
+HAS_SYSTEMD=false
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    HAS_SYSTEMD=true
+fi
+
+if [ "$HAS_SYSTEMD" = true ]; then
+    echo ">>> Registering and starting systemd service: realm.service..."
+    cat << EOF > /etc/systemd/system/realm.service
 [Unit]
 Description=Realm L4 Transit Port Forwarder
 After=network.target network-online.target
@@ -103,9 +124,22 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable realm
-systemctl restart realm
+    systemctl daemon-reload
+    systemctl enable realm
+    systemctl restart realm
+    systemctl status realm --no-pager || true
+else
+    echo ">>> Container / Non-systemd environment (Podman/LXC) detected..."
+    pkill -9 realm 2>/dev/null || true
+    nohup /opt/realm/realm -c /opt/realm/config.toml > /opt/realm/realm.log 2>&1 &
+    sleep 1
+    if pgrep -x "realm" >/dev/null 2>&1; then
+        echo ">>> Realm daemon is running in background (PID: $(pgrep -x realm))."
+    else
+        echo "[!] Realm process output:"
+        cat /opt/realm/realm.log 2>/dev/null || true
+    fi
+fi
 
 echo "===================================================================="
 echo ">>> Realm transit service deployed and running successfully!"
@@ -113,4 +147,3 @@ echo "    - 20443 (UDP/TCP) -> ${TARGET}:443  [Hysteria 2]"
 echo "    - 28443 (TCP)     -> ${TARGET}:8443 [VLESS-Reality]"
 echo "    - 22083 (TCP)     -> ${TARGET}:2083 [Trojan]"
 echo "===================================================================="
-systemctl status realm --no-pager
