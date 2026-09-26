@@ -373,6 +373,23 @@ EXT_IP="公网IP" EXT_PORT="映射端口" bash scripts/setup-japan-node.sh
 
 ---
 
+## 后续融合规划 (Roadmap)
+
+系统将持续向**全能 VPS 运维与网络中枢**演进，下一阶段重点融合以下两大核心特性：
+
+### 1. IP 纯净度与风控体检中心 (IP Purity & Fraud Audit)
+* **欺诈分与风控等级检测**：集成 Scamalytics、IPQualityScore (IPQS)、IP2Location 与 IP-API 多引擎打分，实时评估原生 IP 与机房 IP 风险度（Fraud Score）。
+* **IP 属性与广播识别**：精准区分数据中心机房 IP（Hosting/DataCenter）、原生住宅 IP（Residential/ISP）及 Anycast 广播属性。
+* **黑名单与滥用排查**：自动检测 Spamhaus、AbuseIPDB、DNSBL 数据库是否命中黑名单，预警发信与抓取风控。
+* **流媒体与 AI 解锁体检**：自动轮询测试 OpenAI (ChatGPT)、Anthropic (Claude)、Google (Gemini)、Netflix、Disney+、YouTube Premium、TikTok 的原生/分流解锁状态与 Google Search 验证码频率。
+
+### 2. 多节点网络性能与基准测速面板 (Speedtest & Network Benchmark)
+* **原生测速引擎集成**：嵌入轻量级 Ookla Speedtest-cli / Librespeed 测速内核，支持控制台一键发起单并发/多并发全速压测。
+* **国内三网分段测速**：直连中国电信（China Telecom 163/CN2）、中国联通（China Unicom 169/9929）、中国移动（China Mobile CMI）骨干节点，输出真实往返延迟（RTT）、抖动（Jitter）与上下行带宽曲线。
+* **跨洋链路与 Bufferbloat 评级**：深度检测长距离 TCP 缓冲区膨胀率与突发丢包率，直观评估 BBR 内核加速调优的实际效益。
+
+---
+
 ## 开源许可证
 
 本项目基于 [MIT License](LICENSE) 开源发布，欢迎自由 Star、Fork 与提交 Pull Request！
