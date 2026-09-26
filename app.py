@@ -15,6 +15,7 @@ from pydantic import BaseModel
 import sentinel_core
 import sub_engine
 import transit_mgr
+import custom_node_mgr
 import notification
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -486,6 +487,34 @@ async def get_relay_script():
     domain = sub_engine.SubEngine.get_server_domain()
     script = transit_mgr.TransitManager.generate_realm_script(domain)
     return Response(content=script, media_type='text/x-shellscript')
+
+# --- Custom Standalone Nodes Endpoints ---
+
+@app.get('/api/custom-nodes')
+async def list_custom_nodes():
+    return custom_node_mgr.CustomNodeManager.get_custom_nodes()
+
+@app.post('/api/custom-nodes')
+async def create_custom_node(item: dict):
+    try:
+        res = custom_node_mgr.CustomNodeManager.add_custom_node(item)
+        await broadcast_log(f'Added custom node: {res.get("name")} ({res.get("server")}:{res.get("port")})')
+        return {'status': 'ok', 'node': res}
+    except Exception as e:
+        logger.error(f'Failed to add custom node: {e}')
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete('/api/custom-nodes/{node_id}')
+async def delete_custom_node(node_id: str):
+    custom_node_mgr.CustomNodeManager.delete_custom_node(node_id)
+    await broadcast_log(f'Removed custom node ID: {node_id}')
+    return {'status': 'ok'}
+
+@app.post('/api/custom-nodes/{node_id}/toggle')
+async def toggle_custom_node(node_id: str, data: dict):
+    enabled = data.get('enabled', True)
+    custom_node_mgr.CustomNodeManager.toggle_custom_node(node_id, enabled)
+    return {'status': 'ok'}
 
 # --- Healing Sequence ---
 

@@ -8,6 +8,7 @@ import logging
 import urllib.parse
 import yaml
 from transit_mgr import TransitManager
+from custom_node_mgr import CustomNodeManager
 
 logger = logging.getLogger('SubEngine')
 DB_PATH = '/etc/x-ui/x-ui.db'
@@ -203,6 +204,16 @@ class SubEngine:
                     relay_node['port'] = t.get('trojan_port', 22083)
                     proxies.append(relay_node)
                     node_names.append(relay_node['name'])
+
+        # 3. Custom / External Standalone Nodes
+        custom_nodes = CustomNodeManager.get_custom_nodes()
+        for cn in custom_nodes:
+            if not cn.get('enabled', True):
+                continue
+            cp = CustomNodeManager.to_clash_proxy(cn)
+            if cp:
+                proxies.append(cp)
+                node_names.append(cp['name'])
 
         if not node_names:
             node_names = ['DIRECT']
@@ -438,6 +449,15 @@ class SubEngine:
                     link = f"trojan://{n['password']}@{t_host}:{port}?security=tls&sni={n['sni']}&type=tcp#{name}"
                     links.append(link)
 
+        # 3. Custom / External Standalone Nodes
+        custom_nodes = CustomNodeManager.get_custom_nodes()
+        for cn in custom_nodes:
+            if not cn.get('enabled', True):
+                continue
+            link = CustomNodeManager.to_share_link(cn)
+            if link:
+                links.append(link)
+
         joined_text = "\n".join(links) + "\n"
         return base64.b64encode(joined_text.encode('utf-8')).decode('utf-8')
 
@@ -446,7 +466,6 @@ class SubEngine:
     def generate_singbox_json():
         raw_nodes = SubEngine.extract_nodes_from_db()
         transits = TransitManager.get_transits()
-        rules_cfg = SubEngine.get_rules_config()
 
         outbounds = []
         node_tags = []
@@ -569,6 +588,16 @@ class SubEngine:
                         'tls': {'enabled': True, 'server_name': n['sni']}
                     })
                     node_tags.append(tag)
+
+        # 3. Custom / External Standalone Nodes
+        custom_nodes = CustomNodeManager.get_custom_nodes()
+        for cn in custom_nodes:
+            if not cn.get('enabled', True):
+                continue
+            sb_out = CustomNodeManager.to_singbox_outbound(cn)
+            if sb_out:
+                outbounds.append(sb_out)
+                node_tags.append(sb_out['tag'])
 
         if not node_tags:
             node_tags = ['direct']

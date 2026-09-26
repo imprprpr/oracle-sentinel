@@ -171,7 +171,7 @@
           </div>
           <div class="nav-tab" onclick="switchTab('transits')">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
-            <span>链式中转调度</span>
+            <span>中转与独立节点</span>
           </div>
           <a id="btn-xui-link" href="/panel/" target="_blank" class="nav-tab text-zinc-400 hover:text-white">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
@@ -473,6 +473,25 @@
         <div id="transits-container" class="space-y-3">
           <!-- Dynamically populated -->
           <div class="text-xs text-zinc-500 p-4 text-center">暂未配置中转专线接入点。点击上方按钮可快速录入。</div>
+        </div>
+      </div>
+
+      <!-- Custom Standalone Nodes Card -->
+      <div class="card p-5 space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">自定义独立原生节点库 (Custom Standalone Nodes)</h2>
+            <p class="text-xs text-zinc-400 mt-0.5">录入日本/香港等原生机或第三方独立节点，订阅中将自动聚合呈现并参与自动优选与智能分流</p>
+          </div>
+          <button class="btn-primary" onclick="openAddCustomNodeModal()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>添加独立节点</span>
+          </button>
+        </div>
+
+        <div id="custom-nodes-container" class="space-y-3">
+          <!-- Dynamically populated -->
+          <div class="text-xs text-zinc-500 p-4 text-center">暂未添加独立节点。支持一键导入 VLESS-Reality、Hysteria2、Trojan 等分享链接。</div>
         </div>
       </div>
 
@@ -925,6 +944,32 @@
     </div>
   </div>
 
+  <!-- Add Custom Node Modal -->
+  <div class="modal-overlay" id="add-custom-node-modal">
+    <div class="card max-w-lg w-full p-6 m-4 space-y-4">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <h3 class="text-sm font-semibold text-white">添加自定义独立节点</h3>
+        <button class="text-zinc-500 hover:text-white" onclick="closeAddCustomNodeModal()">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-zinc-400 mb-1">节点分享链接 (支持 vless://, hysteria2://, trojan://, ss://)</label>
+          <textarea rows="4" class="w-full bg-zinc-900 border border-zinc-800 rounded p-2.5 text-zinc-200 font-mono text-[11px] focus:outline-none focus:border-zinc-700" id="cnode-link" placeholder="例如：vless://uuid@1.2.3.4:53446?security=reality&...#🇯🇵 日本原生大口子"></textarea>
+        </div>
+        <div>
+          <label class="block text-zinc-400 mb-1">自定义节点别名 (可选，留空则沿用链接原有备注)</label>
+          <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="cnode-name" placeholder="例如：🇯🇵 日本原生大口子 (超低延迟)">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+        <button class="btn-neutral" onclick="closeAddCustomNodeModal()">取消</button>
+        <button class="btn-primary" onclick="submitAddCustomNode()">确认并加入订阅</button>
+      </div>
+    </div>
+  </div>
+
   <!-- YAML Preview Modal -->
   <div class="modal-overlay" id="yaml-modal">
     <div class="card max-w-2xl w-full p-6 m-4 space-y-4 max-h-[85vh] flex flex-col">
@@ -956,7 +1001,7 @@
       event.currentTarget.classList.add('active');
 
       if (tabId === 'rules') loadRulesConfig();
-      if (tabId === 'transits') loadTransits();
+      if (tabId === 'transits') { loadTransits(); loadCustomNodes(); }
     }
 
     function togglePrivacy(el) {
@@ -1161,6 +1206,96 @@
       if (!confirm('确定删除该中转节点配置？')) return;
       await fetch(`/api/transits/${id}`, { method: 'DELETE' });
       loadTransits();
+    }
+
+    // Load Custom Nodes
+    async function loadCustomNodes() {
+      const container = document.getElementById('custom-nodes-container');
+      try {
+        const res = await fetch('/api/custom-nodes');
+        const list = await res.json();
+        if (!list || list.length === 0) {
+          container.innerHTML = '<div class="text-xs text-zinc-500 p-4 text-center">暂未添加独立节点。支持一键导入 VLESS-Reality、Hysteria2、Trojan 等分享链接。</div>';
+          return;
+        }
+
+        container.innerHTML = list.map(n => `
+          <div class="flex items-center justify-between p-3.5 rounded bg-[#161619] border border-zinc-800">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-xs text-zinc-100">${n.name}</span>
+                <span class="badge ${n.enabled ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' : 'bg-zinc-800 text-zinc-400'} text-[10px] font-mono">
+                  ${n.enabled ? '已启用' : '已停用'}
+                </span>
+                <span class="badge bg-zinc-800 text-zinc-300 text-[10px] font-mono uppercase">${n.type}</span>
+              </div>
+              <div class="text-[11px] text-zinc-400 font-mono mt-1">
+                服务器: <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏">${n.server}:${n.port}</span>
+                ${n.flow ? ` • 流控: ${n.flow}` : ''}
+                ${n.servername ? ` • SNI: ${n.servername}` : ''}
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn-neutral text-[11px] py-1" onclick="toggleCustomNode('${n.id}', ${!n.enabled})">${n.enabled ? '停用' : '启用'}</button>
+              <button class="btn-destructive text-[11px] py-1" onclick="deleteCustomNode('${n.id}')">删除</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<div class="text-xs text-rose-500 p-4">加载独立节点失败</div>';
+      }
+    }
+
+    function openAddCustomNodeModal() {
+      document.getElementById('cnode-link').value = '';
+      document.getElementById('cnode-name').value = '';
+      document.getElementById('add-custom-node-modal').classList.add('active');
+    }
+    function closeAddCustomNodeModal() {
+      document.getElementById('add-custom-node-modal').classList.remove('active');
+    }
+
+    async function submitAddCustomNode() {
+      const link = document.getElementById('cnode-link').value.trim();
+      const name = document.getElementById('cnode-name').value.trim();
+
+      if (!link) {
+        alert('请粘贴节点分享链接 (如 vless://...)');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/custom-nodes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ link, name: name || undefined })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          closeAddCustomNodeModal();
+          loadCustomNodes();
+          alert('🎉 独立节点添加成功！所有订阅链接已自动聚合该节点。');
+        } else {
+          alert('添加失败: ' + (data.detail || '格式错误'));
+        }
+      } catch (e) {
+        alert('添加失败: ' + e);
+      }
+    }
+
+    async function toggleCustomNode(id, enabled) {
+      await fetch(`/api/custom-nodes/${id}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      loadCustomNodes();
+    }
+
+    async function deleteCustomNode(id) {
+      if (!confirm('确定删除该独立节点配置？')) return;
+      await fetch(`/api/custom-nodes/${id}`, { method: 'DELETE' });
+      loadCustomNodes();
     }
 
     // Provider & Notifications UI helpers

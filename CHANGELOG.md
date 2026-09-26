@@ -5,6 +5,24 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-09-26
+
+### 🌐 Custom Standalone Nodes Hub (外部独立与原生节点统一聚合)
+- **Multi-Protocol Custom Nodes Hub (`custom_node_mgr.py`)**:
+  - Full support for parsing standard share links (`vless://` Reality, `hysteria2://` / `hy2://`, `trojan://`, `ss://`) and custom dictionary objects into structured proxies.
+  - Seamless dual-direction conversion for Clash/Mihomo YAML, Sing-box JSON, and v2ray Base64 / Shadowrocket formats.
+  - Persistent storage in `config.json` with dynamic enable/disable toggling and deletion.
+- **Subscription Engine Integration (`sub_engine.py`)**:
+  - Automatically merges enabled custom standalone nodes into Clash proxies, `🚀 节点选择`, `⚡ 自动优选`, `🤖 AI 智能服务`, and `🎬 国际流媒体` policy groups.
+  - Injects outbounds into Sing-box JSON with selector and urltest group bindings.
+- **Web UI & REST APIs (`app.py` & `static/index.html`)**:
+  - Added "自定义独立原生节点库 (Custom Standalone Nodes)" card and modal in the control dashboard.
+  - REST endpoints: `GET /api/custom-nodes`, `POST /api/custom-nodes`, `DELETE /api/custom-nodes/{id}`, `POST /api/custom-nodes/{id}/toggle`.
+- **Command-Line CLI Tool (`scripts/add-custom-node.py`)**:
+  - One-line addition and query CLI tool: `python3 scripts/add-custom-node.py "<link>"`.
+
+---
+
 ## [2.1.0] - 2026-09-26
 
 ### 🧙‍♂️ Web First-Time Setup Wizard (Web 可视化开箱向导)

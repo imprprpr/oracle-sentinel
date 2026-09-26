@@ -370,9 +370,21 @@ sudo bash scripts/setup-relay.sh vps.yourdomain.com
 ```
 
 ### 2. 在控制中心登记中转节点
-1. 访问控制中心仪表盘，滑至 **“链式中转专线调度”** 面板；
-2. 点击 **添加中转服务器**，填入你的中转机 IP / 域名以及对应端口；
-3. 保存后，客户端刷新订阅即可看到新增的 `[中转] Oracle-Hy2`、`[中转] Oracle-Trojan` 专属加速节点。
+1. 访问控制中心仪表盘，切换至 **“中转与独立节点”** 面板；
+2. 点击 **添加中转接入点**，填入你的中转机 IP / 域名以及对应端口；
+3. 保存后，客户端刷新订阅即可看到新增的 `[中转] Hy2专线`、`[中转] Reality专线` 等加速节点。
+
+### 3. 自定义独立原生节点聚合（Custom Standalone Nodes）
+支持将任意外部原生 VPS 节点（如日本原生机、香港直连机等）聚合到同一个统一订阅中，自动参与客户端自动优选与智能分流：
+- **Web 端录入**：在仪表盘 **“中转与独立节点”** 页面，点击 **“添加独立节点”**，粘贴分享链接（支持 `vless://` Reality、`hysteria2://`、`trojan://`、`ss://`）即可一键解析保存。
+- **CLI 命令行录入**：
+  ```bash
+  python3 /opt/vpsentinel/scripts/add-custom-node.py "<节点分享链接>"
+  ```
+  查看已配置的独立节点列表：
+  ```bash
+  python3 /opt/vpsentinel/scripts/add-custom-node.py --list
+  ```
 
 ---
 
