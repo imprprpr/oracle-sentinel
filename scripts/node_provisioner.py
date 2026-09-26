@@ -23,8 +23,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger('NodeProvisioner')
 
 DB_PATH = '/etc/x-ui/x-ui.db'
-CERT_FILE = '/etc/oracle-sentinel/cert/fullchain.pem'
-KEY_FILE = '/etc/oracle-sentinel/cert/privkey.pem'
+CERT_FILE = '/etc/vpsentinel/cert/fullchain.pem' if os.path.exists('/etc/vpsentinel/cert/fullchain.pem') else '/etc/oracle-sentinel/cert/fullchain.pem'
+KEY_FILE = '/etc/vpsentinel/cert/privkey.pem' if os.path.exists('/etc/vpsentinel/cert/privkey.pem') else '/etc/oracle-sentinel/cert/privkey.pem'
 
 def generate_x25519_keypair():
     """Generates X25519 private and public keys using cryptography or xray CLI."""

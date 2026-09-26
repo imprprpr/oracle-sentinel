@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Oracle Sentinel - One-Click Installer & Deployment Wizard
-# Supports: Ubuntu 20.04+, Ubuntu 22.04+, Debian 11+, Debian 12+ (x86_64 / ARM64)
+# VPSentinel - Universal Cloud VPS Installer & Deployment Wizard
+# Supports: Ubuntu 20.04+, Debian 11+, RHEL/CentOS/AlmaLinux/Rocky 8+, Arch Linux
 # ==============================================================================
 
 set -euo pipefail
 
-INSTALL_DIR="/opt/oracle-sentinel"
-REPO_URL="https://github.com/imprprpr/oracle-sentinel.git"
+if [ -d "/opt/oracle-sentinel" ] && [ ! -d "/opt/vpsentinel" ]; then
+    echo ">>> 检测到旧版目录 /opt/oracle-sentinel，平滑迁移至 /opt/vpsentinel ..."
+    mv /opt/oracle-sentinel /opt/vpsentinel
+    ln -s /opt/vpsentinel /opt/oracle-sentinel
+fi
+
+INSTALL_DIR="/opt/vpsentinel"
+REPO_URL="https://github.com/imprprpr/vpsentinel.git"
 
 echo "===================================================================="
-echo "    🚀 Installing Oracle Cloud Sentinel Control Center & Daemon     "
+echo "         🚀 Installing VPSentinel Control Center & Daemon           "
 echo "===================================================================="
 
 # Check root
@@ -73,15 +79,22 @@ fi
 
 # Install systemd service
 echo ">>> Installing systemd unit file..."
-cp "$INSTALL_DIR/systemd/oracle-sentinel.service" /etc/systemd/system/oracle-sentinel.service
-systemctl daemon-reload
-systemctl enable oracle-sentinel
+if [ -f "$INSTALL_DIR/systemd/vpsentinel.service" ]; then
+    cp "$INSTALL_DIR/systemd/vpsentinel.service" /etc/systemd/system/vpsentinel.service
+    ln -sf /etc/systemd/system/vpsentinel.service /etc/systemd/system/oracle-sentinel.service
+    systemctl daemon-reload
+    systemctl enable vpsentinel
+else
+    cp "$INSTALL_DIR/systemd/oracle-sentinel.service" /etc/systemd/system/oracle-sentinel.service
+    systemctl daemon-reload
+    systemctl enable oracle-sentinel
+fi
 
 # Open default port on UFW or firewalld if active
 if command -v ufw >/dev/null 2>&1; then
     if ufw status | grep -q "Status: active"; then
         echo ">>> Allowing port 20540 on UFW..."
-        ufw allow 20540/tcp comment "Universal Sentinel Dashboard"
+        ufw allow 20540/tcp comment "VPSentinel Dashboard"
     fi
 elif command -v firewall-cmd >/dev/null 2>&1; then
     if systemctl is-active --quiet firewalld; then
@@ -111,5 +124,5 @@ echo "   sudo python3 $INSTALL_DIR/scripts/wizard.py"
 echo "--------------------------------------------------------------------"
 echo " 或者手动维护配置文件："
 echo "   nano $INSTALL_DIR/config.json"
-echo "   systemctl restart oracle-sentinel"
+echo "   systemctl restart vpsentinel"
 echo "===================================================================="

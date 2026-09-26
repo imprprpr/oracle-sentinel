@@ -1,0 +1,17 @@
+[Unit]
+Description=VPSentinel - Universal Cloud VPS Self-Healing & Subscription Control Center
+After=network.target x-ui.service
+Alias=oracle-sentinel.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vpsentinel
+EnvironmentFile=-/etc/default/vpsentinel
+ExecStart=/opt/vpsentinel/venv/bin/python3 -m uvicorn app:app --host 0.0.0.0 --port 20540 --ssl-keyfile /etc/vpsentinel/cert/privkey.pem --ssl-certfile /etc/vpsentinel/cert/fullchain.pem
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

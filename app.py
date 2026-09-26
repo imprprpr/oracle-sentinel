@@ -20,10 +20,12 @@ import notification
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
 
-app = FastAPI(title='Universal Cloud Sentinel Control Center')
+app = FastAPI(title='VPSentinel Control Center')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_PATH = '/opt/oracle-sentinel/static' if os.path.exists('/opt/oracle-sentinel/static') else os.path.join(BASE_DIR, 'static')
+STATIC_PATH = '/opt/vpsentinel/static' if os.path.exists('/opt/vpsentinel/static') else (
+    '/opt/oracle-sentinel/static' if os.path.exists('/opt/oracle-sentinel/static') else os.path.join(BASE_DIR, 'static')
+)
 METACUBEXD_PATH = os.path.join(STATIC_PATH, 'metacubexd')
 NUXT_PATH = os.path.join(METACUBEXD_PATH, '_nuxt')
 

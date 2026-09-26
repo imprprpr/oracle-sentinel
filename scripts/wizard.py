@@ -26,9 +26,14 @@ C_RED = '\033[31m'
 C_MAGENTA = '\033[35m'
 C_BG_DARK = '\033[40m'
 
-SENTINEL_DIR = "/opt/oracle-sentinel"
+SENTINEL_DIR = "/opt/vpsentinel" if os.path.exists("/opt/vpsentinel") else (
+    "/opt/oracle-sentinel" if os.path.exists("/opt/oracle-sentinel") else "/opt/vpsentinel"
+)
 CONFIG_FILE = os.path.join(SENTINEL_DIR, "config.json")
-CERT_DIR = "/etc/oracle-sentinel/cert"
+CERT_DIR = "/etc/vpsentinel/cert" if os.path.exists("/etc/vpsentinel/cert") else (
+    "/etc/oracle-sentinel/cert" if os.path.exists("/etc/oracle-sentinel/cert") else "/etc/vpsentinel/cert"
+)
+SERVICE_NAME = "vpsentinel" if os.path.exists("/etc/systemd/system/vpsentinel.service") else "oracle-sentinel"
 OCI_DIR = "/root/.oci"
 
 def clear_screen():
@@ -441,7 +446,7 @@ def step_notifications():
 
 # --- Finalize Configuration & Systemd ---
 def finalize_setup(provider_type, hook_cmd, cf_token, zone_name, record_name, oci_path, notify_cfg):
-    log_info("正在写入生产环境 /opt/oracle-sentinel/config.json ...")
+    log_info(f"正在写入生产环境 {CONFIG_FILE} ...")
     cfg = {
         "provider": {
             "type": provider_type,
@@ -478,10 +483,10 @@ def finalize_setup(provider_type, hook_cmd, cf_token, zone_name, record_name, oc
         json.dump(cfg, f, indent=2, ensure_ascii=False)
     run_cmd(f"chmod 600 {CONFIG_FILE}")
 
-    log_info("正在重载并重启 oracle-sentinel 系统守护进程...")
+    log_info(f"正在重载并重启 {SERVICE_NAME} 系统守护进程...")
     run_cmd("systemctl daemon-reload")
-    run_cmd("systemctl enable oracle-sentinel")
-    run_cmd("systemctl restart oracle-sentinel")
+    run_cmd(f"systemctl enable {SERVICE_NAME}")
+    run_cmd(f"systemctl restart {SERVICE_NAME}")
 
 def main():
     if os.geteuid() != 0:
@@ -540,8 +545,8 @@ def main():
     • 自动自愈联动: {C_GREEN}{'已启用' if (cf_token and (oci_path or hook_cmd)) else '已开启巡检与告警'}{C_RESET}
 
  🛠️ {C_BOLD}常用运维指令{C_RESET}:
-    • 守护进程实时日志: {C_CYAN}journalctl -u oracle-sentinel -f{C_RESET}
-    • 重启守护进程:     {C_CYAN}systemctl restart oracle-sentinel{C_RESET}
+    • 守护进程实时日志: {C_CYAN}journalctl -u {SERVICE_NAME} -f{C_RESET}
+    • 重启守护进程:     {C_CYAN}systemctl restart {SERVICE_NAME}{C_RESET}
     • 重新运行此向导:   {C_CYAN}python3 {SENTINEL_DIR}/scripts/wizard.py{C_RESET}
 ────────────────────────────────────────────────────────────────────────────────────────
 """)

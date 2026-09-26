@@ -11,7 +11,9 @@ from transit_mgr import TransitManager
 
 logger = logging.getLogger('SubEngine')
 DB_PATH = '/etc/x-ui/x-ui.db'
-CONFIG_PATH = '/opt/oracle-sentinel/config.json'
+CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
+    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+)
 
 DEFAULT_RULES_CONFIG = {
     'adblock': True,

@@ -5,8 +5,9 @@ import json
 import time
 import logging
 
-logger = logging.getLogger('TransitManager')
-CONFIG_PATH = '/opt/oracle-sentinel/config.json'
+CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
+    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+)
 
 class TransitManager:
     @staticmethod

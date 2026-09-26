@@ -26,7 +26,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger('SentinelCore')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(BASE_DIR, 'config.json')
+CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
+    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(BASE_DIR, 'config.json')
+)
 METADATA_INSTANCE_URL = 'http://169.254.169.254/opc/v2/instance/'
 METADATA_VNICS_URL = 'http://169.254.169.254/opc/v2/vnics/'
 

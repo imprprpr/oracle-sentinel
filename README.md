@@ -1,8 +1,8 @@
-# 🛡️ Universal Cloud Sentinel (全能云端自愈守卫与订阅聚合枢纽)
+# 🛡️ VPSentinel (全能云端自愈守卫与订阅聚合枢纽)
 
 <div align="center">
 
-<img src="docs/images/dashboard.png" alt="Oracle Sentinel 控制中心仪表盘" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin-bottom: 16px;" />
+<img src="docs/images/dashboard.png" alt="VPSentinel 控制中心仪表盘" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin-bottom: 16px;" />
 
 **支持 Oracle Cloud (甲骨文云)、搬瓦工、RackNerd、Hetzner、AWS、阿里云、腾讯云等任意 Linux VPS 的自动化自愈、多通道告警与全客户端订阅聚合中枢**
 
@@ -27,7 +27,7 @@
 3. **缺乏即时推送告警**：节点被封后管理员浑然不知，直到用户反馈才后知后觉。
 4. **多协议客户端订阅维护繁重**：OpenClash、v2rayN、Sing-box、Shadowrocket 等客户端配置各异，遇到 OpenClash 的 DNS 递归死锁或 SNI 嗅探误分流时调试极其痛苦。
 
-**Universal Cloud Sentinel** 诞生即为彻底终结上述痛点——它是一个轻量常驻守护进程 + 控制中心，具备**多云环境自适应识别**、**多探针连通性自愈**、**多通道阻断即时告警 (Telegram/Discord/Bark)**、**秒级无缝换 IP 并自动同步 Cloudflare DNS** 以及 **多客户端全能智能订阅引擎**。
+**VPSentinel** 诞生即为彻底终结上述痛点——它是一个轻量常驻守护进程 + 控制中心，具备**多云环境自适应识别**、**多探针连通性自愈**、**多通道阻断即时告警 (Telegram/Discord/Bark)**、**秒级无缝换 IP 并自动同步 Cloudflare DNS** 以及 **多客户端全能智能订阅引擎**。
 
 ---
 
@@ -189,7 +189,7 @@ http://<你的服务器IP>:20540/
 如果您更习惯在终端直接完成配置，一键执行安装脚本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/imprprpr/vpsentinel/main/scripts/install.sh | sudo bash
 ```
 
 > [!TIP]
@@ -205,7 +205,7 @@ curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scrip
 
 随时在终端重新运行向导：
 ```bash
-sudo python3 /opt/oracle-sentinel/scripts/wizard.py
+sudo python3 /opt/vpsentinel/scripts/wizard.py
 ```
 
 ---
@@ -215,8 +215,8 @@ sudo python3 /opt/oracle-sentinel/scripts/wizard.py
 ```bash
 # 1. 切换至管理员权限并克隆仓库
 sudo -i
-git clone https://github.com/imprprpr/oracle-sentinel.git /opt/oracle-sentinel
-cd /opt/oracle-sentinel
+git clone https://github.com/imprprpr/vpsentinel.git /opt/vpsentinel
+cd /opt/vpsentinel
 
 # 2. 创建 Python 虚拟环境并安装依赖
 python3 -m venv venv
@@ -227,12 +227,12 @@ python3 -m venv venv
 python3 scripts/wizard.py
 
 # 4. 注册并启动 Systemd 守护进程
-cp systemd/oracle-sentinel.service /etc/systemd/system/
+cp systemd/vpsentinel.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now oracle-sentinel
+systemctl enable --now vpsentinel
 
 # 5. 查看运行状态
-systemctl status oracle-sentinel
+systemctl status vpsentinel
 ```
 
 ---
@@ -261,7 +261,7 @@ Sentinel 内置开箱即用的多渠道即时消息通知中心，支持在遇�
 <a id="配置文件详解"></a>
 ## ⚙️ 配置文件详解
 
-配置文件位于 `/opt/oracle-sentinel/config.json`：
+配置文件位于 `/opt/vpsentinel/config.json`：
 
 ```json
 {
@@ -379,14 +379,14 @@ sudo bash scripts/setup-relay.sh vps.yourdomain.com
 ## 🛠️ 常用维护命令
 
 ```bash
-# 查看 Sentinel 守护进程实时日志
-journalctl -u oracle-sentinel -f
+# 查看 VPSentinel 守护进程实时日志
+journalctl -u vpsentinel -f
 
-# 重启 Sentinel 守护服务
-systemctl restart oracle-sentinel
+# 重启 VPSentinel 守护服务
+systemctl restart vpsentinel
 
 # 手动更新本地 Geo 规则集库 (GeoIP, GeoSite, MMDB)
-sudo bash /opt/oracle-sentinel/scripts/update-geo.sh
+sudo bash /opt/vpsentinel/scripts/update-geo.sh
 ```
 
 ---
