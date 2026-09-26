@@ -136,11 +136,19 @@ SVC_EOF
 else
     echo ">>> Starting sing-box daemon in background..."
     pkill -9 sing-box 2>/dev/null || true
+    mkdir -p /opt/sing-box
     nohup /usr/local/bin/sing-box run -c /etc/sing-box/config.json > /opt/sing-box/sing-box.log 2>&1 &
+    sleep 1
+    if pgrep -x sing-box >/dev/null; then
+        echo ">>> sing-box daemon started successfully (PID: $(pgrep -x sing-box))"
+    else
+        echo "[!] Failed to start sing-box. Log:"
+        cat /opt/sing-box/sing-box.log || true
+    fi
 fi
 
-EXT_IP="${3:-$(curl -s4 https://api.ipify.org 2>/dev/null || curl -s4 https://ifconfig.me 2>/dev/null || echo '45.153.246.167')}"
-NODE_NAME="🇯🇵 日本软银原生 (GreenCloud超低延迟)"
+EXT_IP="${3:-$(curl -s4 https://api.ipify.org 2>/dev/null || curl -s4 https://ifconfig.me 2>/dev/null || echo '85.113.70.183')}"
+NODE_NAME="${4:-🇯🇵 绿云-IIJ (原生超低延迟)}"
 NAME_ENCODED=$(echo -n "$NODE_NAME" | od -An -tx1 | tr ' ' '%' | tr -d '\n')
 
 VLESS_LINK="vless://${UUID}@${EXT_IP}:${EXT_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${SNI}&fp=chrome&pbk=${PUB_KEY}&sid=${SHORT_ID}&type=tcp#${NAME_ENCODED}"
