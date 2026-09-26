@@ -139,6 +139,19 @@
       user-select: text;
       background-color: transparent;
     }
+    /* Seamless Services Dropdown */
+    #services-dropdown::before {
+      content: "";
+      position: absolute;
+      top: -12px;
+      left: 0;
+      right: 0;
+      height: 14px;
+    }
+    #services-dropdown.menu-open {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -173,57 +186,61 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
             <span>中转与独立节点</span>
           </div>
-          <div class="relative group">
-            <div class="nav-tab flex items-center gap-1.5" id="tab-btn-services" onclick="switchTab('services')">
+          <div class="relative group" id="services-nav-group">
+            <div class="nav-tab flex items-center gap-1.5 cursor-pointer select-none" id="tab-btn-services" onclick="handleServicesNavClick(event)">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
               <span>仪表盘与管理后台</span>
-              <svg class="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              <span id="services-caret" class="p-0.5 text-zinc-500 group-hover:text-zinc-300 transition-transform duration-200 group-hover:rotate-180">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </span>
             </div>
             
-            <!-- Quick Dropdown Menu -->
-            <div class="absolute left-0 mt-1 w-64 py-2 bg-zinc-900/95 border border-zinc-800 rounded-lg shadow-2xl backdrop-blur-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-150 z-50">
-              <div class="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">监控仪表盘</div>
-              <a id="nav-kuma-status" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
-                <span class="flex items-center gap-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>服务状态探针大屏</span>
-                </span>
-                <span class="text-[10px] font-mono text-zinc-500">:3001</span>
-              </a>
-              <div class="my-1.5 border-t border-zinc-800/80"></div>
-              <div class="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">服务管理后台</div>
-              <a id="nav-xui-link" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
-                <span class="flex items-center gap-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                  <span>3x-ui 节点面板</span>
-                </span>
-                <span class="text-[10px] font-mono text-zinc-500">:20530</span>
-              </a>
-              <a id="nav-kuma-admin" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
-                <span class="flex items-center gap-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                  <span>Uptime Kuma 运维后台</span>
-                </span>
-                <span class="text-[10px] font-mono text-zinc-500">:3001</span>
-              </a>
-              <a id="nav-substore-link" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
-                <span class="flex items-center gap-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  <span>Sub-Store 订阅大脑</span>
-                </span>
-                <span class="text-[10px] font-mono text-zinc-500">:3000</span>
-              </a>
-              <a id="nav-alist-link" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
-                <span class="flex items-center gap-2">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
-                  <span>Alist 网盘挂载中心</span>
-                </span>
-                <span class="text-[10px] font-mono text-zinc-500">:5244</span>
-              </a>
-              <div class="my-1.5 border-t border-zinc-800/80"></div>
-              <div onclick="switchTab('services')" class="px-3 py-1.5 text-xs text-blue-400 hover:text-blue-300 hover:bg-zinc-800/60 cursor-pointer transition-colors flex items-center justify-between">
-                <span>进入控制台全景视图</span>
-                <span>→</span>
+            <!-- Quick Dropdown Menu with 0px gap bridge -->
+            <div id="services-dropdown" class="absolute left-0 top-full pt-1.5 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-150 z-50">
+              <div class="py-2 bg-zinc-900/95 border border-zinc-800 rounded-lg shadow-2xl backdrop-blur-md">
+                <div class="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">监控仪表盘</div>
+                <a id="nav-kuma-status" href="#" target="_blank" onclick="closeServicesDropdown()" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                  <span class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span>服务状态探针大屏</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-zinc-500">:3001</span>
+                </a>
+                <div class="my-1.5 border-t border-zinc-800/80"></div>
+                <div class="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">服务管理后台</div>
+                <a id="nav-xui-link" href="#" target="_blank" onclick="closeServicesDropdown()" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                  <span class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                    <span>3x-ui 节点面板</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-zinc-500">:20530</span>
+                </a>
+                <a id="nav-kuma-admin" href="#" target="_blank" onclick="closeServicesDropdown()" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                  <span class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                    <span>Uptime Kuma 运维后台</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-zinc-500">:3001</span>
+                </a>
+                <a id="nav-substore-link" href="#" target="_blank" onclick="closeServicesDropdown()" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                  <span class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span>Sub-Store 订阅大脑</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-zinc-500">:3000</span>
+                </a>
+                <a id="nav-alist-link" href="#" target="_blank" onclick="closeServicesDropdown()" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                  <span class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                    <span>Alist 网盘挂载中心</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-zinc-500">:5244</span>
+                </a>
+                <div class="my-1.5 border-t border-zinc-800/80"></div>
+                <div onclick="switchTab('services'); closeServicesDropdown()" class="px-3 py-1.5 text-xs text-blue-400 hover:text-blue-300 hover:bg-zinc-800/60 cursor-pointer transition-colors flex items-center justify-between">
+                  <span>进入控制台全景视图</span>
+                  <span>→</span>
+                </div>
               </div>
             </div>
           </div>
@@ -601,7 +618,7 @@
                 <div class="flex items-center gap-2">
                   <h3 class="text-sm font-semibold text-white">Uptime Kuma 服务探针大屏</h3>
                   <span class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">16 Probes Online</span>
-                  <span class="text-[11px] font-mono text-zinc-500">HTTP :3001</span>
+                  <span class="text-[11px] font-mono text-zinc-500">HTTPS :3001</span>
                 </div>
                 <p class="text-xs text-zinc-400 mt-1">实时采集甲骨文美西核心、日本绿云原生机、云端 Homelab 与全球 AI 节点连通率及毫秒级延迟折线图，采用 GitHub Dark 极简暗黑工程视觉。</p>
               </div>
@@ -697,7 +714,7 @@
                   </div>
                   <div>
                     <h3 class="text-sm font-semibold text-white">Uptime Kuma 运维后台</h3>
-                    <div class="text-[11px] font-mono text-zinc-500">HTTP :3001 (账号 admin)</div>
+                    <div class="text-[11px] font-mono text-zinc-500">HTTPS :3001 (账号 admin)</div>
                   </div>
                 </div>
                 <span id="service-status-kuma-admin" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">在线</span>
@@ -727,7 +744,7 @@
                   </div>
                   <div>
                     <h3 class="text-sm font-semibold text-white">Sub-Store 订阅大脑</h3>
-                    <div class="text-[11px] font-mono text-zinc-500">HTTP :3000 (前后端一体化极速版)</div>
+                    <div class="text-[11px] font-mono text-zinc-500">HTTPS :3000 (前后端一体化极速版)</div>
                   </div>
                 </div>
                 <span id="service-status-substore" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">在线</span>
@@ -753,7 +770,7 @@
                   </div>
                   <div>
                     <h3 class="text-sm font-semibold text-white">Alist 全网盘挂载中心</h3>
-                    <div class="text-[11px] font-mono text-zinc-500">HTTP :5244 (支持 WebDAV 串流)</div>
+                    <div class="text-[11px] font-mono text-zinc-500">HTTPS :5244 (支持 WebDAV 串流)</div>
                   </div>
                 </div>
                 <span id="service-status-alist" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">在线</span>
@@ -2170,8 +2187,41 @@
       }
     }
 
+    function handleServicesNavClick(e) {
+      const caret = document.getElementById('services-caret');
+      if (caret && caret.contains(e.target)) {
+        e.stopPropagation();
+        toggleServicesDropdown();
+        return;
+      }
+      switchTab('services');
+    }
+
+    function toggleServicesDropdown(e) {
+      if (e) e.stopPropagation();
+      const dd = document.getElementById('services-dropdown');
+      if (dd) {
+        dd.classList.toggle('menu-open');
+      }
+    }
+
+    function closeServicesDropdown() {
+      const dd = document.getElementById('services-dropdown');
+      if (dd) {
+        dd.classList.remove('menu-open');
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const navGroup = document.getElementById('services-nav-group');
+      if (navGroup && !navGroup.contains(e.target)) {
+        closeServicesDropdown();
+      }
+    });
+
     async function loadServicesStatus() {
       const host = window.location.hostname;
+      const proto = window.location.protocol;
       try {
         const res = await fetch('/api/services');
         const data = await res.json();
@@ -2179,11 +2229,11 @@
         const xuiPort = data.xui_port || 20530;
 
         const urls = {
-          kumaStatus: `http://${host}:3001/status/services`,
-          kumaAdmin: `http://${host}:3001/`,
+          kumaStatus: `${proto}//${host}:3001/status/services`,
+          kumaAdmin: `${proto}//${host}:3001/`,
           xui: `https://${host}:${xuiPort}${basePath}`,
-          substore: `http://${host}:3000/`,
-          alist: `http://${host}:5244/`
+          substore: `${proto}//${host}:3000/`,
+          alist: `${proto}//${host}:5244/`
         };
 
         const setHref = (id, url) => {
