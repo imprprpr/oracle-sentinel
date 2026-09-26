@@ -43,10 +43,32 @@ case "$ARCH" in
     *) echo "[!] Unsupported arch: $ARCH"; exit 1 ;;
 esac
 
-echo ">>> Streaming sing-box v${SB_VER} (${SB_ARCH}) directly (Zero-RAM mode)..."
-mkdir -p /etc/sing-box
-curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SB_VER}/sing-box-${SB_VER}-${SB_ARCH}.tar.gz" | tar -zx -O "sing-box-${SB_VER}-${SB_ARCH}/sing-box" > /usr/local/bin/sing-box
-chmod +x /usr/local/bin/sing-box
+# Check if sing-box binary is already installed
+if [ -x /usr/local/bin/sing-box ] && /usr/local/bin/sing-box version >/dev/null 2>&1; then
+    echo ">>> Found existing sing-box binary, skipping download."
+else
+    # Enable temporary 128MB swap if kernel permits (safe memory cushion)
+    if [ ! -f /swapfile ]; then
+        dd if=/dev/zero of=/swapfile bs=1M count=128 status=none 2>/dev/null || true
+        chmod 600 /swapfile 2>/dev/null || true
+        mkswap /swapfile >/dev/null 2>&1 || true
+        swapon /swapfile >/dev/null 2>&1 || true
+    fi
+
+    # Free memory cache before download
+    sync 2>/dev/null || true
+    echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+
+    echo ">>> Downloading sing-box v${SB_VER} (${SB_ARCH}) safely..."
+    mkdir -p /etc/sing-box /usr/local/bin /var/tmp
+    curl --limit-rate 5M -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SB_VER}/sing-box-${SB_VER}-${SB_ARCH}.tar.gz" -o /var/tmp/sb.tar.gz
+    echo ">>> Extracting binary..."
+    tar -zxf /var/tmp/sb.tar.gz -C /var/tmp "sing-box-${SB_VER}-${SB_ARCH}/sing-box"
+    mv "/var/tmp/sing-box-${SB_VER}-${SB_ARCH}/sing-box" /usr/local/bin/sing-box
+    chmod +x /usr/local/bin/sing-box
+    rm -rf /var/tmp/sb.tar.gz /var/tmp/sing-box*
+    sync
+fi
 
 echo ">>> Generating VLESS-Reality credentials..."
 UUID=$(/usr/local/bin/sing-box generate uuid)
@@ -120,7 +142,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-Environment=GOGC=20
+Environment=GOGC=20 GOMEMLIMIT=40MiB
 ExecStart=/usr/local/bin/sing-box run -c /etc/sing-box/config.json
 Restart=always
 RestartSec=3
@@ -137,7 +159,7 @@ else
     echo ">>> Starting sing-box daemon in background..."
     pkill -9 sing-box 2>/dev/null || true
     mkdir -p /opt/sing-box
-    nohup /usr/local/bin/sing-box run -c /etc/sing-box/config.json > /opt/sing-box/sing-box.log 2>&1 &
+    nohup env GOGC=20 GOMEMLIMIT=40MiB /usr/local/bin/sing-box run -c /etc/sing-box/config.json > /opt/sing-box/sing-box.log 2>&1 &
     sleep 1
     if pgrep -x sing-box >/dev/null; then
         echo ">>> sing-box daemon started successfully (PID: $(pgrep -x sing-box))"
