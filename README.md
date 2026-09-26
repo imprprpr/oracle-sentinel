@@ -183,11 +183,22 @@ cd /opt/containers && docker compose up -d
 
 | 服务 | 端口 | 默认账号密码 / 初始化方式 | 用途 |
 | :--- | :--- | :--- | :--- |
-| **Uptime Kuma** | `3001` | 首次打开网页直接注册管理员 | 监控多台 VPS、家庭宽带、博客的存活与延迟折线图。 |
+| **Uptime Kuma** | `3001` | 首次打开网页直接注册管理员 | 监控多台 VPS、家庭宽带、博客的存活与延迟折线图。提供 `/status/services` 公开状态页。 |
 | **Alist** | `5244` | 账号 `admin`，密码查日志或命令重置 | 挂载阿里云盘、夸克、百度网盘、OneDrive，WebDAV 4K 在线串流播放。 |
 | **Sub-Store** | `3000` | 免密直接打开全功能 Web 页面 | 订阅清洗、多机场聚合、正则重命名、国旗 Emoji 注入。 |
 
 > **Alist 密码重置命令**：`docker exec -it alist ./alist admin random` 或 `docker exec -it alist ./alist admin set 新密码`。
+
+#### 探针与监控自动化配置 (Uptime Kuma)
+
+配套脚本 `scripts/setup-uptime-kuma.py` 支持一键初始化全部监控项并注入 GitHub Dark 风格状态页：
+* **监控矩阵**：自动化录入甲骨文美西节点（Ping/20540/20530/8443/443/2083）、日本绿云节点（Ping/Reality/SSH）、Homelab 套件与全球 AI 节点（OpenAI/Anthropic/Cloudflare）。
+* **前端风格**：深度适配 GitHub/Linear 极简暗黑工程美学（`#0d1117` 主色调、细分卡片边框、等宽字体指标展示），避免浮夸渐变与设计冗余。
+* **一键配置命令**：
+  ```bash
+  python3 scripts/setup-uptime-kuma.py
+  ```
+  状态页访问路径：`http://<VPS-IP>:3001/status/services`
 
 ---
 
