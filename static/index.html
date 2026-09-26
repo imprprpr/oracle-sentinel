@@ -153,10 +153,10 @@
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <span class="font-semibold text-sm tracking-tight text-white">Oracle Sentinel</span>
-              <span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">v2.5</span>
+              <span class="font-semibold text-sm tracking-tight text-white">Universal Sentinel</span>
+              <span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">v2.0</span>
             </div>
-            <div class="text-[11px] text-zinc-500 font-mono">PHX-AD-1 • Linux ARM64</div>
+            <div id="headerCloudInfo" class="text-[11px] text-zinc-500 font-mono">宿主机环境检测中...</div>
           </div>
         </div>
 
@@ -499,11 +499,25 @@
         <button class="text-zinc-500 hover:text-white" onclick="closeSettings()">&times;</button>
       </div>
 
-      <div class="space-y-3 text-xs">
+      <div class="space-y-3.5 text-xs max-h-[75vh] overflow-y-auto pr-1">
         <div>
+          <label class="block text-zinc-400 mb-1">Cloud Provider 运行模式</label>
+          <select id="cfg-provider-type" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" onchange="onProviderTypeChange()">
+            <option value="auto">智能自动探测 (Auto)</option>
+            <option value="oracle">Oracle Cloud (OCI API 换 IP)</option>
+            <option value="hook">自定义脚本 / Hook 命令</option>
+            <option value="generic">通用 VPS (监控告警与多协议订阅)</option>
+          </select>
+          <div id="hook-cmd-container" class="mt-2 hidden">
+            <label class="block text-zinc-400 mb-1">自定义 Hook 换 IP 命令</label>
+            <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="cfg-provider-hook" placeholder="/usr/local/bin/change_ip.sh">
+          </div>
+        </div>
+
+        <div class="border-t border-zinc-800 pt-3">
           <label class="block text-zinc-400 mb-1">Cloudflare API Token</label>
           <div class="flex gap-2">
-            <input type="password" class="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="cfg-cf-token" placeholder="输入 token">
+            <input type="password" class="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="cfg-cf-token" placeholder="输入 token">
             <button class="btn-neutral" onclick="testCFToken()">测试</button>
           </div>
         </div>
@@ -515,16 +529,57 @@
           </div>
           <div>
             <label class="block text-zinc-400 mb-1">解析 A 记录</label>
-            <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="cfg-cf-record" placeholder="vps.example.com">
+            <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="cfg-cf-record" placeholder="vps.example.com">
           </div>
         </div>
 
-        <div class="pt-2">
+        <div class="pt-1">
           <label class="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" id="cfg-auto-heal" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
             <span class="text-zinc-300 font-medium">启用 GFW 阻断连续超标全自动换 IP 自愈守卫</span>
           </label>
         </div>
+
+        <!-- Notification section -->
+        <div class="border-t border-zinc-800 pt-3 space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="cfg-notify-enabled" class="rounded bg-zinc-900 border-zinc-700 text-blue-600" onchange="toggleNotifySection()">
+              <span class="text-zinc-200 font-medium">多渠道阻断告警通知推送</span>
+            </label>
+            <button class="btn-neutral text-xs py-1" onclick="testNotification()">发送测试推送 🔔</button>
+          </div>
+
+          <div id="notify-fields" class="space-y-2.5 pl-2 border-l-2 border-zinc-800">
+            <div>
+              <label class="flex items-center gap-1.5 text-zinc-400 mb-1">
+                <input type="checkbox" id="cfg-tg-enabled" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+                <span>Telegram Bot</span>
+              </label>
+              <div class="grid grid-cols-2 gap-2">
+                <input type="password" class="bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" id="cfg-tg-token" placeholder="Bot Token">
+                <input type="text" class="bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" id="cfg-tg-chat" placeholder="Chat ID">
+              </div>
+            </div>
+
+            <div>
+              <label class="flex items-center gap-1.5 text-zinc-400 mb-1">
+                <input type="checkbox" id="cfg-discord-enabled" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+                <span>Discord Webhook</span>
+              </label>
+              <input type="password" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" id="cfg-discord-webhook" placeholder="Webhook URL">
+            </div>
+
+            <div>
+              <label class="flex items-center gap-1.5 text-zinc-400 mb-1">
+                <input type="checkbox" id="cfg-bark-enabled" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+                <span>Bark (iOS)</span>
+              </label>
+              <input type="password" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" id="cfg-bark-key" placeholder="Device Key">
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
@@ -812,15 +867,98 @@
       loadTransits();
     }
 
+    // Provider & Notifications UI helpers
+    function onProviderTypeChange() {
+      const type = document.getElementById('cfg-provider-type').value;
+      const hookContainer = document.getElementById('hook-cmd-container');
+      if (type === 'hook') {
+        hookContainer.classList.remove('hidden');
+      } else {
+        hookContainer.classList.add('hidden');
+      }
+    }
+
+    function toggleNotifySection() {
+      const enabled = document.getElementById('cfg-notify-enabled').checked;
+      const fields = document.getElementById('notify-fields');
+      if (enabled) {
+        fields.classList.remove('opacity-40', 'pointer-events-none');
+      } else {
+        fields.classList.add('opacity-40', 'pointer-events-none');
+      }
+    }
+
+    async function testNotification() {
+      const tg_token = document.getElementById('cfg-tg-token').value.trim();
+      const tg_chat = document.getElementById('cfg-tg-chat').value.trim();
+      const discord_webhook = document.getElementById('cfg-discord-webhook').value.trim();
+      const bark_key = document.getElementById('cfg-bark-key').value.trim();
+
+      const payload = {
+        notifications: {
+          enabled: true,
+          telegram: { enabled: document.getElementById('cfg-tg-enabled').checked, bot_token: tg_token, chat_id: tg_chat },
+          discord: { enabled: document.getElementById('cfg-discord-enabled').checked, webhook_url: discord_webhook },
+          bark: { enabled: document.getElementById('cfg-bark-enabled').checked, bark_key: bark_key }
+        }
+      };
+
+      try {
+        const res = await fetch('/api/notifications/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        let summary = '测试结果汇总：\n';
+        if (data.results && data.results.length > 0) {
+          data.results.forEach(([channel, ok, msg]) => {
+            summary += `• ${channel}: ${ok ? '发送成功 ✅' : '发送失败 ❌ (' + msg + ')'}\n`;
+          });
+        } else {
+          summary += '未勾选任何已启用且填写凭据的通知渠道。';
+        }
+        alert(summary);
+      } catch (e) {
+        alert('测试推送请求失败: ' + e);
+      }
+    }
+
     // Settings Modal
     function openSettings() {
       fetch('/api/settings')
         .then(r => r.json())
         .then(data => {
+          // Provider
+          const p = data.provider || { type: 'auto', hook_cmd: '' };
+          document.getElementById('cfg-provider-type').value = p.type || 'auto';
+          document.getElementById('cfg-provider-hook').value = p.hook_cmd || '';
+          onProviderTypeChange();
+
+          // Cloudflare
           document.getElementById('cfg-cf-token').value = '';
           document.getElementById('cfg-cf-zone').value = data.cloudflare.zone_name;
           document.getElementById('cfg-cf-record').value = data.cloudflare.record_name;
           document.getElementById('cfg-auto-heal').checked = data.monitor.auto_heal_enabled;
+
+          // Notifications
+          const n = data.notifications || {};
+          document.getElementById('cfg-notify-enabled').checked = !!n.enabled;
+          
+          const tg = n.telegram || {};
+          document.getElementById('cfg-tg-enabled').checked = !!tg.enabled;
+          document.getElementById('cfg-tg-token').value = tg.bot_token || '';
+          document.getElementById('cfg-tg-chat').value = tg.chat_id || '';
+
+          const dc = n.discord || {};
+          document.getElementById('cfg-discord-enabled').checked = !!dc.enabled;
+          document.getElementById('cfg-discord-webhook').value = dc.webhook_url || '';
+
+          const bk = n.bark || {};
+          document.getElementById('cfg-bark-enabled').checked = !!bk.enabled;
+          document.getElementById('cfg-bark-key').value = bk.bark_key || '';
+
+          toggleNotifySection();
           document.getElementById('settings-modal').classList.add('active');
         });
     }
@@ -835,7 +973,29 @@
       const cf_record = document.getElementById('cfg-cf-record').value.trim();
       const auto_heal = document.getElementById('cfg-auto-heal').checked;
 
-      const payload = { cf_token, cf_zone, cf_record, auto_heal };
+      const provider_type = document.getElementById('cfg-provider-type').value;
+      const provider_hook = document.getElementById('cfg-provider-hook').value.trim();
+
+      const notifications_enabled = document.getElementById('cfg-notify-enabled').checked;
+      const tg_enabled = document.getElementById('cfg-tg-enabled').checked;
+      const tg_token = document.getElementById('cfg-tg-token').value.trim();
+      const tg_chat_id = document.getElementById('cfg-tg-chat').value.trim();
+
+      const discord_enabled = document.getElementById('cfg-discord-enabled').checked;
+      const discord_webhook = document.getElementById('cfg-discord-webhook').value.trim();
+
+      const bark_enabled = document.getElementById('cfg-bark-enabled').checked;
+      const bark_key = document.getElementById('cfg-bark-key').value.trim();
+
+      const payload = {
+        cf_token, cf_zone, cf_record, auto_heal,
+        provider_type, provider_hook,
+        notifications_enabled,
+        tg_enabled, tg_token, tg_chat_id,
+        discord_enabled, discord_webhook,
+        bark_enabled, bark_key
+      };
+
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -906,6 +1066,14 @@
     function updateOverview(state, sentinel) {
       if (!state) return;
       if (state.current_ip) document.getElementById('disp-ip').innerText = state.current_ip;
+
+      if (state.cloud_info) {
+        const ci = state.cloud_info;
+        const headerInfo = document.getElementById('headerCloudInfo');
+        if (headerInfo) {
+          headerInfo.textContent = `${ci.provider} (${ci.region}) • ${ci.arch}`;
+        }
+      }
       
       if (state.probes) {
         document.getElementById('disp-latency').innerText = state.probes.avg_latency || '--';

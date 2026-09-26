@@ -1,40 +1,123 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# ==============================================================================
+# Oracle Sentinel - Core Engine & Multi-Cloud Provider Abstraction
+# ==============================================================================
+
 import os
 import sys
 import time
 import json
 import socket
 import logging
+import platform
 import subprocess
 import requests
 import psutil
-import oci
+
+# Conditional OCI import for cross-cloud compatibility
+try:
+    import oci
+    HAS_OCI = True
+except ImportError:
+    HAS_OCI = False
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
-logger = logging.getLogger('OracleSentinel')
+logger = logging.getLogger('SentinelCore')
 
-CONFIG_PATH = '/opt/oracle-sentinel/config.json'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(BASE_DIR, 'config.json')
 METADATA_INSTANCE_URL = 'http://169.254.169.254/opc/v2/instance/'
 METADATA_VNICS_URL = 'http://169.254.169.254/opc/v2/vnics/'
 
 DEFAULT_CONFIG = {
+    'provider': {
+        'type': 'auto',          # 'auto', 'oracle', 'hook', 'generic'
+        'hook_cmd': ''
+    },
     'cloudflare': {
         'api_token': '',
         'zone_name': '',
         'record_name': ''
     },
     'oci': {
-        'auth_method': 'instance_principal',
-        'config_path': '/home/ubuntu/.oci/config'
+        'auth_method': 'config_file',
+        'config_path': '/root/.oci/config'
     },
     'monitor': {
-        'interval_sec': 10,
-        'loss_threshold': 80.0,
-        'consecutive_failures': 5,
-        'auto_heal_enabled': False
-    }
+        'interval_sec': 15,
+        'loss_threshold': 75.0,
+        'consecutive_failures': 3,
+        'auto_heal_enabled': True
+    },
+    'notifications': {
+        'enabled': False,
+        'telegram': {
+            'enabled': False,
+            'bot_token': '',
+            'chat_id': ''
+        },
+        'discord': {
+            'enabled': False,
+            'webhook_url': ''
+        },
+        'bark': {
+            'enabled': False,
+            'bark_key': ''
+        },
+        'custom_webhook': {
+            'enabled': False,
+            'url': ''
+        }
+    },
+    'rules_config': {
+        'adblock': True,
+        'ai_group': True,
+        'media_group': True,
+        'auto_test': True,
+        'direct_cn': True,
+        'hy2_hop': True
+    },
+    'transits': []
 }
+
+def get_cloud_info():
+    """
+    Auto-detects host virtualization, cloud provider, and CPU architecture.
+    """
+    arch = platform.machine()
+    dmi_str = ""
+    for df in ['/sys/class/dmi/id/product_name', '/sys/class/dmi/id/sys_vendor', '/sys/class/dmi/id/chassis_asset_tag']:
+        if os.path.exists(df):
+            try:
+                with open(df, 'r', encoding='utf-8', errors='ignore') as f:
+                    dmi_str += f.read() + " "
+            except Exception:
+                pass
+
+    if 'OracleCloud' in dmi_str:
+        return {'provider': 'Oracle Cloud', 'region': 'OCI Global', 'arch': arch}
+    elif 'Amazon' in dmi_str or 'EC2' in dmi_str:
+        return {'provider': 'AWS (Amazon EC2)', 'region': 'AWS', 'arch': arch}
+    elif 'Alibaba' in dmi_str or 'Aliyun' in dmi_str:
+        return {'provider': 'Alibaba Cloud (阿里云)', 'region': 'Aliyun', 'arch': arch}
+    elif 'Tencent' in dmi_str:
+        return {'provider': 'Tencent Cloud (腾讯云)', 'region': 'Tencent', 'arch': arch}
+    elif 'Hetzner' in dmi_str:
+        return {'provider': 'Hetzner Cloud', 'region': 'Hetzner', 'arch': arch}
+    elif 'DigitalOcean' in dmi_str:
+        return {'provider': 'DigitalOcean', 'region': 'DO', 'arch': arch}
+
+    # Metadata service check
+    try:
+        r = requests.get(METADATA_INSTANCE_URL, headers={'Authorization': 'Bearer Oracle'}, timeout=1)
+        if r.status_code == 200:
+            reg = r.json().get('canonicalRegionName', 'Oracle Cloud')
+            return {'provider': 'Oracle Cloud', 'region': reg, 'arch': arch}
+    except Exception:
+        pass
+
+    return {'provider': 'Generic VPS / Dedicated Server', 'region': 'Global', 'arch': arch}
 
 class ConfigManager:
     @staticmethod
@@ -43,7 +126,6 @@ class ConfigManager:
             try:
                 with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)
-                    # Merge with default in case of missing keys
                     merged = DEFAULT_CONFIG.copy()
                     for k, v in cfg.items():
                         if isinstance(v, dict) and k in merged:
@@ -62,20 +144,26 @@ class ConfigManager:
                 json.dump(cfg, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            logger.error(f'Error writing {CONFIG_PATH}: {e}')
+            logger.error(f'Error saving {CONFIG_PATH}: {e}')
             return False
 
 class SystemMonitor:
     def __init__(self):
-        self.last_net = psutil.net_io_counters()
-        self.last_time = time.time()
+        self.probes = [
+            {'name': 'AliDNS', 'host': '223.5.5.5', 'port': 53},
+            {'name': 'DNSPod', 'host': '119.29.29.29', 'port': 53},
+            {'name': 'Baidu', 'host': 'www.baidu.com', 'port': 80},
+            {'name': 'Tencent', 'host': 'www.qq.com', 'port': 80}
+        ]
+        self.last_net_io = psutil.net_io_counters()
+        self.last_net_time = time.time()
         self.consecutive_failures = 0
 
     def get_public_ip(self):
         providers = [
-            'https://ip.sb',
             'https://api.ipify.org',
-            'https://ifconfig.me/ip'
+            'https://ifconfig.me/ip',
+            'https://checkip.amazonaws.com'
         ]
         for url in providers:
             try:
@@ -93,70 +181,72 @@ class SystemMonitor:
             r = requests.get(
                 'https://cloudflare.com/cdn-cgi/trace',
                 proxies={'http': 'socks5h://127.0.0.1:40000', 'https': 'socks5h://127.0.0.1:40000'},
-                timeout=3
+                timeout=2
             )
             data = dict(line.split('=', 1) for line in r.text.strip().split('\n') if '=' in line)
-            if data.get('warp') in ('on', 'plus'):
-                return {'status': 'active', 'ip': data.get('ip', 'Unknown'), 'loc': data.get('loc', 'US')}
+            return {
+                'active': data.get('warp') in ('on', 'plus'),
+                'ip': data.get('ip', 'N/A'),
+                'loc': data.get('loc', 'N/A')
+            }
         except Exception:
-            pass
-        return {'status': 'inactive', 'ip': 'N/A', 'loc': 'N/A'}
+            return {'active': False, 'ip': 'Offline', 'loc': 'N/A'}
+
+    def check_domestic_probes(self):
+        total = len(self.probes)
+        success = 0
+        latencies = []
+
+        for p in self.probes:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(1.5)
+            t0 = time.time()
+            try:
+                s.connect((p['host'], p['port']))
+                latencies.append((time.time() - t0) * 1000)
+                success += 1
+            except Exception:
+                pass
+            finally:
+                s.close()
+
+        loss = round((total - success) / total * 100, 1)
+        avg_rtt = round(sum(latencies) / len(latencies), 1) if latencies else 0.0
+
+        return {
+            'loss_pct': loss,
+            'avg_rtt_ms': avg_rtt,
+            'success_probes': success,
+            'total_probes': total
+        }
 
     def check_port_listening(self, port, proto='tcp'):
         try:
-            for conn in psutil.net_connections(kind=proto):
-                if conn.laddr and conn.laddr.port == port:
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.laddr.port == port and conn.status == (psutil.CONN_LISTEN if proto == 'tcp' else conn.status):
                     return True
         except Exception:
             pass
         return False
 
-    def check_domestic_probes(self):
-        targets = [
-            ('AliDNS', '223.5.5.5', 53),
-            ('Baidu', 'www.baidu.com', 443),
-            ('Tencent', 'www.qq.com', 443)
-        ]
-        results = []
-        latencies = []
-        for name, host, port in targets:
-            t0 = time.time()
-            try:
-                s = socket.create_connection((host, port), timeout=2.5)
-                dt = round((time.time() - t0) * 1000, 1)
-                s.close()
-                results.append({'target': name, 'status': 'ok', 'latency': dt})
-                latencies.append(dt)
-            except Exception as e:
-                results.append({'target': name, 'status': 'fail', 'latency': None, 'error': str(e)})
-
-        loss_pct = round(((len(targets) - len(latencies)) / len(targets)) * 100, 1)
-        avg_latency = round(sum(latencies) / len(latencies), 1) if latencies else 0
-        return {
-            'loss_pct': loss_pct,
-            'avg_latency': avg_latency,
-            'details': results
-        }
-
     def get_metrics(self):
-        now = time.time()
-        dt = max(now - self.last_time, 0.1)
-        cur_net = psutil.net_io_counters()
-
-        rx_bytes_sec = max(0, int((cur_net.bytes_recv - self.last_net.bytes_recv) / dt))
-        tx_bytes_sec = max(0, int((cur_net.bytes_sent - self.last_net.bytes_sent) / dt))
-
-        self.last_net = cur_net
-        self.last_time = now
-
-        mem = psutil.virtual_memory()
         cpu = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        
+        now = time.time()
+        curr_io = psutil.net_io_counters()
+        dt = max(now - self.last_net_time, 0.1)
+        
+        rx_bytes_sec = (curr_io.bytes_recv - self.last_net_io.bytes_recv) / dt
+        tx_bytes_sec = (curr_io.bytes_sent - self.last_net_io.bytes_sent) / dt
+        
+        self.last_net_io = curr_io
+        self.last_net_time = now
 
-        # Uptime
-        uptime_sec = int(time.time() - psutil.boot_time())
-        days, rem = divmod(uptime_sec, 86400)
-        hours, rem = divmod(rem, 3600)
-        mins, _ = divmod(rem, 60)
+        uptime_seconds = int(time.time() - psutil.boot_time())
+        days = uptime_seconds // 86400
+        hours = (uptime_seconds % 86400) // 3600
+        mins = (uptime_seconds % 3600) // 60
         uptime_str = f'{days}d {hours}h {mins}m' if days else f'{hours}h {mins}m'
 
         return {
@@ -171,6 +261,7 @@ class SystemMonitor:
 
     def get_full_state(self):
         cfg = ConfigManager.load()
+        cloud_info = get_cloud_info()
         metrics = self.get_metrics()
         probes = self.check_domestic_probes()
         pub_ip = self.get_public_ip()
@@ -203,7 +294,6 @@ class SystemMonitor:
             }
         ]
 
-        # Status level
         if probes['loss_pct'] >= 80:
             health = 'critical'
         elif probes['loss_pct'] > 0:
@@ -214,19 +304,29 @@ class SystemMonitor:
         return {
             'timestamp': int(time.time()),
             'health': health,
-            'current_ip': pub_ip,
-            'location': 'US Phoenix (Oracle Cloud HWcl:PHX-AD-1)',
+            'public_ip': pub_ip,
+            'cloud_info': cloud_info,
             'probes': probes,
             'metrics': metrics,
             'nodes': nodes,
             'warp': warp
         }
 
-class OracleManager:
+# ==============================================================================
+# Multi-Cloud Provider Abstraction
+# ==============================================================================
+
+class BaseCloudProvider:
+    def change_public_ip(self) -> str:
+        raise NotImplementedError("Subclasses must implement change_public_ip()")
+
+    def get_name(self) -> str:
+        return "BaseProvider"
+
+class OracleCloudProvider(BaseCloudProvider):
     def __init__(self, config_path=None):
         self.metadata = self._get_metadata(METADATA_INSTANCE_URL)
         self.vnics_info = self._get_metadata(METADATA_VNICS_URL)
-        
         self.compartment_id = self.metadata.get('compartmentId')
         self.instance_id = self.metadata.get('id')
         self.region = self.metadata.get('canonicalRegionName', 'us-phoenix-1')
@@ -234,17 +334,24 @@ class OracleManager:
         self.client = None
         self.init_error = None
         
+        if not HAS_OCI:
+            self.init_error = "OCI Python SDK is not installed."
+            return
+
         try:
             self.client = self._init_client(config_path)
         except Exception as e:
             self.init_error = str(e)
             logger.warning(f'Oracle Client init deferred/failed: {e}')
 
+    def get_name(self) -> str:
+        return "Oracle Cloud Infrastructure (OCI)"
+
     def _get_metadata(self, url):
         try:
-            r = requests.get(url, headers={'Authorization': 'Bearer Oracle'}, timeout=3)
+            r = requests.get(url, headers={'Authorization': 'Bearer Oracle'}, timeout=2)
             return r.json()
-        except Exception as e:
+        except Exception:
             return {}
 
     def _init_client(self, config_path):
@@ -272,7 +379,7 @@ class OracleManager:
         logger.info('Querying private IPs on primary VNIC...')
         try:
             priv_ips = self.client.list_private_ips(vnic_id=self.vnic_id).data
-        except oci.exceptions.ServiceError as e:
+        except Exception as e:
             if 'NotAuthorizedOrNotFound' in str(e):
                 raise PermissionError(
                     'Oracle IAM Authorization failed. Please grant permission in Oracle Console: '
@@ -285,7 +392,7 @@ class OracleManager:
         if not primary_priv_ip:
             raise ValueError('Primary private IP not found on VNIC')
 
-        # Find existing public IP
+        # Release old public IP
         try:
             pub_ip_details = oci.core.models.GetPublicIpByPrivateIpIdDetails(private_ip_id=primary_priv_ip.id)
             pub_ip = self.client.get_public_ip_by_private_ip_id(pub_ip_details).data
@@ -293,12 +400,11 @@ class OracleManager:
                 logger.info(f'Releasing old Public IP: {pub_ip.ip_address} (OCID: {pub_ip.id})')
                 self.client.delete_public_ip(pub_ip.id)
                 time.sleep(2)
-        except oci.exceptions.ServiceError as e:
-            if e.status != 404:
-                logger.warning(f'Notice on fetching old public IP: {e}')
+        except Exception as e:
+            logger.warning(f'Notice on fetching old public IP: {e}')
 
-        # Request new ephemeral public IP
-        logger.info('Allocating new Ephemeral Public IP from Oracle Cloud Phoenix pool...')
+        # Create new public IP
+        logger.info('Allocating new Ephemeral Public IP from Oracle Cloud pool...')
         create_details = oci.core.models.CreatePublicIpDetails(
             compartment_id=self.compartment_id,
             lifetime='EPHEMERAL',
@@ -308,6 +414,57 @@ class OracleManager:
         new_pub_ip = self.client.create_public_ip(create_details).data
         logger.info(f'Successfully assigned NEW Public IP: {new_pub_ip.ip_address}')
         return new_pub_ip.ip_address
+
+class CustomHookProvider(BaseCloudProvider):
+    def __init__(self, hook_cmd):
+        self.hook_cmd = hook_cmd
+
+    def get_name(self) -> str:
+        return "Custom Script / Hook"
+
+    def change_public_ip(self) -> str:
+        if not self.hook_cmd:
+            raise ValueError("No custom hook script or command configured.")
+        logger.info(f"Executing custom Re-IP hook: {self.hook_cmd}")
+        res = subprocess.run(self.hook_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        new_ip = res.stdout.strip()
+        if not (new_ip and len(new_ip.split('.')) == 4):
+            new_ip = SystemMonitor().get_public_ip()
+        return new_ip
+
+class GenericProvider(BaseCloudProvider):
+    def get_name(self) -> str:
+        return "Generic VPS (Monitoring & Alert Only)"
+
+    def change_public_ip(self) -> str:
+        logger.info("Generic VPS detected: Automatic IP swap not supported by cloud provider.")
+        logger.info("Attempting WARP egress renewal...")
+        try:
+            subprocess.run("warp-cli disconnect && sleep 1 && warp-cli connect", shell=True, check=False)
+        except Exception:
+            pass
+        return SystemMonitor().get_public_ip()
+
+def get_cloud_provider(cfg):
+    """
+    Factory method returning the active Cloud Provider instance based on configuration.
+    """
+    p_type = cfg.get('provider', {}).get('type', 'auto')
+    cloud_info = get_cloud_info()
+
+    if p_type == 'oracle' or (p_type == 'auto' and 'Oracle' in cloud_info['provider']):
+        return OracleCloudProvider(cfg.get('oci', {}).get('config_path'))
+    elif p_type == 'hook':
+        return CustomHookProvider(cfg.get('provider', {}).get('hook_cmd', ''))
+    else:
+        return GenericProvider()
+
+# Backwards compatibility alias
+OracleManager = OracleCloudProvider
+
+# ==============================================================================
+# Cloudflare DNS Manager
+# ==============================================================================
 
 class CloudflareManager:
     def __init__(self, api_token, zone_name=''):
@@ -340,33 +497,50 @@ class CloudflareManager:
         url = f'https://api.cloudflare.com/client/v4/zones?name={self.zone_name}'
         r = requests.get(url, headers=self.headers, timeout=5)
         res = r.json()
-        if not res.get('success') or len(res.get('result', [])) == 0:
-            raise ValueError(f'Cloudflare Zone not found for {self.zone_name}')
+        if not res.get('success') or not res.get('result'):
+            raise ValueError(f'Zone {self.zone_name} not found in Cloudflare account.')
         zone_id = res['result'][0]['id']
 
-        # Get Record ID
-        url = f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?name={record_name}&type=A'
-        r = requests.get(url, headers=self.headers, timeout=5)
+        # Get DNS Record ID
+        dns_url = f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?type=A&name={record_name}'
+        r = requests.get(dns_url, headers=self.headers, timeout=5)
         res = r.json()
-        if not res.get('success') or len(res.get('result', [])) == 0:
-            raise ValueError(f'DNS record for {record_name} not found in Cloudflare')
-        record_id = res['result'][0]['id']
-        old_ip = res['result'][0]['content']
+        if not res.get('success') or not res.get('result'):
+            # Create record if not found
+            logger.info(f'Record {record_name} not found, creating new A record...')
+            create_url = f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records'
+            payload = {
+                'type': 'A',
+                'name': record_name,
+                'content': new_ip,
+                'ttl': 60,
+                'proxied': False
+            }
+            r = requests.post(create_url, headers=self.headers, json=payload, timeout=5)
+            c_res = r.json()
+            if not c_res.get('success'):
+                raise RuntimeError(f'Failed to create A record: {c_res.get("errors")}')
+            return True
 
-        # Update Record
+        record_id = res['result'][0]['id']
+
+        # Update A Record
         update_url = f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}'
-        data = {
+        payload = {
             'type': 'A',
             'name': record_name,
             'content': new_ip,
-            'ttl': 1,
+            'ttl': 60,
             'proxied': False
         }
-        update_res = requests.put(update_url, headers=self.headers, json=data, timeout=5).json()
-        if update_res.get('success'):
-            logger.info(f'Cloudflare DNS updated: {old_ip} -> {new_ip}')
-            return True, old_ip
-        else:
-            errors = update_res.get('errors', [{'message': 'Unknown error'}])
-            raise RuntimeError(f'Cloudflare DNS update failed: {errors}')
+        r = requests.put(update_url, headers=self.headers, json=payload, timeout=5)
+        u_res = r.json()
+        if not u_res.get('success'):
+            raise RuntimeError(f'Failed to update DNS record: {u_res.get("errors")}')
+        
+        logger.info(f'Cloudflare DNS updated: {record_name} -> {new_ip}')
+        return True
 
+if __name__ == '__main__':
+    info = get_cloud_info()
+    print("Detected Cloud Environment:", info)

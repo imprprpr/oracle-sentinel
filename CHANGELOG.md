@@ -5,6 +5,29 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-09-26
+
+### 🌐 Universal Multi-Cloud & Cross-Distro Expansion (泛用性多云与通用 VPS 演进)
+- **Multi-Cloud Provider Abstraction (`sentinel_core.py`)**:
+  - Introduces extensible `BaseCloudProvider` architecture supporting `OracleCloudProvider`, `GenericProvider`, and `CustomHookProvider`.
+  - Deferred OCI SDK import: non-Oracle servers run smoothly without requiring OCI dependencies.
+  - Auto-detection engine (`get_cloud_info()`): Dynamically detects host hypervisor, cloud provider (Oracle, AWS, Hetzner, Alibaba, Tencent, DO, Generic KVM), and CPU architecture (`x86_64` / `aarch64`).
+- **Multi-Channel Notification Dispatcher (`notification.py`)**:
+  - Out-of-the-box instant alert dispatch across **Telegram Bot**, **Discord Webhook**, **Bark (iOS Push)**, and **Custom Webhook**.
+  - Sends rich event cards on domestic probe GFW blocks, Re-IP rebirth initiation, DNS synchronization, and routine success/failure.
+  - Interactive notification channel test endpoint (`/api/notifications/test`) with test button in Web UI.
+- **Cross-Distribution Linux Support (`scripts/install.sh`)**:
+  - Multi-package manager auto-detection supporting `apt` (Ubuntu/Debian), `dnf`/`yum` (CentOS/RHEL/Fedora/AlmaLinux/Rocky), and `pacman` (Arch Linux).
+  - Cross-firewall port opening: auto-detects and configures either `ufw` or `firewalld`.
+- **Universal CLI Wizard Expansion (`scripts/wizard.py`)**:
+  - Mode selection: Oracle Cloud (OCI API), Generic VPS (monitoring & alerts), or Custom Hook script.
+  - Dedicated step for Multi-Channel Notification setup (Telegram, Discord, Bark).
+- **Web UI Universalization (`static/index.html`)**:
+  - Dynamic host badge displaying detected cloud provider, region, and CPU architecture in real-time.
+  - Settings Modal updated with Cloud Provider selection, Custom Hook input, and multi-channel notification fields with live testing.
+
+---
+
 ## [1.2.0] - 2026-09-26
 
 ### 🚀 3x-ui Golden Inbounds Auto-Provisioning (出海全家桶预置注入)

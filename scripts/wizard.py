@@ -45,10 +45,33 @@ def print_banner():
  ╚██████╔╝██║  ██║██║  ██║╚██████╗███████╗███████╗    ███████║███████╗██║ ╚████║   ██║   ██║██║ ╚████║███████╗███████╗
   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚══════╝    ╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 {C_RESET}
-{C_BOLD}   Oracle Cloud (甲骨文云) 极简全自动化交互式部署向导 • v1.0.0{C_RESET}
+{C_BOLD}   Universal Cloud Sentinel (全能云端自愈守卫) • 极简全自动化交互式部署向导 • v2.0.0{C_RESET}
 {C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}
 """
     print(banner)
+
+def detect_cloud_info():
+    dmi_str = ""
+    for df in ['/sys/class/dmi/id/product_name', '/sys/class/dmi/id/sys_vendor', '/sys/class/dmi/id/chassis_asset_tag']:
+        if os.path.exists(df):
+            try:
+                with open(df, 'r', encoding='utf-8', errors='ignore') as f:
+                    dmi_str += f.read() + " "
+            except Exception:
+                pass
+    if 'OracleCloud' in dmi_str:
+        return "Oracle Cloud Infrastructure (OCI)"
+    elif 'Amazon' in dmi_str or 'EC2' in dmi_str:
+        return "AWS (Amazon EC2)"
+    elif 'Alibaba' in dmi_str or 'Aliyun' in dmi_str:
+        return "Alibaba Cloud (阿里云)"
+    elif 'Tencent' in dmi_str:
+        return "Tencent Cloud (腾讯云)"
+    elif 'Hetzner' in dmi_str:
+        return "Hetzner Cloud"
+    elif 'DigitalOcean' in dmi_str:
+        return "DigitalOcean"
+    return "Generic Linux VPS / Dedicated Server"
 
 def log_info(msg):
     print(f" {C_CYAN}ℹ{C_RESET}  {msg}")
@@ -98,12 +121,33 @@ def get_public_ip():
             continue
     return "127.0.0.1"
 
-# --- STEP 1: Firewall & BBR ---
-def step_firewall_and_bbr():
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 1/5] 🚀 甲骨文底层防火墙与 BBR 拥塞控制调优{C_RESET}")
+# --- STEP 1: Cloud Provider Mode ---
+def step_cloud_provider_mode(detected_cloud):
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 1/7] 🌐 云平台适配与运行模式选择{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
-    print(" 甲骨文官方 Ubuntu 镜像默认启用了严苛的 iptables DROP 规则，会导致外部端口无法连通。")
-    ans = prompt("是否自动清理甲骨文原生 iptables 阻断并开启 BBR？(y/n)", "y").lower()
+    log_info(f"系统智能探测到当前宿主机环境: {C_BOLD}{C_GREEN}{detected_cloud}{C_RESET}")
+    
+    default_choice = "1" if "Oracle" in detected_cloud else "2"
+    print(f" {C_YELLOW}模式 1{C_RESET}: Oracle Cloud (甲骨文云) - 启用 OCI API 自动换 IP 与 Cloudflare 联动")
+    print(f" {C_YELLOW}模式 2{C_RESET}: 通用 VPS (搬瓦工/RackNerd/Hetzner/腾讯云/阿里云等) - 连通性探针 + 阻断告警 + 订阅聚合")
+    print(f" {C_YELLOW}模式 3{C_RESET}: 自定义 Hook 脚本模式 - 遭遇阻断时执行自定义 Shell 脚本调用云商 API 换 IP")
+    
+    choice = prompt("请选择运行模式 (1/2/3)", default_choice)
+    if choice == "1":
+        return "oracle", ""
+    elif choice == "3":
+        cmd = prompt("请输入触发换 IP 的自定义脚本或命令", "/usr/local/bin/change_ip.sh")
+        return "hook", cmd
+    else:
+        log_info("已启用通用 VPS 模式：无需 OCI 凭据，将专注于国内连通性巡检、多渠道告警推送与多协议订阅聚合。")
+        return "generic", ""
+
+# --- STEP 2: Firewall & BBR ---
+def step_firewall_and_bbr():
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 2/7] 🚀 底层防火墙放通、端口跳跃与 BBR 拥塞控制调优{C_RESET}")
+    print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
+    print(" 许多云服务商（特别是甲骨文云）默认启用了严苛的 iptables DROP 规则，会导致外部端口无法连通。")
+    ans = prompt("是否自动清理原生 iptables 阻断并开启 BBR？(y/n)", "y").lower()
     if ans == 'y':
         log_info("正在解除 iptables 阻断规则并放通入站流量...")
         run_cmd("iptables -P INPUT ACCEPT")
@@ -131,10 +175,20 @@ def step_firewall_and_bbr():
     else:
         log_warn("已跳过防火墙与网络调优。")
 
-# --- STEP 2: OCI API Configuration ---
-def step_oci_config():
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 2/5] 🛡️ 甲骨文 OCI API 自动换 IP 凭据配置{C_RESET}")
+# --- STEP 3: Provider Re-IP Configuration ---
+def step_provider_config(provider_mode, hook_cmd):
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 3/7] 🛡️ 节点公网 IP 自愈变动凭据配置{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
+    if provider_mode == "oracle":
+        return step_oci_config()
+    elif provider_mode == "hook":
+        log_success(f"已绑定自定义换 IP 触发命令: {hook_cmd}")
+        return ""
+    else:
+        log_info("通用 VPS 模式：自动换 IP 功能由云服务商限制，阻断时将自动触发多渠道告警与 WARP 节点调度。")
+        return ""
+
+def step_oci_config():
     print(" OCI API 是实现“GFW 封锁后自动申请新公网 IP 并解绑旧 IP”的核心凭证。")
     print(f" {C_YELLOW}选项 1{C_RESET}: 自动生成全新的 RSA API 密钥对，并打印公钥供您在甲骨文后台粘贴 (推荐)")
     print(f" {C_YELLOW}选项 2{C_RESET}: 我已在 /root/.oci/config 配置好，直接检测并使用")
@@ -212,11 +266,11 @@ def step_oci_config():
         log_info("已跳过 OCI 自动化配置。")
         return ""
 
-# --- STEP 3: Cloudflare API & Domain Verification ---
+# --- STEP 4: Cloudflare API & Domain Verification ---
 def step_cloudflare_config(current_ip):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 3/5] ☁️ Cloudflare 自动化 DNS 解析联动{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 4/7] ☁️ Cloudflare 自动化 DNS 解析联动{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
-    print(" 当甲骨文换 IP 后，Sentinel 将调用此 Token 自动将您的域名 A 记录秒级刷新至新 IP。")
+    print(" 当节点换 IP 后，Sentinel 将调用此 Token 自动将您的域名 A 记录秒级刷新至新 IP。")
     print(" Token 申请路径: Cloudflare Dash -> 个人资料 -> API 令牌 -> 创建令牌 -> 编辑区域 DNS 模板\n")
 
     while True:
@@ -253,7 +307,6 @@ def step_cloudflare_config(current_ip):
                     
                     # 尝试自动检测或创建 A 记录
                     log_info(f"正在同步创建/更新 Cloudflare A 记录: {record_name} -> {current_ip} ...")
-                    # Update or create
                     return token, zone_name, record_name
                 else:
                     log_err("Cloudflare 验证失败: " + str(data.get("errors")))
@@ -264,9 +317,9 @@ def step_cloudflare_config(current_ip):
         if retry != 'y':
             return "", "", ""
 
-# --- STEP 4: SSL/TLS Certificate Provisioning ---
+# --- STEP 5: SSL/TLS Certificate Provisioning ---
 def step_ssl_cert(cf_token, domain):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 4/5] 🔒 SSL / TLS 证书自动签发 (DNS-01 零端口依赖){C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 5/7] 🔒 SSL / TLS 证书自动签发 (DNS-01 零端口依赖){C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     os.makedirs(CERT_DIR, exist_ok=True)
     priv_file = os.path.join(CERT_DIR, "privkey.pem")
@@ -305,9 +358,9 @@ def step_ssl_cert(cf_token, domain):
     run_cmd(f"chmod 600 {priv_file}")
     return priv_file, cert_file
 
-# --- STEP 5: 3x-ui Golden Inbounds Auto-Provisioning ---
+# --- STEP 6: 3x-ui Golden Inbounds Auto-Provisioning ---
 def step_3x_ui_nodes(domain):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 5/5] 🚀 3x-ui 节点全家桶自动入库与初始化{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 6/7] 🚀 3x-ui 节点全家桶自动入库与初始化{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" 自动向 3x-ui 写入经过生产调优的『黄金三剑客』出海节点，装完免去任何面板手动配置：")
     print(f"  1. {C_GREEN}Oracle-US{C_RESET}     : VLESS-Reality (TCP :8443) 自动生成 X25519 密钥对")
@@ -339,10 +392,61 @@ def step_3x_ui_nodes(domain):
     else:
         log_info("已跳过节点自动预置，您可稍后在 3x-ui 面板手动创建入站。")
 
+# --- STEP 7: Multi-Channel Alert Notifications ---
+def step_notifications():
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 7/7] 📢 多渠道阻断告警通知中枢配置{C_RESET}")
+    print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
+    print(" 当节点遭受 GFW 阻断、触发自愈或换 IP 成功时，Sentinel 将向管理员即时发送推送卡片。")
+    print(" 支持渠道：Telegram Bot、Discord Webhook、Bark (iOS)、自定义 Webhook。")
+    ans = prompt("是否配置告警通知渠道？(y/n)", "n").lower()
+    
+    notify_cfg = {
+        "enabled": False,
+        "telegram": {"enabled": False, "bot_token": "", "chat_id": ""},
+        "discord": {"enabled": False, "webhook_url": ""},
+        "bark": {"enabled": False, "bark_key": ""},
+        "custom_webhook": {"enabled": False, "url": ""}
+    }
+    if ans != 'y':
+        log_info("已跳过告警通知配置 (可稍后在 Web 控制台设置面板中随时配置)。")
+        return notify_cfg
+
+    notify_cfg["enabled"] = True
+    # Telegram
+    tg_ans = prompt("是否配置 Telegram Bot 通知？(y/n)", "n").lower()
+    if tg_ans == 'y':
+        tg_token = prompt("请输入 Telegram Bot Token (例如: 123456:ABC-DEF...)")
+        tg_chat = prompt("请输入 Telegram Chat ID (个人或群组 ID)")
+        if tg_token and tg_chat:
+            notify_cfg["telegram"] = {"enabled": True, "bot_token": tg_token, "chat_id": tg_chat}
+            log_success("Telegram 通知已配置！")
+
+    # Discord
+    dc_ans = prompt("是否配置 Discord Webhook 通知？(y/n)", "n").lower()
+    if dc_ans == 'y':
+        dc_url = prompt("请输入 Discord Webhook 完整 URL")
+        if dc_url:
+            notify_cfg["discord"] = {"enabled": True, "webhook_url": dc_url}
+            log_success("Discord Webhook 通知已配置！")
+
+    # Bark
+    bark_ans = prompt("是否配置 Bark (iOS 手机推送)？(y/n)", "n").lower()
+    if bark_ans == 'y':
+        b_key = prompt("请输入 Bark 设备 Key")
+        if b_key:
+            notify_cfg["bark"] = {"enabled": True, "bark_key": b_key}
+            log_success("Bark 通知已配置！")
+
+    return notify_cfg
+
 # --- Finalize Configuration & Systemd ---
-def finalize_setup(cf_token, zone_name, record_name, oci_path):
+def finalize_setup(provider_type, hook_cmd, cf_token, zone_name, record_name, oci_path, notify_cfg):
     log_info("正在写入生产环境 /opt/oracle-sentinel/config.json ...")
     cfg = {
+        "provider": {
+            "type": provider_type,
+            "hook_cmd": hook_cmd
+        },
         "cloudflare": {
             "api_token": cf_token,
             "zone_name": zone_name,
@@ -356,8 +460,9 @@ def finalize_setup(cf_token, zone_name, record_name, oci_path):
             "interval_sec": 15,
             "loss_threshold": 75.0,
             "consecutive_failures": 3,
-            "auto_heal_enabled": bool(cf_token and oci_path)
+            "auto_heal_enabled": bool(cf_token and (oci_path or hook_cmd))
         },
+        "notifications": notify_cfg,
         "rules_config": {
             "adblock": True,
             "ai_group": True,
@@ -384,33 +489,40 @@ def main():
         sys.exit(1)
 
     print_banner()
+    detected_cloud = detect_cloud_info()
     pub_ip = get_public_ip()
     log_info(f"当前 VPS 公网 IPv4: {C_BOLD}{pub_ip}{C_RESET}")
 
-    # Step 1: Firewall & BBR
+    # Step 1: Provider Mode
+    provider_type, hook_cmd = step_cloud_provider_mode(detected_cloud)
+
+    # Step 2: Firewall & BBR
     step_firewall_and_bbr()
 
-    # Step 2: OCI
-    oci_path = step_oci_config()
+    # Step 3: Provider / OCI
+    oci_path = step_provider_config(provider_type, hook_cmd)
 
-    # Step 3: Cloudflare
+    # Step 4: Cloudflare
     cf_token, zone_name, record_name = step_cloudflare_config(pub_ip)
 
-    # Step 4: SSL Cert
+    # Step 5: SSL Cert
     step_ssl_cert(cf_token, record_name or "vps.example.com")
 
-    # Step 5: 3x-ui Golden Inbounds Auto-Provisioning
+    # Step 6: 3x-ui Golden Inbounds Auto-Provisioning
     step_3x_ui_nodes(record_name or "vps.example.com")
 
+    # Step 7: Notifications
+    notify_cfg = step_notifications()
+
     # Finalize
-    finalize_setup(cf_token, zone_name, record_name, oci_path)
+    finalize_setup(provider_type, hook_cmd, cf_token, zone_name, record_name, oci_path, notify_cfg)
 
     # Success Card
     access_host = record_name if record_name else pub_ip
     print(f"""
 {C_GREEN}{C_BOLD}
 ════════════════════════════════════════════════════════════════════════════════════════
- 🎉 恭喜！Oracle Cloud Sentinel 全自动化自愈守卫已部署并成功运行！
+ 🎉 恭喜！Universal Cloud Sentinel 全能云端自愈守卫已部署并成功运行！
 ════════════════════════════════════════════════════════════════════════════════════════
 {C_RESET}
  🌐 {C_BOLD}控制中心 Web 访问地址{C_RESET}:
@@ -422,9 +534,10 @@ def main():
     • Sing-box (1.8+):   {C_YELLOW}https://{access_host}:20540/sub/singbox{C_RESET}
     • Shadowrocket:      {C_YELLOW}https://{access_host}:20540/sub/shadowrocket{C_RESET}
 
- 🛡️ {C_BOLD}核心自愈状态{C_RESET}:
+ 🛡️ {C_BOLD}核心自愈与监控状态{C_RESET}:
+    • 当前宿主环境: {C_CYAN}{detected_cloud}{C_RESET}
     • 连续阻断阈值: {C_BOLD}丢包率 > 75% 且 连续 3 次探测失败{C_RESET}
-    • 全自动换 IP 与 DNS 联动: {C_GREEN}已开启并处于巡检守护中{C_RESET}
+    • 自动自愈联动: {C_GREEN}{'已启用' if (cf_token and (oci_path or hook_cmd)) else '已开启巡检与告警'}{C_RESET}
 
  🛠️ {C_BOLD}常用运维指令{C_RESET}:
     • 守护进程实时日志: {C_CYAN}journalctl -u oracle-sentinel -f{C_RESET}

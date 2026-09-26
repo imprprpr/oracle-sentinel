@@ -15,11 +15,17 @@ from pydantic import BaseModel
 import sentinel_core
 import sub_engine
 import transit_mgr
+import notification
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
 
-app = FastAPI(title='Oracle Sentinel Control Center')
+app = FastAPI(title='Universal Cloud Sentinel Control Center')
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_PATH = '/opt/oracle-sentinel/static' if os.path.exists('/opt/oracle-sentinel/static') else os.path.join(BASE_DIR, 'static')
+METACUBEXD_PATH = os.path.join(STATIC_PATH, 'metacubexd')
+NUXT_PATH = os.path.join(METACUBEXD_PATH, '_nuxt')
 
 monitor = sentinel_core.SystemMonitor()
 cfg_mgr = sentinel_core.ConfigManager()
@@ -108,7 +114,13 @@ async def background_monitor_loop():
                         'WARN'
                     )
                     if monitor.consecutive_failures >= consec_limit:
-                        await broadcast_log('Triggering automated OCI Re-IP self-healing routine!', 'WARN')
+                        await broadcast_log('Triggering automated Re-IP self-healing routine!', 'WARN')
+                        notification.NotificationManager.broadcast(
+                            cfg,
+                            title="GFW Block Detected / 节点探针阻断告警",
+                            message=f"⚠️ Loss rate reached {state['probes']['loss_pct']}% across domestic probes.\nConsecutive failures: {monitor.consecutive_failures}/{consec_limit}.\nInitiating recovery sequence...",
+                            level="WARN"
+                        )
                         asyncio.create_task(run_healing_routine('AUTO'))
                 else:
                     if monitor.consecutive_failures > 0:
@@ -121,10 +133,22 @@ async def background_monitor_loop():
             await asyncio.sleep(5)
 
 class SettingsModel(BaseModel):
-    cf_token: str = ''
-    cf_zone: str = ''
-    cf_record: str = ''
-    auto_heal: bool = False
+    cf_token: Optional[str] = ''
+    cf_zone: Optional[str] = ''
+    cf_record: Optional[str] = ''
+    auto_heal: Optional[bool] = False
+    provider_type: Optional[str] = 'auto'
+    provider_hook: Optional[str] = ''
+    notifications_enabled: Optional[bool] = False
+    tg_enabled: Optional[bool] = False
+    tg_token: Optional[str] = ''
+    tg_chat_id: Optional[str] = ''
+    discord_enabled: Optional[bool] = False
+    discord_webhook: Optional[str] = ''
+    bark_enabled: Optional[bool] = False
+    bark_key: Optional[str] = ''
+    custom_webhook_enabled: Optional[bool] = False
+    custom_webhook_url: Optional[str] = ''
 
 @app.get('/api/status')
 async def get_status():
@@ -158,7 +182,14 @@ async def get_settings():
         'error': oci_mgr.init_error
     }
 
+    notify_cfg = cfg.get('notifications', {})
+    tg = notify_cfg.get('telegram', {})
+    discord = notify_cfg.get('discord', {})
+    bark = notify_cfg.get('bark', {})
+    custom = notify_cfg.get('custom_webhook', {})
+
     return {
+        'provider': cfg.get('provider', {'type': 'auto', 'hook_cmd': ''}),
         'cloudflare': {
             'token_set': bool(token),
             'masked_token': masked_token,
@@ -166,7 +197,27 @@ async def get_settings():
             'record_name': cfg.get('cloudflare', {}).get('record_name', '')
         },
         'oci': oci_status,
-        'monitor': cfg.get('monitor', {})
+        'monitor': cfg.get('monitor', {}),
+        'notifications': {
+            'enabled': notify_cfg.get('enabled', False),
+            'telegram': {
+                'enabled': tg.get('enabled', False),
+                'bot_token': f"{tg.get('bot_token', '')[:4]}****" if tg.get('bot_token') else '',
+                'chat_id': tg.get('chat_id', '')
+            },
+            'discord': {
+                'enabled': discord.get('enabled', False),
+                'webhook_url': f"{discord.get('webhook_url', '')[:25]}****" if discord.get('webhook_url') else ''
+            },
+            'bark': {
+                'enabled': bark.get('enabled', False),
+                'bark_key': f"{bark.get('bark_key', '')[:4]}****" if bark.get('bark_key') else ''
+            },
+            'custom_webhook': {
+                'enabled': custom.get('enabled', False),
+                'url': custom.get('url', '')
+            }
+        }
     }
 
 @app.post('/api/settings')
@@ -174,12 +225,75 @@ async def update_settings(data: SettingsModel):
     cfg = cfg_mgr.load()
     if data.cf_token:
         cfg['cloudflare']['api_token'] = data.cf_token
-    cfg['cloudflare']['zone_name'] = data.cf_zone
-    cfg['cloudflare']['record_name'] = data.cf_record
-    cfg['monitor']['auto_heal_enabled'] = data.auto_heal
+    if data.cf_zone is not None:
+        cfg['cloudflare']['zone_name'] = data.cf_zone
+    if data.cf_record is not None:
+        cfg['cloudflare']['record_name'] = data.cf_record
+    if data.auto_heal is not None:
+        cfg['monitor']['auto_heal_enabled'] = data.auto_heal
+
+    if 'provider' not in cfg:
+        cfg['provider'] = {}
+    if data.provider_type:
+        cfg['provider']['type'] = data.provider_type
+    if data.provider_hook is not None:
+        cfg['provider']['hook_cmd'] = data.provider_hook
+
+    if 'notifications' not in cfg:
+        cfg['notifications'] = {}
+    cfg['notifications']['enabled'] = bool(data.notifications_enabled)
+    
+    # Preserve existing secret tokens if masked or empty is submitted
+    existing_tg = cfg.get('notifications', {}).get('telegram', {})
+    new_tg_token = data.tg_token
+    if not new_tg_token or '****' in new_tg_token:
+        new_tg_token = existing_tg.get('bot_token', '')
+    
+    existing_discord = cfg.get('notifications', {}).get('discord', {})
+    new_discord_url = data.discord_webhook
+    if not new_discord_url or '****' in new_discord_url:
+        new_discord_url = existing_discord.get('webhook_url', '')
+
+    existing_bark = cfg.get('notifications', {}).get('bark', {})
+    new_bark_key = data.bark_key
+    if not new_bark_key or '****' in new_bark_key:
+        new_bark_key = existing_bark.get('bark_key', '')
+
+    cfg['notifications']['telegram'] = {
+        'enabled': bool(data.tg_enabled),
+        'bot_token': new_tg_token or '',
+        'chat_id': data.tg_chat_id or ''
+    }
+    cfg['notifications']['discord'] = {
+        'enabled': bool(data.discord_enabled),
+        'webhook_url': new_discord_url or ''
+    }
+    cfg['notifications']['bark'] = {
+        'enabled': bool(data.bark_enabled),
+        'bark_key': new_bark_key or ''
+    }
+    cfg['notifications']['custom_webhook'] = {
+        'enabled': bool(data.custom_webhook_enabled),
+        'url': data.custom_webhook_url or ''
+    }
+
     cfg_mgr.save(cfg)
     await broadcast_log('System configuration updated successfully.')
     return {'status': 'ok'}
+
+@app.post('/api/notifications/test')
+async def test_notifications(data: Optional[dict] = None):
+    cfg = cfg_mgr.load()
+    if data and 'notifications' in data:
+        cfg['notifications'] = data['notifications']
+    
+    results = notification.NotificationManager.broadcast(
+        cfg,
+        title="Probe Alert Test / 告警测试",
+        message="🎉 Universal Sentinel notification channel test successful! All systems operational.\n全能哨兵消息推送测试成功，节点状态良好。",
+        level="SUCCESS"
+    )
+    return {'status': 'ok', 'results': results}
 
 @app.post('/api/settings/test-cf')
 async def test_cf_token(data: dict):
@@ -291,19 +405,21 @@ async def run_healing_routine(trigger_source='MANUAL'):
     cf_zone = cfg.get('cloudflare', {}).get('zone_name', '')
     cf_record = cfg.get('cloudflare', {}).get('record_name', '')
 
+    cloud_prov = sentinel_core.get_cloud_provider(cfg)
+    prov_name = cloud_prov.get_name()
+
     try:
-        # Step 2: OCI IP swap
-        await broadcast_log('🌐 [HEAL STEP 2/5] Communicating with Oracle Cloud Phoenix API to swap Public IP...')
-        oci_mgr = sentinel_core.OracleManager(cfg.get('oci', {}).get('config_path'))
+        # Step 2: IP swap via Provider
+        await broadcast_log(f'🌐 [HEAL STEP 2/5] Initiating IP rebirth via provider: {prov_name}...')
         
         loop = asyncio.get_event_loop()
-        new_ip = await loop.run_in_executor(None, oci_mgr.change_public_ip)
+        new_ip = await loop.run_in_executor(None, cloud_prov.change_public_ip)
         
         await broadcast_log(f'✨ [HEAL STEP 3/5] Fresh Public IP acquired: {new_ip}', 'INFO')
         await asyncio.sleep(1)
 
         # Step 3: Cloudflare DNS update
-        if cf_token:
+        if cf_token and cf_record:
             await broadcast_log(f'☁️ [HEAL STEP 4/5] Updating Cloudflare DNS: {cf_record} -> {new_ip}...')
             cf_mgr = sentinel_core.CloudflareManager(cf_token, cf_zone)
             await loop.run_in_executor(None, cf_mgr.update_dns_record, cf_record, new_ip)
@@ -319,12 +435,26 @@ async def run_healing_routine(trigger_source='MANUAL'):
         runtime_state['status'] = 'healthy'
         
         dt = round(time.time() - t_start, 1)
-        await broadcast_log(f'🎉 Phoenix rebirth completed in {dt}s! Server is now operational on IP: {new_ip}')
+        await broadcast_log(f'🎉 Rebirth completed in {dt}s! Server is now operational on IP: {new_ip}')
+
+        notification.NotificationManager.broadcast(
+            cfg,
+            title="IP Swapped & Restored / 节点IP重生命名成功",
+            message=f"🎉 Rebirth routine succeeded!\nProvider: {prov_name}\nNew IP: {new_ip}\nCloudflare DNS: {cf_record} -> {new_ip}\nDuration: {dt}s",
+            level="SUCCESS"
+        )
 
     except Exception as e:
         logger.error(f'Healing routine failed: {e}', exc_info=True)
         await broadcast_log(f'❌ Healing failed: {str(e)}', 'ERROR')
         runtime_state['status'] = 'warning'
+
+        notification.NotificationManager.broadcast(
+            cfg,
+            title="Healing Routine Failed / 自动修复失败",
+            message=f"❌ Rebirth routine failed for provider {prov_name}: {str(e)}",
+            level="ERROR"
+        )
     finally:
         runtime_state['heal_in_progress'] = False
 
@@ -362,17 +492,26 @@ async def websocket_endpoint(websocket: WebSocket):
         ws_manager.disconnect(websocket)
 
 # Mount static folder and dedicated metacubexd app
-app.mount('/static', StaticFiles(directory='/opt/oracle-sentinel/static'), name='static')
-app.mount('/metacubexd', StaticFiles(directory='/opt/oracle-sentinel/static/metacubexd', html=True), name='metacubexd')
-app.mount('/_nuxt', StaticFiles(directory='/opt/oracle-sentinel/static/metacubexd/_nuxt'), name='nuxt')
+if os.path.exists(STATIC_PATH):
+    app.mount('/static', StaticFiles(directory=STATIC_PATH), name='static')
+if os.path.exists(METACUBEXD_PATH):
+    app.mount('/metacubexd', StaticFiles(directory=METACUBEXD_PATH, html=True), name='metacubexd')
+if os.path.exists(NUXT_PATH):
+    app.mount('/_nuxt', StaticFiles(directory=NUXT_PATH), name='nuxt')
 
 @app.get('/dash')
 async def dash_redirect():
-    return FileResponse('/opt/oracle-sentinel/static/metacubexd/index.html')
+    dash_index = os.path.join(METACUBEXD_PATH, 'index.html')
+    if os.path.exists(dash_index):
+        return FileResponse(dash_index)
+    return HTMLResponse('<h1>Dashboard UI not found</h1>', status_code=404)
 
 @app.api_route('/', methods=['GET', 'HEAD'])
 async def root():
-    return FileResponse('/opt/oracle-sentinel/static/index.html')
+    index_file = os.path.join(STATIC_PATH, 'index.html')
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return HTMLResponse('<h1>Sentinel UI not found</h1>', status_code=404)
 
 if __name__ == '__main__':
     import uvicorn

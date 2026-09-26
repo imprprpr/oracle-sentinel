@@ -1,10 +1,10 @@
-#    Oracle Sentinel (甲骨文云自动换 IP 自愈守卫)
+# 🛡️ Universal Cloud Sentinel (全能云端自愈守卫与订阅聚合枢纽)
 
 <div align="center">
 
 <img src="docs/images/dashboard.png" alt="Oracle Sentinel 控制中心仪表盘" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin-bottom: 16px;" />
 
-**专为 Oracle Cloud (甲骨文云 ARM / AMD) 量身打造的自动化“涅槃自愈”与多协议可视化聚合分发枢纽**
+**支持 Oracle Cloud (甲骨文云)、搬瓦工、RackNerd、Hetzner、AWS、阿里云、腾讯云等任意 Linux VPS 的自动化自愈、多通道告警与全客户端订阅聚合中枢**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -13,7 +13,7 @@
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-DNS%20API-F38020.svg)](https://developers.cloudflare.com/api/)
 [![UI Style](https://img.shields.io/badge/UI-Shadcn%20%7C%20Linear%20Dark-000000.svg)](https://ui.shadcn.com/)
 
-[功能特性](#-功能特性) • [系统架构](#-系统架构) • [前置准备](#-前置准备) • [快速安装](#-快速安装) • [配置文件详解](#-配置文件详解) • [订阅引擎与客户端适配](#-订阅引擎与客户端适配) • [链式中转调度](#-链式中转专线调度) • [常见问题排查](#-常见问题排查)
+[功能特性](#-功能特性) • [系统架构](#-系统架构) • [前置准备](#-前置准备) • [快速安装](#-快速安装) • [多渠道通知](#-多渠道阻断告警配置) • [配置文件详解](#-配置文件详解) • [订阅引擎与客户端适配](#-订阅引擎与客户端适配) • [常见问题排查](#-常见问题排查)
 
 </div>
 
@@ -21,25 +21,32 @@
 
 ## 📖 项目简介
 
-在长期使用 Oracle Cloud（甲骨文云）VPS 进行跨国网络连接与个人业务部署时，常常面临四大核心痛点：
-1. **IP 频繁被阻断（GFW 封锁）**：境外 VPS 暴露在公网，一旦 IP 被阻断，SSH 连不上、所有节点瘫痪，必须手动登录 Oracle 后台反复解绑重申公共 IP。
+在长期使用境外 VPS 进行跨国业务部署、科学检索与节点分发时，常常面临四大核心痛点：
+1. **IP 频繁被阻断（GFW 封锁）**：境外服务器暴露在公网，一旦 IP 被阻断，SSH 连不上、所有节点瘫痪，传统方案必须人工排查甚至花钱提工单换 IP。
 2. **DNS 记录同步滞后**：手动换完 IP 后，需要前往 Cloudflare 重新修改解析 A 记录，期间往往经历数十分钟的不可用断网期。
-3. **多协议客户端订阅维护繁重**：OpenClash、v2rayN、Sing-box、Shadowrocket 等客户端配置各异，遇到 OpenClash 的 DNS 递归死锁或 SNI 嗅探误分流时调试极其痛苦。
-4. **晚高峰跨国运营商 QoS 恶化**：电信/移动直连美西丢包率高，缺乏灵活、低成本的国内前置跳板中转机制。
+3. **缺乏即时推送告警**：节点被封后管理员浑然不知，直到用户反馈才后知后觉。
+4. **多协议客户端订阅维护繁重**：OpenClash、v2rayN、Sing-box、Shadowrocket 等客户端配置各异，遇到 OpenClash 的 DNS 递归死锁或 SNI 嗅探误分流时调试极其痛苦。
 
-**Oracle Sentinel** 诞生即为彻底终结上述痛点——它是一个运行在甲骨文 VPS 上的轻量常驻守护进程 + 控制中心，具备**多探针连通性自愈**、**秒级无缝换 IP 并自动同步 Cloudflare DNS**、**多客户端智能订阅引擎** 以及 **链式中转调度** 功能。
+**Universal Cloud Sentinel** 诞生即为彻底终结上述痛点——它是一个轻量常驻守护进程 + 控制中心，具备**多云环境自适应识别**、**多探针连通性自愈**、**多通道阻断即时告警 (Telegram/Discord/Bark)**、**秒级无缝换 IP 并自动同步 Cloudflare DNS** 以及 **多客户端全能智能订阅引擎**。
 
 ---
 
 ## ✨ 功能特性
 
-### 1. 🛡️ 自动化检测与秒级涅槃换 IP（Self-Healing Re-IP）
-- **多探针智能判定**：定时向多地发起 ICMP / TCP 探测，根据连续丢包率与失败阈值自动研判是否遭受 GFW 封锁。
-- **OCI SDK 自动化解绑与再申请**：直接调用 Oracle Cloud 官方 API，动态释放当前受阻断的公网 IP 并秒级重新绑定全新的可用公网 IP。
+### 1. 🌐 多云环境抽象与全能自愈（Multi-Cloud & Auto-Heal）
+- **全平台宿主智能识别**：自动探测当前宿主机是 Oracle Cloud、AWS、阿里云、腾讯云、Hetzner 还是搬瓦工/RackNerd 等通用 VPS，并识别底层 CPU 架构 (`x86_64` / `aarch64`)。
+- **三种自愈模式随心切换**：
+  - **Oracle Cloud 模式**：内置 OCI SDK 自动化解绑与再申请，秒级释放被封 IP 并绑定全新可用公网 IP；
+  - **通用 VPS 模式 (Generic VPS)**：专注于多节点国内探针监控、多渠道即时阻断告警与 WARP 双栈逃生；
+  - **自定义 Hook 脚本模式**：支持调用任何云服务商 API 编写的换 IP 脚本进行联动。
 - **Cloudflare DNS 无缝秒级同步**：获取全新 IP 后，自动化调用 Cloudflare API 刷新对应 A 记录，免去人工干预。
-- **手动一键涅槃**：控制中心前端支持一键触发手动换 IP 流程，平均耗时仅 10~20 秒。
 
-### 2. 📡 全能多协议智能订阅引擎（Visual Subscription Engine）
+### 2. 📢 多渠道阻断告警中枢（Multi-Channel Alert Dispatcher）
+- **开箱即用推送**：支持 **Telegram Bot**、**Discord Webhook**、**Bark (iOS)** 以及 **自定义 Webhook**；
+- **智能告警事件**：在遭遇 GFW 阻断、换 IP 流程启动、Cloudflare DNS 同步完成或自愈失败时，毫秒级推送美化排版卡片至手机端；
+- **控制台一键测试**：Web 控制台设置面板自带推送测试按钮，无需触发实际阻断即可秒级验证通道通畅度。
+
+### 3. 📡 全能多协议智能订阅引擎（Visual Subscription Engine）
 - **一源多出**：直接无缝桥接 3x-ui / X-UI 的 SQLite 数据库，自动提取 Hysteria 2、Trojan、VLESS-Reality 等协议节点。
 - **全平台客户端原生适配**：
   - **Clash / OpenClash (Mihomo Meta)**：完整生成带有策略组（自动优选、故障转移、AI/流媒体分流、广告拦截）的标准 YAML。
@@ -51,12 +58,12 @@
   - 注入面板端口（`20530`, `20540`）的 WAN 绕行规则，杜绝“代理自身管理面板导致无法访问”的死循环回环。
 - **Hysteria 2 端口跳跃（Port Hopping）**：自动支持多端口绑定，有效破除国内运营商针对单一固定 UDP 端口的 QoS 封锁。
 
-### 3. ⚡ 链式中转专线调度系统（Transit Relay Dispatcher）
+### 4. ⚡ 链式中转专线调度系统（Transit Relay Dispatcher）
 - **国内节点/软路由一键中继**：支持将国内特价 NAT VPS、轻量服务器或具备固定公网 IP 的软路由作为跳板机。
 - **Realm 极速 L4 转发集成**：内置自动生成 Realm 极速转发脚本，零 CPU 损耗实现内核级端口转发。
 - **订阅动态重写**：后台添加中转机 IP/域名与端口后，订阅系统自动生成“中转加速”专用节点，客户端更新订阅即用。
 
-### 4. 🎨 极简工业暗色仪表盘（Linear / Shadcn UI 风格）
+### 5. 🎨 极简工业暗色仪表盘（Linear / Shadcn UI 风格）
 
 <div align="center" style="margin: 16px 0;">
   <img src="docs/images/dashboard.png" alt="Oracle Sentinel 控制中心全景截图" width="95%" style="border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
@@ -153,7 +160,7 @@ flowchart TB
 
 ### 方式一：全自动极简交互式安装向导（极力推荐）
 
-针对甲骨文云环境量身打造，一键搞定底层环境、OCI API 密钥生成、Cloudflare 动态绑定、BBR、防火墙及证书签发：
+脚本自动识别 Linux 发行版与包管理器（完美支持 Ubuntu/Debian `apt`、RHEL/CentOS/Fedora/AlmaLinux `dnf/yum` 以及 Arch Linux `pacman`），一键搞定底层环境、多云模式选择、多通道告警、BBR、防火墙及证书签发：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scripts/install.sh | sudo bash
@@ -161,12 +168,14 @@ curl -fsSL https://raw.githubusercontent.com/imprprpr/oracle-sentinel/main/scrip
 
 > [!TIP]
 > **交互式向导（Setup Wizard）自动完成的任务**：
-> 1. **自动破除甲骨文底层防火墙阻断**：清理 Ubuntu 默认严苛的 iptables 规则，一键开启 Linux 原生 BBR 加速；
-> 2. **自动配置 Hysteria 2 端口跳跃**：内核级 NAT 重定向（`UDP 20000:40000 -> 443`）；
-> 3. **OCI API 密钥全自动化**：自动生成 2048 位标准 RSA 密钥对并排版打印，在终端直接粘贴甲骨文后台配置，免去格式错误烦恼；
-> 4. **Cloudflare 域名自动拉取**：输入 Token 后自动验证并列出名下所有活跃域名供数字选择，全自动绑定/刷新 A 记录；
-> 5. **SSL 证书静默自动签发**：基于 Cloudflare DNS-01 挑战协议，**无需占用 80/443 端口**，自动签发并挂载 ECC-256 证书；
-> 6. **3x-ui 黄金主力节点一键注入**：自动生成 X25519 密钥对，一键向数据库写入 VLESS-Reality (:8443)、Hysteria 2 (:443 端口跳跃) 与 Trojan (:2083)，装完即出海！
+> 1. **全平台宿主识别与模式选择**：自动探测当前云厂商，支持甲骨文云（OCI 换 IP）、通用 VPS（搬瓦工/RackNerd/Hetzner 监控告警）与自定义 Hook 模式；
+> 2. **自动放通底层防火墙阻断**：清理严苛的 iptables 规则，适配 UFW / firewalld，一键开启 Linux 原生 BBR 加速；
+> 3. **自动配置 Hysteria 2 端口跳跃**：内核级 NAT 重定向（`UDP 20000:40000 -> 443`）；
+> 4. **OCI API 密钥全自动化**：自动生成 2048 位标准 RSA 密钥对并排版打印，在终端直接粘贴甲骨文后台配置，免去格式错误烦恼；
+> 5. **Cloudflare 域名自动拉取**：输入 Token 后自动验证并列出名下所有活跃域名供数字选择，全自动绑定/刷新 A 记录；
+> 6. **SSL 证书静默自动签发**：基于 Cloudflare DNS-01 挑战协议，**无需占用 80/443 端口**，自动签发并挂载 ECC-256 证书；
+> 7. **3x-ui 黄金主力节点一键注入**：自动生成 X25519 密钥对，一键向数据库写入 VLESS-Reality (:8443)、Hysteria 2 (:443 端口跳跃) 与 Trojan (:2083)，装完即出海！
+> 8. **多渠道即时阻断告警中枢**：一键绑定 Telegram Bot、Discord Webhook 或 Bark，节点遭受阻断/自愈秒级推送卡片！
 
 随时重新运行向导：
 ```bash
@@ -202,12 +211,36 @@ systemctl status oracle-sentinel
 
 ---
 
+## 📢 多渠道阻断告警配置
+
+Sentinel 内置开箱即用的多渠道即时消息通知中心，支持在遇到国内探针丢包超标、触发自愈流程、换 IP 成功以及自愈失败时向管理员发送推送卡片。
+
+### 支持渠道与配置方法：
+1. **Telegram Bot**：
+   - 向 [@BotFather](https://t.me/BotFather) 申请机器人并获取 `bot_token`；
+   - 将 Bot 添加至私聊或告警群组，向 [@userinfobot](https://t.me/userinfobot) 获取你的 `chat_id`；
+   - 在 Web 控制台右上角【设置】面板填入并开启，或运行交互式向导配置。
+2. **Discord Webhook**：
+   - 在 Discord 服务器频道设置 -> 整合 (Integrations) -> 创建 Webhook 并复制 URL；
+   - 填入对应输入框并开启。
+3. **Bark (iOS)**：
+   - App Store 下载安装 Bark；
+   - 复制 App 首页显示的 Device Key 填入即可实现 iOS 原生高优先级推送。
+4. **一键测试**：
+   - 在 Web 控制台设置面板中点击 **“发送测试推送 🔔”**，无需等待网络阻断即可实时验证推送可用性。
+
+---
+
 ## ⚙️ 配置文件详解 (`config.json`)
 
 配置文件位于 `/opt/oracle-sentinel/config.json`：
 
 ```json
 {
+  "provider": {
+    "type": "auto",
+    "hook_cmd": ""
+  },
   "cloudflare": {
     "api_token": "YOUR_CLOUDFLARE_API_TOKEN",
     "zone_name": "yourdomain.com",
@@ -223,6 +256,26 @@ systemctl status oracle-sentinel
     "consecutive_failures": 3,
     "auto_heal_enabled": true
   },
+  "notifications": {
+    "enabled": true,
+    "telegram": {
+      "enabled": true,
+      "bot_token": "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ",
+      "chat_id": "987654321"
+    },
+    "discord": {
+      "enabled": false,
+      "webhook_url": "https://discord.com/api/webhooks/..."
+    },
+    "bark": {
+      "enabled": false,
+      "bark_key": "YOUR_BARK_DEVICE_KEY"
+    },
+    "custom_webhook": {
+      "enabled": false,
+      "url": "https://api.example.com/webhook"
+    }
+  },
   "rules_config": {
     "adblock": true,
     "ai_group": true,
@@ -236,13 +289,15 @@ systemctl status oracle-sentinel
 ```
 
 ### 关键配置项说明：
-- `cloudflare.api_token`：具备 DNS 编辑权限的 Cloudflare API 密钥。
-- `cloudflare.record_name`：绑定的动态解析域名（必须提前在 Cloudflare 解析到当前 VPS IP）。
-- `oci.config_path`：OCI 官方 API 认证配置文件的本地路径。
-- `monitor.interval_sec`：连通性探针巡检周期（默认 15 秒）。
-- `monitor.loss_threshold`：判定为 GFW 阻断的丢包率阈值（%）。
-- `monitor.consecutive_failures`：连续失败触发自愈的次数（例如连续 3 次探测均超过 75% 丢包率即触发换 IP）。
-- `monitor.auto_heal_enabled`：是否开启无人值守全自动换 IP（建议开启）。
+- `provider.type`：云厂商自愈类型，可选 `auto`（智能探测）、`oracle`（甲骨文云）、`hook`（自定义脚本）或 `generic`（通用 VPS 仅告警）；
+- `provider.hook_cmd`：当 `type` 为 `hook` 时触发换 IP 的本地 Shell 脚本绝对路径；
+- `cloudflare.api_token`：具备 DNS 编辑权限的 Cloudflare API 密钥；
+- `cloudflare.record_name`：绑定的动态解析域名（提前在 Cloudflare 解析至当前 VPS IP）；
+- `oci.config_path`：OCI 官方 API 认证配置文件的本地路径；
+- `monitor.interval_sec`：连通性探针巡检周期（默认 15 秒）；
+- `monitor.loss_threshold`：判定为 GFW 阻断的丢包率阈值（%）；
+- `monitor.consecutive_failures`：连续失败触发自愈的次数（例如连续 3 次探测均超过 75% 丢包率即触发自愈）；
+- `notifications.enabled`：多渠道告警总开关，支持 Telegram、Discord、Bark 及自定义 Webhook 并发推送。
 
 ---
 

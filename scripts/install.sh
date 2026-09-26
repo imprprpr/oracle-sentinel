@@ -19,10 +19,24 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Update package lists and install system dependencies
-echo ">>> Installing prerequisites (Python3, venv, curl, git, openssl)..."
-apt-get update -y
-apt-get install -y python3 python3-pip python3-venv git curl ufw openssl
+# Detect Package Manager & Install System Dependencies
+echo ">>> Detecting Linux distribution and package manager..."
+if command -v apt-get >/dev/null 2>&1; then
+    echo ">>> Detected Debian/Ubuntu ecosystem (apt-get)."
+    apt-get update -y
+    apt-get install -y python3 python3-pip python3-venv git curl openssl iptables
+elif command -v dnf >/dev/null 2>&1; then
+    echo ">>> Detected RHEL/Fedora/AlmaLinux/Rocky ecosystem (dnf)."
+    dnf install -y python3 python3-pip git curl openssl iptables
+elif command -v yum >/dev/null 2>&1; then
+    echo ">>> Detected CentOS/RHEL legacy ecosystem (yum)."
+    yum install -y python3 python3-pip git curl openssl iptables
+elif command -v pacman >/dev/null 2>&1; then
+    echo ">>> Detected Arch Linux ecosystem (pacman)."
+    pacman -Sy --noconfirm python python-pip git curl openssl iptables
+else
+    echo "[!] Warning: Unknown package manager. Please ensure python3, pip, git, curl, and openssl are installed."
+fi
 
 # Ensure installation directory exists
 mkdir -p "$INSTALL_DIR"
@@ -63,11 +77,17 @@ cp "$INSTALL_DIR/systemd/oracle-sentinel.service" /etc/systemd/system/oracle-sen
 systemctl daemon-reload
 systemctl enable oracle-sentinel
 
-# Open default port on UFW if active
+# Open default port on UFW or firewalld if active
 if command -v ufw >/dev/null 2>&1; then
     if ufw status | grep -q "Status: active"; then
         echo ">>> Allowing port 20540 on UFW..."
-        ufw allow 20540/tcp comment "Oracle Sentinel Dashboard"
+        ufw allow 20540/tcp comment "Universal Sentinel Dashboard"
+    fi
+elif command -v firewall-cmd >/dev/null 2>&1; then
+    if systemctl is-active --quiet firewalld; then
+        echo ">>> Allowing port 20540 on firewalld..."
+        firewall-cmd --add-port=20540/tcp --permanent >/dev/null 2>&1 || true
+        firewall-cmd --reload >/dev/null 2>&1 || true
     fi
 fi
 

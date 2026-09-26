@@ -1,4 +1,8 @@
 {
+  "provider": {
+    "type": "auto",
+    "hook_cmd": ""
+  },
   "cloudflare": {
     "api_token": "YOUR_CLOUDFLARE_API_TOKEN_HERE",
     "zone_name": "example.com",
@@ -13,6 +17,26 @@
     "loss_threshold": 75.0,
     "consecutive_failures": 3,
     "auto_heal_enabled": true
+  },
+  "notifications": {
+    "enabled": false,
+    "telegram": {
+      "enabled": false,
+      "bot_token": "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ",
+      "chat_id": "987654321"
+    },
+    "discord": {
+      "enabled": false,
+      "webhook_url": "https://discord.com/api/webhooks/..."
+    },
+    "bark": {
+      "enabled": false,
+      "bark_key": "YOUR_BARK_DEVICE_KEY"
+    },
+    "custom_webhook": {
+      "enabled": false,
+      "url": "https://api.example.com/webhook"
+    }
   },
   "rules_config": {
     "adblock": true,
