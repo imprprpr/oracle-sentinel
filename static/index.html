@@ -161,22 +161,72 @@
         </div>
 
         <nav class="hidden md:flex items-center gap-1 border-l border-zinc-800 pl-6">
-          <div class="nav-tab active" onclick="switchTab('overview')">
+          <div class="nav-tab" id="tab-btn-overview" onclick="switchTab('overview')">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
             <span>系统概览</span>
           </div>
-          <div class="nav-tab" onclick="switchTab('rules')">
+          <div class="nav-tab" id="tab-btn-rules" onclick="switchTab('rules')">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
             <span>订阅与规则中心</span>
           </div>
-          <div class="nav-tab" onclick="switchTab('transits')">
+          <div class="nav-tab" id="tab-btn-transits" onclick="switchTab('transits')">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
             <span>中转与独立节点</span>
           </div>
-          <a id="btn-xui-link" href="/panel/" target="_blank" class="nav-tab text-zinc-400 hover:text-white">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-            <span>3x-ui 节点面板</span>
-          </a>
+          <div class="relative group">
+            <div class="nav-tab flex items-center gap-1.5" id="tab-btn-services" onclick="switchTab('services')">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+              <span>仪表盘与管理后台</span>
+              <svg class="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            
+            <!-- Quick Dropdown Menu -->
+            <div class="absolute left-0 mt-1 w-64 py-2 bg-zinc-900/95 border border-zinc-800 rounded-lg shadow-2xl backdrop-blur-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-150 z-50">
+              <div class="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">监控仪表盘</div>
+              <a id="nav-kuma-status" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                <span class="flex items-center gap-2">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>服务状态探针大屏</span>
+                </span>
+                <span class="text-[10px] font-mono text-zinc-500">:3001</span>
+              </a>
+              <div class="my-1.5 border-t border-zinc-800/80"></div>
+              <div class="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">服务管理后台</div>
+              <a id="nav-xui-link" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                <span class="flex items-center gap-2">
+                  <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                  <span>3x-ui 节点面板</span>
+                </span>
+                <span class="text-[10px] font-mono text-zinc-500">:20530</span>
+              </a>
+              <a id="nav-kuma-admin" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                <span class="flex items-center gap-2">
+                  <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                  <span>Uptime Kuma 运维后台</span>
+                </span>
+                <span class="text-[10px] font-mono text-zinc-500">:3001</span>
+              </a>
+              <a id="nav-substore-link" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                <span class="flex items-center gap-2">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  <span>Sub-Store 订阅大脑</span>
+                </span>
+                <span class="text-[10px] font-mono text-zinc-500">:3000</span>
+              </a>
+              <a id="nav-alist-link" href="#" target="_blank" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors">
+                <span class="flex items-center gap-2">
+                  <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                  <span>Alist 网盘挂载中心</span>
+                </span>
+                <span class="text-[10px] font-mono text-zinc-500">:5244</span>
+              </a>
+              <div class="my-1.5 border-t border-zinc-800/80"></div>
+              <div onclick="switchTab('services')" class="px-3 py-1.5 text-xs text-blue-400 hover:text-blue-300 hover:bg-zinc-800/60 cursor-pointer transition-colors flex items-center justify-between">
+                <span>进入控制台全景视图</span>
+                <span>→</span>
+              </div>
+            </div>
+          </div>
         </nav>
       </div>
 
@@ -503,6 +553,226 @@
         <div class="flex items-center gap-2 bg-[#09090b] border border-zinc-800 rounded p-3 text-xs font-mono text-zinc-300">
           <code class="flex-1 truncate" id="transit-curl-cmd">curl -fsSL https://vps.yourdomain.com:20540/scripts/setup-relay.sh | sudo bash</code>
           <button class="btn-neutral shrink-0" onclick="copyText(document.getElementById('transit-curl-cmd').innerText)">复制命令</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 4: SERVICES & ADMIN (仪表盘与管理后台) -->
+    <div id="tab-services" class="hidden space-y-6">
+      
+      <!-- Top Overview Banner -->
+      <div class="card p-5 space-y-2">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-semibold text-white">仪表盘与服务管理后台</h2>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Unified Hub</span>
+            </div>
+            <p class="text-xs text-zinc-400 mt-0.5">集中管理探针监控大屏、核心代理节点与云端 Homelab 套件，支持服务在线状态检测与一键直达</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button class="btn-neutral text-xs" onclick="loadServicesStatus()">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              <span>刷新服务状态</span>
+            </button>
+            <a id="banner-btn-kuma" href="#" target="_blank" class="btn-primary text-xs flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              <span>打开探针大屏</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 1: 监控仪表盘 (Dashboards) -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+          <span>监控仪表盘 (Monitoring Dashboards)</span>
+        </div>
+
+        <div class="card p-5 space-y-4 border-l-2 border-l-emerald-500">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-semibold text-white">Uptime Kuma 服务探针大屏</h3>
+                  <span class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">16 Probes Online</span>
+                  <span class="text-[11px] font-mono text-zinc-500">HTTP :3001</span>
+                </div>
+                <p class="text-xs text-zinc-400 mt-1">实时采集甲骨文美西核心、日本绿云原生机、云端 Homelab 与全球 AI 节点连通率及毫秒级延迟折线图，采用 GitHub Dark 极简暗黑工程视觉。</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <a id="card-btn-kuma-admin" href="#" target="_blank" class="btn-neutral text-xs flex items-center gap-1">
+                <span>运维后台</span>
+                <svg class="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              </a>
+              <a id="card-btn-kuma-status" href="#" target="_blank" class="btn-primary text-xs flex items-center gap-1">
+                <span>直达探针大屏</span>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Quick probe matrix stats -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-zinc-800/70 text-xs">
+            <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/50">
+              <div class="text-zinc-500 text-[11px]">甲骨文美西核心</div>
+              <div class="font-mono text-emerald-400 font-semibold mt-0.5 flex items-center justify-between">
+                <span>6 项探针全绿</span>
+                <span class="text-zinc-400 font-normal">~0.58ms</span>
+              </div>
+            </div>
+            <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/50">
+              <div class="text-zinc-500 text-[11px]">日本绿云原生机</div>
+              <div class="font-mono text-emerald-400 font-semibold mt-0.5 flex items-center justify-between">
+                <span>3 项探针全绿</span>
+                <span class="text-zinc-400 font-normal">~171ms</span>
+              </div>
+            </div>
+            <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/50">
+              <div class="text-zinc-500 text-[11px]">云端 Homelab 套件</div>
+              <div class="font-mono text-emerald-400 font-semibold mt-0.5 flex items-center justify-between">
+                <span>3 项服务全绿</span>
+                <span class="text-zinc-400 font-normal">~5ms</span>
+              </div>
+            </div>
+            <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/50">
+              <div class="text-zinc-500 text-[11px]">全球关键 AI 网络</div>
+              <div class="font-mono text-emerald-400 font-semibold mt-0.5 flex items-center justify-between">
+                <span>OpenAI / Anthropic</span>
+                <span class="text-zinc-400 font-normal">100% 畅通</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: 服务管理后台 (Admin Panels) -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
+          <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+          <span>服务管理后台 (Service Management Backends)</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <!-- 3x-ui Card -->
+          <div class="card p-5 flex flex-col justify-between space-y-4">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-white">3x-ui 核心节点面板</h3>
+                    <div class="text-[11px] font-mono text-zinc-500">HTTPS :20530 (智能动态安全路径)</div>
+                  </div>
+                </div>
+                <span id="service-status-xui" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">在线</span>
+              </div>
+              <p class="text-xs text-zinc-400">VLESS-Reality / Hysteria 2 / Trojan 原生节点配置、公私钥与证书管理、实时流量审计与用户配额统计。</p>
+            </div>
+            <div class="pt-2 border-t border-zinc-800/70 flex items-center justify-between">
+              <span class="text-[11px] font-mono text-zinc-500">核心代理后端</span>
+              <a id="card-btn-xui" href="#" target="_blank" class="btn-neutral text-xs flex items-center gap-1.5">
+                <span>进入 3x-ui 节点面板</span>
+                <svg class="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Uptime Kuma Admin Card -->
+          <div class="card p-5 flex flex-col justify-between space-y-4">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-white">Uptime Kuma 运维后台</h3>
+                    <div class="text-[11px] font-mono text-zinc-500">HTTP :3001 (账号 admin)</div>
+                  </div>
+                </div>
+                <span id="service-status-kuma-admin" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">在线</span>
+              </div>
+              <p class="text-xs text-zinc-400">自定义新增监控节点、调整心跳频率与容错阈值，配置 Telegram / Discord / Bark 即时阻断推送通道。</p>
+            </div>
+            <div class="pt-2 border-t border-zinc-800/70 flex items-center justify-between">
+              <div class="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400">
+                <span>凭据:</span>
+                <code class="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">admin / mNq7gQGr</code>
+                <button onclick="copyText('mNq7gQGr')" class="text-zinc-500 hover:text-white" title="复制密码">📋</button>
+              </div>
+              <a id="card-btn-kuma-admin2" href="#" target="_blank" class="btn-neutral text-xs flex items-center gap-1.5">
+                <span>进入探针后台</span>
+                <svg class="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Sub-Store Card -->
+          <div class="card p-5 flex flex-col justify-between space-y-4">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-white">Sub-Store 订阅大脑</h3>
+                    <div class="text-[11px] font-mono text-zinc-500">HTTP :3000 (前后端一体化极速版)</div>
+                  </div>
+                </div>
+                <span id="service-status-substore" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">在线</span>
+              </div>
+              <p class="text-xs text-zinc-400">多机场节点聚合清洗、自动测速优选、批量正则重命名与国旗注入，Clash / Sing-box / Surge 跨平台订阅输出。</p>
+            </div>
+            <div class="pt-2 border-t border-zinc-800/70 flex items-center justify-between">
+              <span class="text-[11px] font-mono text-zinc-500">免密直接访问</span>
+              <a id="card-btn-substore" href="#" target="_blank" class="btn-neutral text-xs flex items-center gap-1.5">
+                <span>进入 Sub-Store</span>
+                <svg class="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Alist Card -->
+          <div class="card p-5 flex flex-col justify-between space-y-4">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-white">Alist 全网盘挂载中心</h3>
+                    <div class="text-[11px] font-mono text-zinc-500">HTTP :5244 (支持 WebDAV 串流)</div>
+                  </div>
+                </div>
+                <span id="service-status-alist" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]">在线</span>
+              </div>
+              <p class="text-xs text-zinc-400">挂载阿里云盘、夸克、百度网盘与 OneDrive，支持 Infuse / PotPlayer 4K WebDAV 原画免下载极速在线串流。</p>
+            </div>
+            <div class="pt-2 border-t border-zinc-800/70 flex items-center justify-between">
+              <div class="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400">
+                <span>凭据:</span>
+                <code class="bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">admin / mNq7gQGr</code>
+                <button onclick="copyText('mNq7gQGr')" class="text-zinc-500 hover:text-white" title="复制密码">📋</button>
+              </div>
+              <a id="card-btn-alist" href="#" target="_blank" class="btn-neutral text-xs flex items-center gap-1.5">
+                <span>进入 Alist 网盘</span>
+                <svg class="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              </a>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -992,16 +1262,25 @@
   <script>
     // Tab switching
     function switchTab(tabId) {
-      ['overview', 'rules', 'transits'].forEach(t => {
-        document.getElementById(`tab-${t}`).classList.add('hidden');
+      ['overview', 'rules', 'transits', 'services'].forEach(t => {
+        const el = document.getElementById(`tab-${t}`);
+        if (el) el.classList.add('hidden');
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (btn) btn.classList.remove('active');
       });
       document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
 
-      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
-      event.currentTarget.classList.add('active');
+      const targetTab = document.getElementById(`tab-${tabId}`);
+      if (targetTab) targetTab.classList.remove('hidden');
+
+      const targetBtn = document.getElementById(`tab-btn-${tabId}`);
+      if (targetBtn) {
+        targetBtn.classList.add('active');
+      }
 
       if (tabId === 'rules') loadRulesConfig();
       if (tabId === 'transits') { loadTransits(); loadCustomNodes(); }
+      if (tabId === 'services') loadServicesStatus();
     }
 
     function togglePrivacy(el) {
@@ -1891,12 +2170,74 @@
       }
     }
 
+    async function loadServicesStatus() {
+      const host = window.location.hostname;
+      try {
+        const res = await fetch('/api/services');
+        const data = await res.json();
+        const basePath = data.xui_base_path || '/';
+        const xuiPort = data.xui_port || 20530;
+
+        const urls = {
+          kumaStatus: `http://${host}:3001/status/services`,
+          kumaAdmin: `http://${host}:3001/`,
+          xui: `https://${host}:${xuiPort}${basePath}`,
+          substore: `http://${host}:3000/`,
+          alist: `http://${host}:5244/`
+        };
+
+        const setHref = (id, url) => {
+          const el = document.getElementById(id);
+          if (el) el.href = url;
+        };
+
+        // Update dropdown links
+        setHref('nav-kuma-status', urls.kumaStatus);
+        setHref('nav-xui-link', urls.xui);
+        setHref('nav-kuma-admin', urls.kumaAdmin);
+        setHref('nav-substore-link', urls.substore);
+        setHref('nav-alist-link', urls.alist);
+
+        // Update card links
+        setHref('banner-btn-kuma', urls.kumaStatus);
+        setHref('card-btn-kuma-status', urls.kumaStatus);
+        setHref('card-btn-kuma-admin', urls.kumaAdmin);
+        setHref('card-btn-kuma-admin2', urls.kumaAdmin);
+        setHref('card-btn-xui', urls.xui);
+        setHref('card-btn-substore', urls.substore);
+        setHref('card-btn-alist', urls.alist);
+
+        // Update service status badges
+        if (data.services) {
+          data.services.forEach(s => {
+            const el = document.getElementById(`service-status-${s.id}`);
+            if (el) {
+              if (s.running) {
+                el.className = 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[10px]';
+                el.innerText = '在线';
+              } else {
+                el.className = 'badge bg-red-950/70 border border-red-600/30 text-red-400 font-mono text-[10px]';
+                el.innerText = '离线';
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load services status:', e);
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
+      const tabParam = new URLSearchParams(window.location.search).get('tab') || window.location.hash.replace('#', '') || 'overview';
+      switchTab(tabParam);
+
       connectWS();
       checkFirstRun();
-      document.getElementById('sub-url-box').innerText = `${window.location.origin}/sub/clash`;
-      const xbtn = document.getElementById('btn-xui-link'); if (xbtn) xbtn.href = 'https://' + window.location.hostname + ':20530/';
-      document.getElementById('transit-curl-cmd').innerText = `curl -fsSL ${window.location.origin}/scripts/setup-relay.sh | sudo bash`;
+      const subUrlBox = document.getElementById('sub-url-box');
+      if (subUrlBox) subUrlBox.innerText = `${window.location.origin}/sub/clash`;
+      const tCmd = document.getElementById('transit-curl-cmd');
+      if (tCmd) tCmd.innerText = `curl -fsSL ${window.location.origin}/scripts/setup-relay.sh | sudo bash`;
+      loadServicesStatus();
     });
   </script>
 </body>

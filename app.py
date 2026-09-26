@@ -4,6 +4,8 @@ import os
 import sys
 import time
 import json
+import socket
+import sqlite3
 import asyncio
 import logging
 from typing import List, Optional
@@ -515,6 +517,100 @@ async def toggle_custom_node(node_id: str, data: dict):
     enabled = data.get('enabled', True)
     custom_node_mgr.CustomNodeManager.toggle_custom_node(node_id, enabled)
     return {'status': 'ok'}
+
+@app.get('/api/services')
+async def get_services():
+    xui_base_path = '/'
+    xui_port = 20530
+    db_path = '/etc/x-ui/x-ui.db'
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            c = conn.cursor()
+            c.execute("SELECT value FROM settings WHERE key = 'webBasePath'")
+            r = c.fetchone()
+            if r and r[0]: xui_base_path = r[0].strip()
+            c.execute("SELECT value FROM settings WHERE key = 'webPort'")
+            r = c.fetchone()
+            if r and r[0]: xui_port = int(r[0])
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Error querying x-ui.db settings: {e}")
+
+    def is_listening(port):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.3)
+            res = s.connect_ex(('127.0.0.1', port))
+            s.close()
+            return res == 0
+        except Exception:
+            return False
+
+    services = [
+        {
+            "id": "kuma-status",
+            "name": "Uptime Kuma 探针状态大屏",
+            "category": "dashboard",
+            "proto": "http",
+            "port": 3001,
+            "path": "/status/services",
+            "badge": "16 Probes",
+            "desc": "实时监测甲骨文美西核心、日本绿云原生机、云端套件与全球 AI 节点（OpenAI/Anthropic）连通率与毫秒级延迟。",
+            "running": is_listening(3001)
+        },
+        {
+            "id": "xui",
+            "name": "3x-ui 核心节点面板",
+            "category": "admin",
+            "proto": "https",
+            "port": xui_port,
+            "path": xui_base_path,
+            "badge": "Xray Core",
+            "desc": "VLESS-Reality / Hysteria 2 / Trojan 原生节点配置、公私钥证书管理与实时流量审计。",
+            "running": is_listening(xui_port)
+        },
+        {
+            "id": "kuma-admin",
+            "name": "Uptime Kuma 运维后台",
+            "category": "admin",
+            "proto": "http",
+            "port": 3001,
+            "path": "/",
+            "badge": "Telemetry",
+            "desc": "探针目标增删、心跳频率调整、Telegram / Discord / Bark 即时阻断告警通道配置。",
+            "running": is_listening(3001)
+        },
+        {
+            "id": "substore",
+            "name": "Sub-Store 订阅大脑",
+            "category": "admin",
+            "proto": "http",
+            "port": 3000,
+            "path": "/",
+            "badge": "Subscription",
+            "desc": "节点清洗过滤、多机场聚合、正则批量重命名与 Clash / Sing-box / Surge 跨平台分流规则转换。",
+            "running": is_listening(3000)
+        },
+        {
+            "id": "alist",
+            "name": "Alist 全网盘挂载中心",
+            "category": "admin",
+            "proto": "http",
+            "port": 5244,
+            "path": "/",
+            "badge": "WebDAV 4K",
+            "desc": "聚合挂载阿里云盘、夸克、百度网盘、OneDrive，支持 4K WebDAV 原画免下载高速串流播放。",
+            "credentials": "admin / mNq7gQGr",
+            "running": is_listening(5244)
+        }
+    ]
+    return {
+        "status": "ok",
+        "services": services,
+        "xui_base_path": xui_base_path,
+        "xui_port": xui_port
+    }
 
 # --- Healing Sequence ---
 
