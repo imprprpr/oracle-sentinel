@@ -546,7 +546,7 @@ async def complete_setup(data: SetupSaveModel, request: Request):
 
 # --- Subscription Engine Endpoints ---
 
-@app.get('/sub/clash')
+@app.api_route('/sub/clash', methods=['GET', 'HEAD'])
 async def get_clash_sub(request: Request):
     if not auth.verify_subscription_access(request):
         raise HTTPException(status_code=403, detail="订阅 Token 无效或未提供，拒绝访问")
@@ -558,9 +558,9 @@ async def get_clash_sub(request: Request):
     }
     return Response(content=yaml_content, media_type='text/yaml; charset=utf-8', headers=headers)
 
-@app.get('/sub/v2ray')
-@app.get('/sub/base64')
-@app.get('/sub/shadowrocket')
+@app.api_route('/sub/v2ray', methods=['GET', 'HEAD'])
+@app.api_route('/sub/base64', methods=['GET', 'HEAD'])
+@app.api_route('/sub/shadowrocket', methods=['GET', 'HEAD'])
 async def get_v2ray_sub(request: Request):
     if not auth.verify_subscription_access(request):
         raise HTTPException(status_code=403, detail="订阅 Token 无效或未提供，拒绝访问")
@@ -572,7 +572,7 @@ async def get_v2ray_sub(request: Request):
     }
     return Response(content=b64_content, media_type='text/plain; charset=utf-8', headers=headers)
 
-@app.get('/sub/singbox')
+@app.api_route('/sub/singbox', methods=['GET', 'HEAD'])
 async def get_singbox_sub(request: Request):
     if not auth.verify_subscription_access(request):
         raise HTTPException(status_code=403, detail="订阅 Token 无效或未提供，拒绝访问")
@@ -946,16 +946,16 @@ async def root():
     return HTMLResponse(content=DECOY_HTML, status_code=200, headers={"Server": "nginx/1.22.1"})
 
 @app.api_route('/sentinel', methods=['GET', 'HEAD'])
-@app.api_route('/sentinel/{subpath:path}', methods=['GET', 'HEAD'])
-async def serve_sentinel_ui(subpath: str = ""):
+@app.api_route('/sentinel/', methods=['GET', 'HEAD'])
+async def serve_sentinel_ui():
     index_file = os.path.join(STATIC_PATH, 'index.html')
     if os.path.exists(index_file):
         return FileResponse(index_file)
     return HTMLResponse('<h1>Sentinel UI not found</h1>', status_code=404)
 
 @app.api_route('/{path_slug}', methods=['GET', 'HEAD'])
-@app.api_route('/{path_slug}/{subpath:path}', methods=['GET', 'HEAD'])
-async def serve_custom_path_ui(path_slug: str, subpath: str = ""):
+@app.api_route('/{path_slug}/', methods=['GET', 'HEAD'])
+async def serve_custom_path_ui(path_slug: str):
     sec = auth.get_security_config()
     configured = sec.get("secret_path", "/sentinel").strip('/')
     if path_slug == configured:
