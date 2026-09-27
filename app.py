@@ -9,7 +9,7 @@ import sqlite3
 import asyncio
 import logging
 from typing import List, Optional
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ import custom_node_mgr
 import notification
 import ip_audit
 import speedtest_mgr
+import auth_mgr
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
@@ -36,6 +37,45 @@ NUXT_PATH = os.path.join(METACUBEXD_PATH, '_nuxt')
 
 monitor = sentinel_core.SystemMonitor()
 cfg_mgr = sentinel_core.ConfigManager()
+auth = auth_mgr.AuthManager(cfg_mgr)
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UpdatePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+class SecuritySettingsRequest(BaseModel):
+    auth_enabled: Optional[bool] = None
+    secret_path: Optional[str] = None
+    enable_host_guard: Optional[bool] = None
+    regenerate_sub_token: Optional[bool] = None
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    # Host Guard: Reject raw IP scans on public interface
+    if not auth.check_host_guard(request):
+        return Response(status_code=404, content=b"")
+
+    # Cloudflare / Proxy client IP extraction
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        request.state.client_ip = cf_ip.strip()
+    else:
+        xfwd = request.headers.get("x-forwarded-for")
+        if xfwd:
+            request.state.client_ip = xfwd.split(",")[0].strip()
+        else:
+            request.state.client_ip = request.client.host if request.client else ""
+
+    response = await call_next(request)
+    return response
+
+def check_admin(request: Request):
+    if not auth.is_request_authenticated(request):
+        raise HTTPException(status_code=401, detail="Administrator authentication required")
 
 class ConnectionManager:
     def __init__(self):
@@ -157,6 +197,8 @@ class SettingsModel(BaseModel):
     bark_key: Optional[str] = ''
     custom_webhook_enabled: Optional[bool] = False
     custom_webhook_url: Optional[str] = ''
+    secret_path: Optional[str] = None
+    enable_host_guard: Optional[bool] = None
 
 @app.get('/api/status')
 async def get_status():
@@ -174,7 +216,8 @@ async def get_status():
     }
 
 @app.get('/api/settings')
-async def get_settings():
+async def get_settings(request: Request):
+    check_admin(request)
     cfg = cfg_mgr.load()
     token = cfg.get('cloudflare', {}).get('api_token', '')
     masked_token = f'{token[:4]}****{token[-4:]}' if len(token) > 8 else ('' if not token else '****')
@@ -191,10 +234,7 @@ async def get_settings():
     }
 
     notify_cfg = cfg.get('notifications', {})
-    tg = notify_cfg.get('telegram', {})
-    discord = notify_cfg.get('discord', {})
-    bark = notify_cfg.get('bark', {})
-    custom = notify_cfg.get('custom_webhook', {})
+    sec_cfg = auth.get_security_config()
 
     return {
         'provider': cfg.get('provider', {'type': 'auto', 'hook_cmd': ''}),
@@ -206,6 +246,13 @@ async def get_settings():
         },
         'oci': oci_status,
         'monitor': cfg.get('monitor', {}),
+        'security': {
+            'auth_enabled': sec_cfg.get('auth_enabled', True),
+            'admin_username': sec_cfg.get('admin_username', 'admin'),
+            'secret_path': sec_cfg.get('secret_path', '/sentinel'),
+            'enable_host_guard': sec_cfg.get('enable_host_guard', True),
+            'sub_token': sec_cfg.get('sub_token', '')
+        },
         'notifications': {
             'enabled': notify_cfg.get('enabled', False),
             'telegram': {
@@ -229,7 +276,8 @@ async def get_settings():
     }
 
 @app.post('/api/settings')
-async def update_settings(data: SettingsModel):
+async def update_settings(data: SettingsModel, request: Request):
+    check_admin(request)
     cfg = cfg_mgr.load()
     if data.cf_token:
         cfg['cloudflare']['api_token'] = data.cf_token
@@ -246,6 +294,12 @@ async def update_settings(data: SettingsModel):
         cfg['provider']['type'] = data.provider_type
     if data.provider_hook is not None:
         cfg['provider']['hook_cmd'] = data.provider_hook
+
+    sec = cfg.setdefault('security', {})
+    if data.secret_path is not None:
+        sec['secret_path'] = data.secret_path.strip() or '/sentinel'
+    if data.enable_host_guard is not None:
+        sec['enable_host_guard'] = data.enable_host_guard
 
     if 'notifications' not in cfg:
         cfg['notifications'] = {}
@@ -290,7 +344,9 @@ async def update_settings(data: SettingsModel):
     return {'status': 'ok'}
 
 @app.post('/api/notifications/test')
-async def test_notifications(data: Optional[dict] = None):
+async def test_notifications(data: Optional[dict] = None, request: Request = None):
+    if request:
+        check_admin(request)
     cfg = cfg_mgr.load()
     if data and 'notifications' in data:
         cfg['notifications'] = data['notifications']
@@ -304,11 +360,86 @@ async def test_notifications(data: Optional[dict] = None):
     return {'status': 'ok', 'results': results}
 
 @app.post('/api/settings/test-cf')
-async def test_cf_token(data: dict):
+async def test_cf_token(data: dict, request: Request):
+    check_admin(request)
     token = data.get('token') or cfg_mgr.load().get('cloudflare', {}).get('api_token')
     cf = sentinel_core.CloudflareManager(token)
     ok, msg = cf.verify_token()
     return {'success': ok, 'message': msg}
+
+# --- Authentication & Security Endpoints ---
+
+@app.post('/api/auth/login')
+async def login(req: LoginRequest, response: Response):
+    ok, token_or_msg = auth.authenticate_admin(req.username, req.password)
+    if not ok:
+        raise HTTPException(status_code=401, detail=token_or_msg)
+    
+    # Set HttpOnly session cookie
+    response.set_cookie(
+        key="sentinel_session",
+        value=token_or_msg,
+        max_age=86400 * 30,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/"
+    )
+    sec = auth.get_security_config()
+    return {
+        "success": True,
+        "token": token_or_msg,
+        "sub_token": sec.get("sub_token", ""),
+        "secret_path": sec.get("secret_path", "/sentinel"),
+        "username": req.username
+    }
+
+@app.get('/api/auth/check')
+async def check_auth(request: Request):
+    sec = auth.get_security_config()
+    authenticated = auth.is_request_authenticated(request)
+    return {
+        "authenticated": authenticated,
+        "auth_enabled": sec.get("auth_enabled", True),
+        "username": sec.get("admin_username", "admin") if authenticated else None,
+        "sub_token": sec.get("sub_token", "") if authenticated else None,
+        "secret_path": sec.get("secret_path", "/sentinel")
+    }
+
+@app.post('/api/auth/logout')
+async def logout(response: Response):
+    response.delete_cookie(key="sentinel_session", path="/")
+    return {"success": True}
+
+@app.post('/api/auth/update-password')
+async def update_password(req: UpdatePasswordRequest, request: Request, response: Response):
+    check_admin(request)
+    sec = auth.get_security_config()
+    current_user = sec.get("admin_username", "admin")
+    ok, _ = auth.authenticate_admin(current_user, req.old_password)
+    if not ok:
+        raise HTTPException(status_code=400, detail="原密码输入错误")
+    
+    if not auth.update_password(req.new_password):
+        raise HTTPException(status_code=400, detail="新密码长度不能少于 6 位")
+    
+    _, new_token = auth.authenticate_admin(current_user, req.new_password)
+    response.set_cookie(
+        key="sentinel_session",
+        value=new_token,
+        max_age=86400 * 30,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/"
+    )
+    return {"success": True, "message": "管理员密码已更新"}
+
+@app.post('/api/auth/update-security')
+async def update_security(req: SecuritySettingsRequest, request: Request):
+    check_admin(request)
+    sec = auth.update_security_settings(req.model_dump(exclude_unset=True))
+    return {"success": True, "security": sec}
 
 # --- Web Onboarding / Setup Wizard Endpoints ---
 
@@ -345,7 +476,9 @@ async def setup_status():
     }
 
 @app.post('/api/setup/verify-cf')
-async def verify_cf(data: dict):
+async def verify_cf(data: dict, request: Request):
+    if cfg_mgr.load().get('initialized', False):
+        check_admin(request)
     token = data.get('token', '').strip()
     if not token:
         return {'success': False, 'message': 'API Token 不能为空'}
@@ -354,7 +487,9 @@ async def verify_cf(data: dict):
     return {'success': ok, 'zones': zones, 'message': msg}
 
 @app.post('/api/setup/generate-key')
-async def generate_key():
+async def generate_key(request: Request):
+    if cfg_mgr.load().get('initialized', False):
+        check_admin(request)
     try:
         pub_key, key_path = sentinel_core.generate_rsa_keypair()
         return {'success': True, 'public_key': pub_key, 'key_path': key_path}
@@ -362,7 +497,9 @@ async def generate_key():
         return {'success': False, 'message': str(e)}
 
 @app.post('/api/setup/save')
-async def complete_setup(data: SetupSaveModel):
+async def complete_setup(data: SetupSaveModel, request: Request):
+    if cfg_mgr.load().get('initialized', False):
+        check_admin(request)
     cfg = cfg_mgr.load()
     cfg['initialized'] = True
     cfg['provider'] = {
@@ -410,7 +547,9 @@ async def complete_setup(data: SetupSaveModel):
 # --- Subscription Engine Endpoints ---
 
 @app.get('/sub/clash')
-async def get_clash_sub():
+async def get_clash_sub(request: Request):
+    if not auth.verify_subscription_access(request):
+        raise HTTPException(status_code=403, detail="订阅 Token 无效或未提供，拒绝访问")
     yaml_content = sub_engine.SubEngine.generate_clash_yaml()
     headers = {
         'Content-Disposition': 'inline; filename="oracle_sentinel_clash.yaml"',
@@ -422,7 +561,9 @@ async def get_clash_sub():
 @app.get('/sub/v2ray')
 @app.get('/sub/base64')
 @app.get('/sub/shadowrocket')
-async def get_v2ray_sub():
+async def get_v2ray_sub(request: Request):
+    if not auth.verify_subscription_access(request):
+        raise HTTPException(status_code=403, detail="订阅 Token 无效或未提供，拒绝访问")
     b64_content = sub_engine.SubEngine.generate_v2ray_base64()
     headers = {
         'Content-Disposition': 'inline; filename="oracle_nodes.txt"',
@@ -432,7 +573,9 @@ async def get_v2ray_sub():
     return Response(content=b64_content, media_type='text/plain; charset=utf-8', headers=headers)
 
 @app.get('/sub/singbox')
-async def get_singbox_sub():
+async def get_singbox_sub(request: Request):
+    if not auth.verify_subscription_access(request):
+        raise HTTPException(status_code=403, detail="订阅 Token 无效或未提供，拒绝访问")
     json_content = sub_engine.SubEngine.generate_singbox_json()
     headers = {
         'Content-Disposition': 'inline; filename="singbox_config.json"',
@@ -445,7 +588,8 @@ async def get_sub_rules():
     return sub_engine.SubEngine.get_rules_config()
 
 @app.post('/api/sub/rules')
-async def set_sub_rules(rules: dict):
+async def set_sub_rules(rules: dict, request: Request):
+    check_admin(request)
     sub_engine.SubEngine.save_rules_config(rules)
     await broadcast_log('Subscription routing rules updated successfully.')
     return {'status': 'ok', 'rules': rules}
@@ -464,7 +608,8 @@ async def list_transits():
     return transit_mgr.TransitManager.get_transits()
 
 @app.post('/api/transits')
-async def create_transit(item: TransitCreateModel):
+async def create_transit(item: TransitCreateModel, request: Request):
+    check_admin(request)
     res = transit_mgr.TransitManager.add_transit(
         name=item.name,
         host=item.host,
@@ -476,13 +621,15 @@ async def create_transit(item: TransitCreateModel):
     return {'status': 'ok', 'transit': res}
 
 @app.delete('/api/transits/{transit_id}')
-async def delete_transit(transit_id: str):
+async def delete_transit(transit_id: str, request: Request):
+    check_admin(request)
     transit_mgr.TransitManager.delete_transit(transit_id)
     await broadcast_log(f'Removed transit relay node ID: {transit_id}')
     return {'status': 'ok'}
 
 @app.post('/api/transits/{transit_id}/toggle')
-async def toggle_transit(transit_id: str, data: dict):
+async def toggle_transit(transit_id: str, data: dict, request: Request):
+    check_admin(request)
     enabled = data.get('enabled', True)
     transit_mgr.TransitManager.toggle_transit(transit_id, enabled)
     return {'status': 'ok'}
@@ -500,7 +647,8 @@ async def list_custom_nodes():
     return custom_node_mgr.CustomNodeManager.get_custom_nodes()
 
 @app.post('/api/custom-nodes')
-async def create_custom_node(item: dict):
+async def create_custom_node(item: dict, request: Request):
+    check_admin(request)
     try:
         res = custom_node_mgr.CustomNodeManager.add_custom_node(item)
         await broadcast_log(f'Added custom node: {res.get("name")} ({res.get("server")}:{res.get("port")})')
@@ -510,13 +658,15 @@ async def create_custom_node(item: dict):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete('/api/custom-nodes/{node_id}')
-async def delete_custom_node(node_id: str):
+async def delete_custom_node(node_id: str, request: Request):
+    check_admin(request)
     custom_node_mgr.CustomNodeManager.delete_custom_node(node_id)
     await broadcast_log(f'Removed custom node ID: {node_id}')
     return {'status': 'ok'}
 
 @app.post('/api/custom-nodes/{node_id}/toggle')
-async def toggle_custom_node(node_id: str, data: dict):
+async def toggle_custom_node(node_id: str, data: dict, request: Request):
+    check_admin(request)
     enabled = data.get('enabled', True)
     custom_node_mgr.CustomNodeManager.toggle_custom_node(node_id, enabled)
     return {'status': 'ok'}
@@ -686,14 +836,17 @@ async def run_healing_routine(trigger_source='MANUAL'):
         runtime_state['heal_in_progress'] = False
 
 @app.post('/api/heal/trigger')
-async def trigger_healing():
+async def trigger_healing(request: Request):
+    check_admin(request)
     if runtime_state['heal_in_progress']:
         raise HTTPException(status_code=409, detail='Healing is already in progress')
     asyncio.create_task(run_healing_routine('MANUAL'))
     return {'status': 'initiated', 'message': 'Re-IP rebirth sequence started'}
 
 @app.get('/api/ip/audit')
-async def get_ip_audit(force: bool = False):
+async def get_ip_audit(request: Request, force: bool = False):
+    if force:
+        check_admin(request)
     loop = asyncio.get_running_loop()
     report = await loop.run_in_executor(None, ip_audit.auditor.audit, force)
     return report
@@ -702,7 +855,8 @@ class SpeedtestRequest(BaseModel):
     mode: Optional[str] = 'full'
 
 @app.post('/api/speedtest/run')
-async def trigger_speedtest(req: Optional[SpeedtestRequest] = None):
+async def trigger_speedtest(request: Request, req: Optional[SpeedtestRequest] = None):
+    check_admin(request)
     mode = req.mode if req and req.mode else 'full'
     started = speedtest_mgr.speedtest_mgr.start_benchmark(mode=mode)
     if not started:
@@ -717,6 +871,12 @@ async def get_speedtest_status():
 
 @app.websocket('/ws/live')
 async def websocket_endpoint(websocket: WebSocket):
+    sec = auth.get_security_config()
+    if sec.get("auth_enabled", True):
+        token = websocket.cookies.get("sentinel_session") or websocket.query_params.get("token")
+        if not token or not auth.verify_session_token(token):
+            await websocket.close(code=1008)
+            return
     await ws_manager.connect(websocket)
     try:
         cfg = cfg_mgr.load()
@@ -757,12 +917,52 @@ async def dash_redirect():
         return FileResponse(dash_index)
     return HTMLResponse('<h1>Dashboard UI not found</h1>', status_code=404)
 
+DECOY_HTML = """<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif; padding-top: 50px; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>"""
+
 @app.api_route('/', methods=['GET', 'HEAD'])
 async def root():
+    # Public root is a stealth decoy Nginx welcome page
+    return HTMLResponse(content=DECOY_HTML, status_code=200, headers={"Server": "nginx/1.22.1"})
+
+@app.api_route('/sentinel', methods=['GET', 'HEAD'])
+@app.api_route('/sentinel/{subpath:path}', methods=['GET', 'HEAD'])
+async def serve_sentinel_ui(subpath: str = ""):
     index_file = os.path.join(STATIC_PATH, 'index.html')
     if os.path.exists(index_file):
         return FileResponse(index_file)
     return HTMLResponse('<h1>Sentinel UI not found</h1>', status_code=404)
+
+@app.api_route('/{path_slug}', methods=['GET', 'HEAD'])
+@app.api_route('/{path_slug}/{subpath:path}', methods=['GET', 'HEAD'])
+async def serve_custom_path_ui(path_slug: str, subpath: str = ""):
+    sec = auth.get_security_config()
+    configured = sec.get("secret_path", "/sentinel").strip('/')
+    if path_slug == configured:
+        index_file = os.path.join(STATIC_PATH, 'index.html')
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+    return Response(status_code=404, content=b"")
 
 if __name__ == '__main__':
     import uvicorn

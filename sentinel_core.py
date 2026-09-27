@@ -80,6 +80,15 @@ DEFAULT_CONFIG = {
         'direct_cn': True,
         'hy2_hop': True
     },
+    'security': {
+        'auth_enabled': True,
+        'admin_username': 'admin',
+        'admin_password_hash': '',
+        'secret_path': '/sentinel',
+        'sub_token': '',
+        'enable_host_guard': True,
+        'allowed_hosts': []
+    },
     'transits': []
 }
 

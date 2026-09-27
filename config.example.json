@@ -46,6 +46,13 @@
     "direct_cn": true,
     "hy2_hop": true
   },
+  "security": {
+    "auth_enabled": true,
+    "admin_username": "admin",
+    "secret_path": "/sentinel",
+    "enable_host_guard": true,
+    "allowed_hosts": ["vpsoracle.ccwu.cc"]
+  },
   "transits": [
     {
       "id": "transit_example_01",

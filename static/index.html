@@ -268,11 +268,18 @@
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span id="status-text">HEALTHY</span>
         </div>
+        <div class="hidden sm:flex items-center gap-1.5 text-xs text-zinc-300 font-mono bg-zinc-900/80 border border-zinc-800 rounded px-2.5 py-1" id="nav-user-container">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span id="nav-username">admin</span>
+          <button onclick="handleLogout()" title="安全登出" class="ml-1 text-zinc-500 hover:text-rose-400 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+          </button>
+        </div>
         <button class="btn-destructive" onclick="triggerRebirth()">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
           <span>触发换 IP 自愈</span>
         </button>
-        <button class="btn-neutral" onclick="openSettings()">
+        <button class="btn-neutral" onclick="openSettings()" title="系统设置与安全策略">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
         </button>
       </div>
@@ -356,7 +363,7 @@
               <h2 class="text-sm font-semibold text-white">现役代理核心 (Proxy Fleet)</h2>
               <p class="text-xs text-zinc-400 mt-0.5">Xray-core 原生运行节点，守护状态正常</p>
             </div>
-            <a href="/sub/clash" target="_blank" class="text-xs text-blue-400 hover:underline font-mono">Clash 订阅导出 &rarr;</a>
+            <a id="link-overview-sub-clash" href="/sub/clash" target="_blank" class="text-xs text-blue-400 hover:underline font-mono">Clash 订阅导出 &rarr;</a>
           </div>
 
           <div class="space-y-3">
@@ -1219,6 +1226,50 @@
           </div>
         </div>
 
+        <!-- Security & Authentication Section -->
+        <div class="border-t border-zinc-800 pt-3 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-zinc-200 font-medium flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+              <span>安全加固与鉴权凭据</span>
+            </span>
+            <span class="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">安全守卫运行中</span>
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 mb-1">控制台安全隐蔽路径 (Secret Safe Path)</label>
+            <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono text-xs" id="cfg-sec-path" placeholder="/sentinel">
+            <p class="text-[11px] text-zinc-500 mt-1">根路径 / 伪装为标准 Nginx 欢迎页，仅通过此安全路径访问控制台</p>
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 mb-1">多协议订阅防护 Token</label>
+            <div class="flex gap-2">
+              <input type="text" readonly class="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-300 font-mono text-xs select-all" id="cfg-sec-subtoken">
+              <button class="btn-neutral text-xs" onclick="copyText(document.getElementById('cfg-sec-subtoken').value)">复制</button>
+              <button class="btn-neutral text-xs text-amber-400" onclick="regenerateSubToken()">重置</button>
+            </div>
+            <p class="text-[11px] text-zinc-500 mt-1">Clash / Singbox / v2ray 订阅需携带 ?token=... 凭证，未授权探查直接 403</p>
+          </div>
+
+          <div>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="cfg-host-guard" class="rounded bg-zinc-900 border-zinc-700 text-blue-600">
+              <span class="text-zinc-300">启用 Host 嗅探防御 (直接 IP 探查自动丢弃 404，杜绝测绘扫描)</span>
+            </label>
+          </div>
+
+          <!-- Password change sub-card -->
+          <div class="bg-zinc-900/60 border border-zinc-800/80 rounded p-3 space-y-2">
+            <div class="text-xs font-semibold text-zinc-300">修改管理员登录密码</div>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="password" id="cfg-pwd-old" placeholder="原管理员密码" class="bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]">
+              <input type="password" id="cfg-pwd-new" placeholder="新密码 (不少于 6 位)" class="bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]">
+            </div>
+            <button class="btn-neutral text-xs py-1 w-full justify-center" onclick="handlePasswordUpdate()">提交修改密码</button>
+          </div>
+        </div>
+
       </div>
 
       <div class="flex items-center justify-between pt-3 border-t border-zinc-800">
@@ -1231,6 +1282,39 @@
           <button class="btn-primary" onclick="saveSettings()">保存配置</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Login Modal / Authentication Gateway -->
+  <div class="modal-overlay" id="login-modal">
+    <div class="card max-w-sm w-full p-6 m-4 space-y-5 shadow-2xl border border-zinc-800 bg-[#121215]">
+      <div class="text-center space-y-1.5">
+        <div class="w-10 h-10 rounded-full bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400 mx-auto mb-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        </div>
+        <h3 class="text-base font-semibold text-white tracking-tight">Oracle Sentinel 身份验证</h3>
+        <p class="text-xs text-zinc-400">请输入安全凭证以进入控制中枢</p>
+      </div>
+
+      <form onsubmit="handleLoginSubmit(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">管理员账号</label>
+          <input type="text" id="login-username" value="admin" required class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500 font-mono transition-colors">
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">访问密码</label>
+          <div class="relative">
+            <input type="password" id="login-password" required placeholder="输入管理员访问密码" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 pr-9 text-xs text-zinc-100 focus:outline-none focus:border-blue-500 font-mono transition-colors">
+            <button type="button" onclick="togglePasswordVisibility('login-password')" class="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="login-error-msg" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-800/40 rounded p-2 text-center"></div>
+        <button type="submit" id="btn-login-submit" class="btn-primary w-full justify-center py-2 text-xs font-semibold">
+          <span>解 锁 哨 兵 中 枢</span>
+        </button>
+      </form>
     </div>
   </div>
 
@@ -1646,6 +1730,26 @@
     }
 
     let currentSubFmt = 'clash';
+    let currentSubToken = '';
+    let currentSecretPath = '/sentinel';
+
+    function updateAllSubLinks() {
+      const origin = window.location.origin;
+      const tokenQuery = currentSubToken ? `?token=${currentSubToken}` : '';
+      
+      const subUrlBox = document.getElementById('sub-url-box');
+      if (subUrlBox) {
+        let path = '/sub/clash';
+        if (currentSubFmt === 'v2ray' || currentSubFmt === 'shadowrocket') path = '/sub/v2ray';
+        else if (currentSubFmt === 'singbox') path = '/sub/singbox';
+        subUrlBox.innerText = `${origin}${path}${tokenQuery}`;
+      }
+
+      const ovSubLink = document.getElementById('link-overview-sub-clash');
+      if (ovSubLink) {
+        ovSubLink.href = `/sub/clash${tokenQuery}`;
+      }
+    }
 
     function switchSubTab(fmt) {
       currentSubFmt = fmt;
@@ -1660,29 +1764,30 @@
       const importBtnText = document.getElementById('import-btn-text');
       const importBtn = document.getElementById('btn-import-client');
       const origin = window.location.origin;
+      const tokenQuery = currentSubToken ? `?token=${currentSubToken}` : '';
 
       if (fmt === 'clash') {
         titleEl.innerText = 'Clash / Mihomo 高级智能订阅';
         descEl.innerText = '原生根据下方规则开关实时动态编译，包含智能分流与自动测速策略组';
-        urlBox.innerText = `${origin}/sub/clash`;
+        urlBox.innerText = `${origin}/sub/clash${tokenQuery}`;
         importBtnText.innerText = '一键导入 Clash Verge';
         importBtn.style.display = 'inline-flex';
       } else if (fmt === 'v2ray') {
         titleEl.innerText = 'v2rayN / 通用 Base64 订阅';
         descEl.innerText = '标准 Base64 格式，支持 v2rayN (Windows)、v2rayNG (Android)、Nekoray、Matsuri 等主流客户端';
-        urlBox.innerText = `${origin}/sub/v2ray`;
+        urlBox.innerText = `${origin}/sub/v2ray${tokenQuery}`;
         importBtnText.innerText = '复制订阅链接';
         importBtn.style.display = 'none';
       } else if (fmt === 'singbox') {
         titleEl.innerText = 'Sing-box 官方标准订阅 (JSON)';
         descEl.innerText = '适用于 Sing-box (iOS/Android/macOS/Windows)、Karing、Nekobox 等下一代核心';
-        urlBox.innerText = `${origin}/sub/singbox`;
+        urlBox.innerText = `${origin}/sub/singbox${tokenQuery}`;
         importBtnText.innerText = '一键导入 Sing-box';
         importBtn.style.display = 'inline-flex';
       } else if (fmt === 'shadowrocket') {
         titleEl.innerText = 'Shadowrocket (小火箭) 专属订阅';
         descEl.innerText = '支持 iOS / iPadOS / macOS 小火箭客户端一键拉取并自动解析协议';
-        urlBox.innerText = `${origin}/sub/shadowrocket`;
+        urlBox.innerText = `${origin}/sub/shadowrocket${tokenQuery}`;
         importBtnText.innerText = '一键导入小火箭';
         importBtn.style.display = 'inline-flex';
       }
@@ -1710,6 +1815,7 @@
         let endpoint = '/sub/clash';
         if (currentSubFmt === 'v2ray' || currentSubFmt === 'shadowrocket') endpoint = '/sub/v2ray';
         else if (currentSubFmt === 'singbox') endpoint = '/sub/singbox';
+        if (currentSubToken) endpoint += `?token=${currentSubToken}`;
         
         const res = await fetch(endpoint);
         const text = await res.text();
@@ -1991,7 +2097,13 @@
     // Settings Modal
     function openSettings() {
       fetch('/api/settings')
-        .then(r => r.json())
+        .then(r => {
+          if (r.status === 401) {
+            document.getElementById('login-modal').classList.add('active');
+            throw new Error('未授权');
+          }
+          return r.json();
+        })
         .then(data => {
           // Provider
           const p = data.provider || { type: 'auto', hook_cmd: '' };
@@ -2022,8 +2134,20 @@
           document.getElementById('cfg-bark-enabled').checked = !!bk.enabled;
           document.getElementById('cfg-bark-key').value = bk.bark_key || '';
 
+          // Security
+          const sec = data.security || {};
+          const secPathEl = document.getElementById('cfg-sec-path');
+          if (secPathEl) secPathEl.value = sec.secret_path || currentSecretPath || '/sentinel';
+          const secTokenEl = document.getElementById('cfg-sec-subtoken');
+          if (secTokenEl) secTokenEl.value = sec.sub_token || currentSubToken || '';
+          const hostGuardEl = document.getElementById('cfg-host-guard');
+          if (hostGuardEl) hostGuardEl.checked = sec.enable_host_guard !== false;
+
           toggleNotifySection();
           document.getElementById('settings-modal').classList.add('active');
+        })
+        .catch(e => {
+          if (e.message !== '未授权') console.error('加载设置失败:', e);
         });
     }
 
@@ -2051,13 +2175,22 @@
       const bark_enabled = document.getElementById('cfg-bark-enabled').checked;
       const bark_key = document.getElementById('cfg-bark-key').value.trim();
 
+      const sec_path_el = document.getElementById('cfg-sec-path');
+      const secret_path = (sec_path_el ? sec_path_el.value.trim() : '') || '/sentinel';
+      const host_guard_el = document.getElementById('cfg-host-guard');
+      const enable_host_guard = host_guard_el ? host_guard_el.checked : true;
+
       const payload = {
         cf_token, cf_zone, cf_record, auto_heal,
         provider_type, provider_hook,
         notifications_enabled,
         tg_enabled, tg_token, tg_chat_id,
         discord_enabled, discord_webhook,
-        bark_enabled, bark_key
+        bark_enabled, bark_key,
+        security: {
+          secret_path,
+          enable_host_guard
+        }
       };
 
       const res = await fetch('/api/settings', {
@@ -2066,9 +2199,148 @@
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        currentSecretPath = secret_path;
         alert('设置已保存！');
         closeSettings();
+      } else if (res.status === 401) {
+        document.getElementById('login-modal').classList.add('active');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert('保存失败: ' + (err.detail || '请求被拒绝'));
       }
+    }
+
+    async function regenerateSubToken() {
+      if (!confirm('确定重新生成订阅防护 Token 吗？已导入客户端的旧订阅链接将立即失效，需重新导入。')) return;
+      try {
+        const res = await fetch('/api/auth/update-security', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ regenerate_sub_token: true })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          currentSubToken = data.security.sub_token;
+          const tokenInput = document.getElementById('cfg-sec-subtoken');
+          if (tokenInput) tokenInput.value = currentSubToken;
+          updateAllSubLinks();
+          alert('订阅 Token 已重置！');
+        } else {
+          alert('重置失败: ' + (data.detail || '未知错误'));
+        }
+      } catch (e) {
+        alert('请求失败: ' + e);
+      }
+    }
+
+    async function handlePasswordUpdate() {
+      const old_password = document.getElementById('cfg-pwd-old').value;
+      const new_password = document.getElementById('cfg-pwd-new').value;
+      if (!old_password || !new_password) {
+        alert('请输入原密码和新密码');
+        return;
+      }
+      if (new_password.length < 6) {
+        alert('新密码长度不能少于 6 位');
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/update-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_password, new_password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('管理员密码修改成功！下次访问请使用新密码。');
+          document.getElementById('cfg-pwd-old').value = '';
+          document.getElementById('cfg-pwd-new').value = '';
+        } else {
+          alert('修改失败: ' + (data.detail || '原密码错误'));
+        }
+      } catch (e) {
+        alert('请求失败: ' + e);
+      }
+    }
+
+    function togglePasswordVisibility(id) {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    async function checkAuthStatus() {
+      try {
+        const res = await fetch('/api/auth/check');
+        const data = await res.json();
+        if (!data.authenticated) {
+          document.getElementById('login-modal').classList.add('active');
+          return false;
+        } else {
+          document.getElementById('login-modal').classList.remove('active');
+          currentSubToken = data.sub_token || '';
+          currentSecretPath = data.secret_path || '/sentinel';
+          const userEl = document.getElementById('nav-username');
+          if (userEl && data.username) userEl.innerText = data.username;
+          updateAllSubLinks();
+          return true;
+        }
+      } catch (e) {
+        console.error('Auth check error:', e);
+        return false;
+      }
+    }
+
+    async function handleLoginSubmit(event) {
+      event.preventDefault();
+      const errBox = document.getElementById('login-error-msg');
+      const btn = document.getElementById('btn-login-submit');
+      errBox.classList.add('hidden');
+      btn.disabled = true;
+      btn.innerText = '正在验证凭证...';
+
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          currentSubToken = data.sub_token || '';
+          currentSecretPath = data.secret_path || '/sentinel';
+          const userEl = document.getElementById('nav-username');
+          if (userEl) userEl.innerText = data.username;
+          document.getElementById('login-modal').classList.remove('active');
+          updateAllSubLinks();
+          connectWS();
+          checkFirstRun();
+          loadServicesStatus();
+          loadIPAudit(false);
+          loadSpeedtestStatus();
+        } else {
+          errBox.innerText = data.detail || '用户名或密码错误，请重试';
+          errBox.classList.remove('hidden');
+        }
+      } catch (e) {
+        errBox.innerText = '网络连接异常: ' + e.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '解 锁 哨 兵 中 枢';
+      }
+    }
+
+    async function handleLogout() {
+      if (!confirm('确定登出当前管理会话？')) return;
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch (e) {}
+      if (ws) ws.close();
+      window.location.reload();
     }
 
     async function testCFToken() {
@@ -2087,13 +2359,18 @@
       if (!confirm('确定触发一次 Oracle 公网 IP 换血重生？系统将自动请求甲骨文 API 释放并绑定新 IP，并同步刷新 Cloudflare 解析。')) return;
       const res = await fetch('/api/heal/trigger', { method: 'POST' });
       if (res.ok) alert('自愈流程已下发，请在控制台下方查看实时进度！');
+      else if (res.status === 401) document.getElementById('login-modal').classList.add('active');
     }
 
     // --- WebSocket Stream ---
     let ws = null;
     function connectWS() {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${proto}//${window.location.host}/ws/live`;
+      const tokenParam = currentSubToken ? `?token=${currentSubToken}` : '';
+      const wsUrl = `${proto}//${window.location.host}/ws/live${tokenParam}`;
       ws = new WebSocket(wsUrl);
 
       ws.onmessage = (event) => {
@@ -2111,7 +2388,14 @@
         }
       };
 
-      ws.onclose = () => setTimeout(connectWS, 3000);
+      ws.onclose = (e) => {
+        if (e.code === 1008) {
+          console.warn('WebSocket connection rejected: Unauthenticated');
+          document.getElementById('login-modal').classList.add('active');
+          return;
+        }
+        setTimeout(connectWS, 3000);
+      };
     }
 
     function appendLog(log) {
@@ -3054,19 +3338,20 @@
       }
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       const tabParam = new URLSearchParams(window.location.search).get('tab') || window.location.hash.replace('#', '') || 'overview';
       switchTab(tabParam);
 
-      connectWS();
-      checkFirstRun();
-      const subUrlBox = document.getElementById('sub-url-box');
-      if (subUrlBox) subUrlBox.innerText = `${window.location.origin}/sub/clash`;
+      const authed = await checkAuthStatus();
+      if (authed) {
+        connectWS();
+        checkFirstRun();
+        loadServicesStatus();
+        loadIPAudit(false);
+        loadSpeedtestStatus();
+      }
       const tCmd = document.getElementById('transit-curl-cmd');
       if (tCmd) tCmd.innerText = `curl -fsSL ${window.location.origin}/scripts/setup-relay.sh | sudo bash`;
-      loadServicesStatus();
-      loadIPAudit(false);
-      loadSpeedtestStatus();
     });
   </script>
 </body>
