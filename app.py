@@ -234,6 +234,10 @@ async def get_settings(request: Request):
     }
 
     notify_cfg = cfg.get('notifications', {})
+    tg = notify_cfg.get('telegram', {})
+    discord = notify_cfg.get('discord', {})
+    bark = notify_cfg.get('bark', {})
+    custom = notify_cfg.get('custom_webhook', {})
     sec_cfg = auth.get_security_config()
 
     return {
