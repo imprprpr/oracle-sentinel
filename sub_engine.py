@@ -22,7 +22,8 @@ DEFAULT_RULES_CONFIG = {
     'media_group': True,
     'auto_test': True,
     'direct_cn': True,
-    'hy2_hop': True
+    'hy2_hop': True,
+    'oracle_bypass': True
 }
 
 class SubEngine:
@@ -294,6 +295,13 @@ class SubEngine:
             'IP-CIDR6,::1/128,🎯 全球直连,no-resolve'
         ]
 
+        if rules_cfg.get('oracle_bypass', True):
+            rules.extend([
+                'DOMAIN-SUFFIX,oracle.com,🎯 全球直连',
+                'DOMAIN-SUFFIX,oraclecloud.com,🎯 全球直连',
+                'DOMAIN-SUFFIX,oracleiaas.com,🎯 全球直连'
+            ])
+
         if rules_cfg.get('adblock', True):
             rules.extend([
                 'GEOSITE,category-ads-all,🛑 广告拦截',
@@ -481,7 +489,8 @@ class SubEngine:
 
     # --- 3. Sing-box JSON Generator ---
     @staticmethod
-    def generate_singbox_json():
+    def generate_singbox_json(rules_override=None):
+        rules_cfg = rules_override or SubEngine.get_rules_config()
         raw_nodes = SubEngine.extract_nodes_from_db()
         transits = TransitManager.get_transits()
 
@@ -632,6 +641,24 @@ class SubEngine:
 
         all_outbounds = head_groups + outbounds
 
+        route_rules = [
+            {'ip_is_private': True, 'outbound': 'direct'}
+        ]
+        if rules_cfg.get('oracle_bypass', True):
+            route_rules.append({
+                'domain_suffix': ['oracle.com', 'oraclecloud.com', 'oracleiaas.com'],
+                'outbound': 'direct'
+            })
+        if rules_cfg.get('adblock', True):
+            route_rules.append({'geosite': 'category-ads-all', 'outbound': 'block'})
+        if rules_cfg.get('ai_group', True):
+            route_rules.append({'geosite': 'openai', 'outbound': 'select'})
+        if rules_cfg.get('media_group', True):
+            route_rules.append({'geosite': 'netflix', 'outbound': 'select'})
+        if rules_cfg.get('direct_cn', True):
+            route_rules.append({'geoip': 'cn', 'outbound': 'direct'})
+            route_rules.append({'geosite': 'cn', 'outbound': 'direct'})
+
         singbox_config = {
             'dns': {
                 'servers': [
@@ -648,14 +675,7 @@ class SubEngine:
             ],
             'outbounds': all_outbounds,
             'route': {
-                'rules': [
-                    {'ip_is_private': True, 'outbound': 'direct'},
-                    {'geosite': 'category-ads-all', 'outbound': 'block'},
-                    {'geosite': 'openai', 'outbound': 'select'},
-                    {'geosite': 'netflix', 'outbound': 'select'},
-                    {'geoip': 'cn', 'outbound': 'direct'},
-                    {'geosite': 'cn', 'outbound': 'direct'}
-                ],
+                'rules': route_rules,
                 'auto_detect_interface': True
             }
         }
