@@ -758,7 +758,6 @@ async def get_services():
             "path": "/",
             "badge": "WebDAV 4K",
             "desc": "聚合挂载阿里云盘、夸克、百度网盘、OneDrive，支持 4K WebDAV 原画免下载高速串流播放。",
-            "credentials": "admin / mNq7gQGr",
             "running": is_listening(5244)
         }
     ]
