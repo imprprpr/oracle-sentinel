@@ -539,8 +539,8 @@
           <label class="flex items-start gap-3 p-3 rounded bg-[#161619] border border-zinc-800/80 cursor-pointer hover:border-zinc-700">
             <input type="checkbox" id="rule-oraclebypass" class="mt-0.5 rounded bg-zinc-900 border-zinc-700 text-blue-600 focus:ring-0">
             <div>
-              <div class="font-medium text-zinc-200">甲骨文云管理控制台强制直连 (Oracle Cloud Bypass)</div>
-              <div class="text-zinc-500 mt-0.5">oracle.com 与 *.oraclecloud.com 强制走 Direct 直连，杜绝机房原生 IP 触发 Akamai WAF 与 SSO 风控拦截。</div>
+              <div class="font-medium text-zinc-200">甲骨文控制台 Direct 直连 (默认关闭，走代理节点)</div>
+              <div class="text-zinc-500 mt-0.5">默认关闭（走代理节点）。国内宽带直连通常无法解析甲骨文域名 (ERR_NAME_NOT_RESOLVED)，建议保持关闭走节点加速。</div>
             </div>
           </label>
         </div>
@@ -1835,7 +1835,7 @@
         document.getElementById('rule-autotest').checked = r.auto_test !== false;
         document.getElementById('rule-directcn').checked = r.direct_cn !== false;
         document.getElementById('rule-hy2hop').checked = r.hy2_hop !== false;
-        document.getElementById('rule-oraclebypass').checked = r.oracle_bypass !== false;
+        document.getElementById('rule-oraclebypass').checked = r.oracle_bypass === true;
       } catch (e) {
         console.error(e);
       }

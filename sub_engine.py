@@ -23,7 +23,7 @@ DEFAULT_RULES_CONFIG = {
     'auto_test': True,
     'direct_cn': True,
     'hy2_hop': True,
-    'oracle_bypass': True
+    'oracle_bypass': False
 }
 
 class SubEngine:
@@ -295,11 +295,17 @@ class SubEngine:
             'IP-CIDR6,::1/128,🎯 全球直连,no-resolve'
         ]
 
-        if rules_cfg.get('oracle_bypass', True):
+        if rules_cfg.get('oracle_bypass', False):
             rules.extend([
                 'DOMAIN-SUFFIX,oracle.com,🎯 全球直连',
                 'DOMAIN-SUFFIX,oraclecloud.com,🎯 全球直连',
                 'DOMAIN-SUFFIX,oracleiaas.com,🎯 全球直连'
+            ])
+        else:
+            rules.extend([
+                'DOMAIN-SUFFIX,oracle.com,🚀 节点选择',
+                'DOMAIN-SUFFIX,oraclecloud.com,🚀 节点选择',
+                'DOMAIN-SUFFIX,oracleiaas.com,🚀 节点选择'
             ])
 
         if rules_cfg.get('adblock', True):
@@ -644,10 +650,15 @@ class SubEngine:
         route_rules = [
             {'ip_is_private': True, 'outbound': 'direct'}
         ]
-        if rules_cfg.get('oracle_bypass', True):
+        if rules_cfg.get('oracle_bypass', False):
             route_rules.append({
                 'domain_suffix': ['oracle.com', 'oraclecloud.com', 'oracleiaas.com'],
                 'outbound': 'direct'
+            })
+        else:
+            route_rules.append({
+                'domain_suffix': ['oracle.com', 'oraclecloud.com', 'oracleiaas.com'],
+                'outbound': 'select'
             })
         if rules_cfg.get('adblock', True):
             route_rules.append({'geosite': 'category-ads-all', 'outbound': 'block'})
