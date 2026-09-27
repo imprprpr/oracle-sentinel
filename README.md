@@ -13,7 +13,7 @@
 [![OCI SDK](https://img.shields.io/badge/Oracle%20Cloud-OCI%20SDK-F80000.svg)](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/pythonsdk.htm)
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-DNS%20API-F38020.svg)](https://developers.cloudflare.com/api/)
 
-[特性速览](#特性速览) • [极速部署](#极速部署) • [进阶玩法: 家庭实验室](#进阶玩法-云端家庭实验室-homelab) • [订阅引擎](#订阅引擎与客户端适配) • [中转与独立节点](#链式中转与外部独立节点) • [告警配置](#多渠道即时告警) • [常见排查 (FAQ)](#常见问题排查-faq)
+[特性速览](#特性速览) • [极速部署](#极速部署) • [安全防御加固](#渐进式安全防御加固体系-anti-sniffing--security-hardening) • [进阶玩法: 家庭实验室](#进阶玩法-云端家庭实验室-homelab) • [订阅引擎](#订阅引擎与客户端适配) • [中转与独立节点](#链式中转与外部独立节点) • [告警配置](#多渠道即时告警) • [常见排查 (FAQ)](#常见问题排查-faq)
 
 </div>
 
@@ -40,6 +40,9 @@
 | :--- | :--- |
 | **全自动换 IP 自愈** | 支持甲骨文云（OCI 原生秒级换 IP）、通用 VPS（多探针监控+告警）、自定义脚本 Hook。换完自动改 Cloudflare DNS。 |
 | **智能订阅引擎** | 自动提取 VLESS-Reality、Hysteria 2、Trojan。输出直连 IP 节点，免疫国内 DNS 污染，彻底解决软路由 Fake-IP 冲突。 |
+| **渐进式安全防御加固** | **Host Guard** 域名嗅探拦截（裸 IP 扫描直接丢弃返回空白 404）、根路径 `/` 逼真 Nginx 欢迎页伪装、安全隐蔽路径（`/sentinel`）、加盐哈希管理员认证网关、多协议订阅 Token 防抓取，以及 Cloudflare CDN 代理就绪（2096 端口支持）。 |
+| **IP 纯净度与解锁体检** | 实时公网画像、Scamalytics 权威欺诈分与风控评估、4 项 DNSBL 黑名单洁净监测，以及 OpenAI (ChatGPT)、Anthropic (Claude)、Gemini、Netflix、YouTube Premium、Disney+ 解锁状态体检。 |
+| **多节点三网性能测速** | 集成原生测速内核与国内电信、联通、移动骨干节点链路往返延迟（RTT）、抖动、丢包率与全带宽并发压测，输出综合链路评级。 |
 | **多节点与中转聚合** | 支持挂载外部独立节点（如日本原生机、香港低延迟机）及国内跳板机（Realm 端口转发），自动合并到统一订阅中。 |
 | **WARP 双栈智能洗白** | 本地 Wireproxy 用户态 WireGuard，仅针对 OpenAI、Anthropic、Netflix、Disney+ 走 WARP，YouTube/常规网页直连千兆带宽。 |
 | **BBR + TCP 暴力调优** | FQ 队列、64MB 发送/接收缓冲区、空闲不降速（`tcp_slow_start_after_idle=0`），彻底跑满跨洋高延迟带宽。 |
@@ -53,11 +56,11 @@
 
 ### 方式一：Web 首次启动向导（推荐，零门槛）
 
-服务安装后，直接用浏览器访问：
+服务安装后，使用浏览器访问安全路径：
 ```text
-http://<你的服务器IP>:20540/
+https://<你的域名或IP>:20540/sentinel
 ```
-首次打开会自动进入 **6 步交互式向导**：
+首次打开会自动进入 **6 步交互式向导**（默认管理员账号 `admin`，初始密码 `mNq7gQGr`）：
 1. **环境检测**：自动识别云厂商与 CPU 架构（`x86_64` / `aarch64`）。
 2. **运行模式**：甲骨文模式一键生成 RSA 密钥对并打印公钥；通用 VPS 模式开启监控告警。
 3. **Cloudflare 联动**：输入 Token，自动拉取名下所有域名下拉选择，自动配 A 记录。
@@ -79,6 +82,31 @@ curl -fsSL https://raw.githubusercontent.com/imprprpr/vpsentinel/main/scripts/in
 ```bash
 sudo python3 /opt/vpsentinel/scripts/wizard.py
 ```
+
+---
+
+## 渐进式安全防御加固体系 (Anti-Sniffing & Security Hardening)
+
+针对网络空间测绘引擎（Shodan / Censys / ZoomEye）的无差别端口扫描、协议嗅探与 GFW 针对管理端口的主动探测，VPSentinel 内置了三层立体防御体系：
+
+### 1. 方案 1：Host Guard 域名嗅探与直接 IP 扫描防御
+* **直接 IP 探测拦截**：任何通过裸 IP（如 `https://129.146.230.81:20540/` 或 `https://129.146.230.81:2096/`）发起的扫描，中间件直接丢弃并返回 **0 字节空白 404**，不泄露任何 Server 签名与页面信息。
+* **白名单域名校验**：仅允许通过配置的受信域名（如 `vpsoracle.ccwu.cc`）以及本机回环接口访问。
+
+### 2. 方案 2：隐蔽路径 + 逼真伪装页 + 管理员鉴权体系
+* **根路径欺骗伪装 (`/`)**：访问域名根路径 `https://vps.yourdomain.com:20540/` 返回逼真的标准 **Debian/Ubuntu Nginx 1.22.1 欢迎页**，使外网测绘扫描器误判为未配置的空闲 Web 服务。
+* **隐蔽安全路径 (`/sentinel`)**：控制台迁移至安全路径，只有访问 `https://vps.yourdomain.com:20540/sentinel` 才会唤起控制中枢。
+* **管理员身份认证网关**：
+  * **默认凭据**：账号 `admin`，密码 `mNq7gQGr`（首次登入后可在设置中随时修改）。
+  * **加盐哈希 & 30 天 HttpOnly 会话**：登录后自动下发安全 Cookie 会话，敏感运维 API（触发换 IP、保存配置、节点管理、测速）严格鉴权，未登录直接 401。
+* **多协议订阅保护 (Sub Token Guard)**：
+  * `/sub/clash`、`/sub/v2ray`、`/sub/singbox` 必须携带 `?token=<sub_token>` 凭据或处于管理员登录状态。
+  * 外网探测无 Token 访问直接返回 **403 Forbidden**，杜绝节点信息与订阅流量被爬取。
+
+### 3. 方案 3：Cloudflare CDN / WAF 代理就绪 (2096 端口)
+* **放行并映射端口 2096**：系统支持通过 Cloudflare 免费 HTTPS 代理端口（2096）进行访问，流量无缝转发至 20540。
+* **真实访客 IP 还原**：自动解析 `CF-Connecting-IP` 与 `X-Forwarded-For`。
+* **随时开启 CDN**：如果未来希望彻底隐藏甲骨文源站公网 IP，只需在 Cloudflare DNS 将域名开启小黄云（Proxy），即可通过 `https://vps.yourdomain.com:2096/sentinel` 享受 Anycast 全球 CDN 保护。
 
 ---
 
@@ -373,20 +401,18 @@ EXT_IP="公网IP" EXT_PORT="映射端口" bash scripts/setup-japan-node.sh
 
 ---
 
-## 后续融合规划 (Roadmap)
+## 版本演进与后续规划 (Changelog & Roadmap)
 
-系统将持续向**全能 VPS 运维与网络中枢**演进，下一阶段重点融合以下两大核心特性：
+### ✅ 已在 v2.3+ 全面交付
+* **渐进式立体安全防御**：Host Guard 域名嗅探阻断（裸 IP 返回 404）、Decoy Nginx 伪装页、安全隐蔽路径 `/sentinel`、加盐管理员鉴权与多协议订阅 Token 防探查。
+* **Cloudflare CDN 代理就绪**：开放 2096 端口支持，支持 Anycast 全球 CDN 隐藏源站公网 IP。
+* **IP 纯净度与风控体检中心 (IP Purity & Fraud Audit)**：集成 Scamalytics 欺诈分、4 项 DNSBL 黑名单监测，以及 OpenAI (ChatGPT)、Anthropic (Claude)、Gemini、Netflix、YouTube、Disney+ 全球流媒体与 AI 解锁体检。
+* **多节点网络性能与基准测速 (Speedtest & Network Benchmark)**：集成原生测速内核与国内电信/联通/移动骨干节点链路往返延迟（RTT）、抖动、丢包率与全带宽并发压测。
 
-### 1. IP 纯净度与风控体检中心 (IP Purity & Fraud Audit)
-* **欺诈分与风控等级检测**：集成 Scamalytics、IPQualityScore (IPQS)、IP2Location 与 IP-API 多引擎打分，实时评估原生 IP 与机房 IP 风险度（Fraud Score）。
-* **IP 属性与广播识别**：精准区分数据中心机房 IP（Hosting/DataCenter）、原生住宅 IP（Residential/ISP）及 Anycast 广播属性。
-* **黑名单与滥用排查**：自动检测 Spamhaus、AbuseIPDB、DNSBL 数据库是否命中黑名单，预警发信与抓取风控。
-* **流媒体与 AI 解锁体检**：自动轮询测试 OpenAI (ChatGPT)、Anthropic (Claude)、Google (Gemini)、Netflix、Disney+、YouTube Premium、TikTok 的原生/分流解锁状态与 Google Search 验证码频率。
-
-### 2. 多节点网络性能与基准测速面板 (Speedtest & Network Benchmark)
-* **原生测速引擎集成**：嵌入轻量级 Ookla Speedtest-cli / Librespeed 测速内核，支持控制台一键发起单并发/多并发全速压测。
-* **国内三网分段测速**：直连中国电信（China Telecom 163/CN2）、中国联通（China Unicom 169/9929）、中国移动（China Mobile CMI）骨干节点，输出真实往返延迟（RTT）、抖动（Jitter）与上下行带宽曲线。
-* **跨洋链路与 Bufferbloat 评级**：深度检测长距离 TCP 缓冲区膨胀率与突发丢包率，直观评估 BBR 内核加速调优的实际效益。
+### 🚀 后续规划路线 (Roadmap)
+* **智能流量多维度用量图表与账单预警**：可视化按日/按月审计出站流量，防止超出云厂商免费配额。
+* **多实例集中集群纳管 (Multi-Node Sentinel Mesh)**：单控制台统筹管理多台分散在全球各地的 VPS 节点与探针健康度。
+* **Telegram / Discord 双向交互式 Bot**：通过聊天软件指令直接触发换 IP、查询节点状态与一键测速。
 
 ---
 
