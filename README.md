@@ -114,6 +114,12 @@ sudo python3 /opt/vpsentinel/scripts/wizard.py
 
 为彻底压榨 VPS 性能（尤其甲骨文 ARM 12G/24G 大内存机），系统提供了全套进阶优化与容器服务。
 
+<div align="center">
+
+<img src="docs/images/services_hub.png" alt="VPSentinel 仪表盘与管理后台总览" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin: 12px 0;" />
+
+</div>
+
 ### 1. BBR + TCP 暴力网络加速
 高延迟链路（美西到国内 140~200ms）最大的瓶颈是 Linux 默认的 TCP 缓冲区过小，导致滑动窗口受限跑不满带宽。
 
@@ -232,7 +238,13 @@ cd /opt/containers && docker compose up -d
 
 ## 订阅引擎与客户端适配
 
-在控制面板的【多协议订阅中心】可直接获取各客户端专用链接：
+在控制面板的【多协议订阅中心】可直接获取各客户端专用链接与动态策略组规则：
+
+<div align="center">
+
+<img src="docs/images/sub_rules.png" alt="VPSentinel 订阅与分流规则中心" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin: 12px 0;" />
+
+</div>
 
 | 客户端 | 订阅路径 | 特性 |
 | :--- | :--- | :--- |
@@ -249,6 +261,12 @@ cd /opt/containers && docker compose up -d
 ---
 
 ## 链式中转与外部独立节点
+
+<div align="center">
+
+<img src="docs/images/transits_nodes.png" alt="VPSentinel 中转调度与独立节点管理" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin: 12px 0;" />
+
+</div>
 
 ### 1. 国内中转机一键配置 (Realm)
 在中转跳板机（国内轻量云、NAT VPS、公网软路由）上执行：
