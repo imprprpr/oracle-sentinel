@@ -19,6 +19,8 @@ import sub_engine
 import transit_mgr
 import custom_node_mgr
 import notification
+import ip_audit
+import speedtest_mgr
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
@@ -97,6 +99,7 @@ async def background_monitor_loop():
             payload = {
                 'type': 'telemetry',
                 'state': state,
+                'speedtest': speedtest_mgr.speedtest_mgr.get_status(),
                 'sentinel': {
                     'status': runtime_state['status'],
                     'last_healed': runtime_state['last_healed'],
@@ -689,6 +692,29 @@ async def trigger_healing():
     asyncio.create_task(run_healing_routine('MANUAL'))
     return {'status': 'initiated', 'message': 'Re-IP rebirth sequence started'}
 
+@app.get('/api/ip/audit')
+async def get_ip_audit(force: bool = False):
+    loop = asyncio.get_running_loop()
+    report = await loop.run_in_executor(None, ip_audit.auditor.audit, force)
+    return report
+
+class SpeedtestRequest(BaseModel):
+    mode: Optional[str] = 'full'
+
+@app.post('/api/speedtest/run')
+async def trigger_speedtest(req: Optional[SpeedtestRequest] = None):
+    mode = req.mode if req and req.mode else 'full'
+    started = speedtest_mgr.speedtest_mgr.start_benchmark(mode=mode)
+    if not started:
+        raise HTTPException(status_code=409, detail='已有网络测速任务正在执行中，请稍候')
+    mode_name = '全带宽与三网压测' if mode == 'full' else '国内三网低延迟探测'
+    await broadcast_log(f'⚡ 网络测速任务已发起 ({mode_name})', 'INFO')
+    return {'status': 'started', 'message': f'测速任务已启动 ({mode_name})'}
+
+@app.get('/api/speedtest/status')
+async def get_speedtest_status():
+    return speedtest_mgr.speedtest_mgr.get_status()
+
 @app.websocket('/ws/live')
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
@@ -698,6 +724,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.send_json({
             'type': 'initial',
             'state': state,
+            'speedtest': speedtest_mgr.speedtest_mgr.get_status(),
             'sentinel': {
                 'status': runtime_state['status'],
                 'last_healed': runtime_state['last_healed'],

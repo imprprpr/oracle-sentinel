@@ -237,6 +237,22 @@
                   <span class="text-[10px] font-mono text-zinc-500">:5244</span>
                 </a>
                 <div class="my-1.5 border-t border-zinc-800/80"></div>
+                <div class="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">网络与 IP 体检</div>
+                <div onclick="switchTab('services'); setTimeout(() => scrollToSection('section-ip-audit'), 50); closeServicesDropdown()" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 cursor-pointer transition-colors">
+                  <span class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    <span>IP 纯净度与流媒体体检</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-cyan-400/80">体检</span>
+                </div>
+                <div onclick="switchTab('services'); setTimeout(() => scrollToSection('section-speedtest'), 50); closeServicesDropdown()" class="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 cursor-pointer transition-colors">
+                  <span class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    <span>三网基准性能测速</span>
+                  </span>
+                  <span class="text-[10px] font-mono text-amber-400/80">测速</span>
+                </div>
+                <div class="my-1.5 border-t border-zinc-800/80"></div>
                 <div onclick="switchTab('services'); closeServicesDropdown()" class="px-3 py-1.5 text-xs text-blue-400 hover:text-blue-300 hover:bg-zinc-800/60 cursor-pointer transition-colors flex items-center justify-between">
                   <span>进入控制台全景视图</span>
                   <span>→</span>
@@ -793,6 +809,323 @@
         </div>
       </div>
 
+      <!-- SECTION 3: IP 纯净度与流媒体/AI 解锁体检中心 -->
+      <div id="section-ip-audit" class="space-y-3 pt-2">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
+            <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            <span>IP 纯净度与全球流媒体/AI 解锁体检中心 (IP Purity & Unlock Audit)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] font-mono text-zinc-500" id="audit-last-time">检测时间: 未体检</span>
+            <button id="btn-re-audit" class="btn-neutral text-xs flex items-center gap-1.5" onclick="loadIPAudit(true)">
+              <svg id="icon-re-audit" class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              <span>立即全项体检</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <!-- Left: IP Profile & Fraud Risk -->
+          <div class="lg:col-span-5 card p-5 space-y-4 border-l-2 border-l-cyan-500 flex flex-col justify-between">
+            <div class="space-y-3">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <span id="audit-flag" class="text-2xl">🇺🇸</span>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span id="audit-ip" class="text-base font-semibold text-white font-mono privacy-blur cursor-pointer" onclick="togglePrivacy(this)" title="点击展开/隐藏">--.--.--.--</span>
+                      <span id="audit-purity-badge" class="badge bg-cyan-950/70 border border-cyan-600/30 text-cyan-400 font-mono text-[10px]">A 纯净机房</span>
+                    </div>
+                    <div id="audit-geo" class="text-xs text-zinc-400 mt-0.5">Phoenix, Arizona, United States</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scamalytics Fraud Score Gauge -->
+              <div class="bg-zinc-900/80 p-3.5 rounded-lg border border-zinc-800 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-zinc-400 flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>Scamalytics 权威欺诈分</span>
+                  </span>
+                  <div class="flex items-center gap-1.5">
+                    <span id="audit-fraud-score" class="font-mono text-base font-bold text-emerald-400">0</span>
+                    <span class="text-zinc-500 font-mono text-xs">/ 100</span>
+                    <span id="audit-fraud-risk-badge" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px] ml-1">极低风险</span>
+                  </div>
+                </div>
+                <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                  <div id="audit-fraud-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 2%"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-zinc-500 font-mono">
+                  <span>0 极净</span>
+                  <span>25 低风险</span>
+                  <span>50 中风险</span>
+                  <span>100 极高</span>
+                </div>
+              </div>
+
+              <!-- Profile Key-Values -->
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/60">
+                  <div class="text-[10px] text-zinc-500 uppercase font-mono">ASN 网络机构</div>
+                  <div id="audit-asn" class="font-mono text-zinc-200 truncate mt-0.5" title="AS31898 Oracle Corporation">AS31898 Oracle Corporation</div>
+                </div>
+                <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/60">
+                  <div class="text-[10px] text-zinc-500 uppercase font-mono">IP 基因类型</div>
+                  <div id="audit-type-desc" class="text-zinc-200 truncate mt-0.5">机房托管 (DataCenter)</div>
+                </div>
+                <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/60">
+                  <div class="text-[10px] text-zinc-500 uppercase font-mono">Google 搜索风控</div>
+                  <div id="audit-google-captcha" class="text-emerald-400 font-mono text-[11px] truncate mt-0.5">纯净无验证码</div>
+                </div>
+                <div class="bg-zinc-900/60 p-2.5 rounded border border-zinc-800/60">
+                  <div class="text-[10px] text-zinc-500 uppercase font-mono">反向 PTR 解析</div>
+                  <div id="audit-ptr" class="font-mono text-zinc-400 text-[11px] truncate mt-0.5 privacy-blur cursor-pointer" onclick="togglePrivacy(this)" title="点击展开/隐藏">检测中...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DNSBL Blacklists Row -->
+            <div class="pt-3 border-t border-zinc-800/80 space-y-1.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-zinc-400 text-[11px] font-mono">DNSBL 垃圾邮件与黑名单数据库</span>
+                <span id="audit-dnsbl-overall" class="text-[10px] font-mono text-emerald-400">4/4 全项 CLEAN</span>
+              </div>
+              <div id="audit-dnsbl-list" class="grid grid-cols-4 gap-1.5 text-center text-[10px] font-mono">
+                <div class="bg-zinc-900/70 p-1 rounded border border-zinc-800 text-emerald-400">SpamCop: 洁净</div>
+                <div class="bg-zinc-900/70 p-1 rounded border border-zinc-800 text-emerald-400">DroneBL: 洁净</div>
+                <div class="bg-zinc-900/70 p-1 rounded border border-zinc-800 text-emerald-400">S5h: 洁净</div>
+                <div class="bg-zinc-900/70 p-1 rounded border border-zinc-800 text-emerald-400">GBUdb: 洁净</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Streaming & AI Unlock Matrix -->
+          <div class="lg:col-span-7 card p-5 space-y-4 flex flex-col justify-between">
+            <div class="space-y-4">
+              <!-- AI Category -->
+              <div class="space-y-2">
+                <div class="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
+                  <span>🤖</span>
+                  <span>全球核心 AI 大模型生态解锁</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-white flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span>OpenAI</span>
+                      </span>
+                      <span id="unlock-badge-openai" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]">原生全解</span>
+                    </div>
+                    <p id="unlock-desc-openai" class="text-[11px] text-zinc-400 leading-tight">API 与 ChatGPT Web 原生直连，支持移动客户端无阻断</p>
+                  </div>
+
+                  <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-white flex items-center gap-1">
+                        <span id="dot-claude" class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                        <span>Claude</span>
+                      </span>
+                      <span id="unlock-badge-claude" class="badge bg-purple-950/70 border border-purple-600/30 text-purple-400 text-[10px]">WARP接管</span>
+                    </div>
+                    <p id="unlock-desc-claude" class="text-[11px] text-zinc-400 leading-tight">机房 IP 拦截防御，已由系统内置 WARP 双栈无缝接管出站</p>
+                  </div>
+
+                  <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-white flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                        <span>Google Gemini</span>
+                      </span>
+                      <span id="unlock-badge-gemini" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]">原生解锁</span>
+                    </div>
+                    <p id="unlock-desc-gemini" class="text-[11px] text-zinc-400 leading-tight">支持 Gemini Advanced、AI Studio 原生区域直连访问</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Streaming Category -->
+              <div class="space-y-2">
+                <div class="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
+                  <span>🎬</span>
+                  <span>主流流媒体平台原生解锁矩阵</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-white flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        <span>Netflix</span>
+                      </span>
+                      <span id="unlock-badge-netflix" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]">原生全解</span>
+                    </div>
+                    <p id="unlock-desc-netflix" class="text-[11px] text-zinc-400 leading-tight">自制剧与非自制版权剧全解锁，无流媒体机房限制</p>
+                  </div>
+
+                  <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-white flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                        <span>YouTube</span>
+                      </span>
+                      <span id="unlock-badge-youtube" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]">Premium US</span>
+                    </div>
+                    <p id="unlock-desc-youtube" class="text-[11px] text-zinc-400 leading-tight">Premium 支持跨区会员订阅，无送中现象，定位准确</p>
+                  </div>
+
+                  <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-white flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                        <span>Disney+</span>
+                      </span>
+                      <span id="unlock-badge-disney" class="badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]">原生解锁</span>
+                    </div>
+                    <p id="unlock-desc-disney" class="text-[11px] text-zinc-400 leading-tight">迪士尼与 Star 内容直连播放，支持 4K HDR 串流</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- WARP Dual-Stack Ingress/Egress Banner -->
+            <div class="pt-3 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-zinc-950/40 p-3 rounded-lg border border-zinc-800/50 text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
+                <span class="font-medium text-zinc-200">Cloudflare WARP 双栈护航:</span>
+                <span id="audit-warp-status" class="text-orange-400 font-mono">WARP 双栈接管中 (LAX 节点)</span>
+              </div>
+              <div class="flex items-center gap-2 text-zinc-400 font-mono text-[11px]">
+                <span>WARP 出口:</span>
+                <span id="audit-warp-ip" class="privacy-blur cursor-pointer text-zinc-200" onclick="togglePrivacy(this)" title="点击展开/隐藏">104.28.205.117 (US)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4: 多节点网络性能与基准测速中心 -->
+      <div id="section-speedtest" class="space-y-3 pt-2">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
+            <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <span>多节点网络性能与基准测速中心 (Network Benchmark & Speedtest)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div id="speedtest-status-pill" class="badge bg-zinc-800/80 border border-zinc-700 text-zinc-300 font-mono text-[11px] flex items-center gap-1.5">
+              <span id="speedtest-status-dot" class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+              <span id="speedtest-status-text">空闲待命</span>
+            </div>
+            <button id="btn-st-ping" class="btn-neutral text-xs flex items-center gap-1" onclick="startSpeedtest('ping_only')">
+              <span>三网低延迟探测</span>
+            </button>
+            <button id="btn-st-full" class="btn-primary text-xs flex items-center gap-1.5" onclick="startSpeedtest('full')">
+              <svg id="icon-st-spin" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>开始一键全速压测</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Speedtest Progress Bar Banner (hidden when idle) -->
+        <div id="speedtest-progress-banner" class="hidden card p-3.5 bg-amber-950/20 border-amber-600/30 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-amber-300 flex items-center gap-2 font-mono">
+              <svg class="w-4 h-4 animate-spin text-amber-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <span id="speedtest-progress-msg">正在测试带宽...</span>
+            </span>
+            <span id="speedtest-elapsed" class="text-amber-400/80 font-mono text-[11px]">耗时 0.0s</span>
+          </div>
+          <div class="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+            <div class="bg-gradient-to-r from-amber-500 to-orange-500 h-1 rounded-full animate-pulse w-full"></div>
+          </div>
+        </div>
+
+        <!-- 4 Metrics Dashboard Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="card p-4 space-y-1">
+            <div class="text-[11px] text-zinc-500 font-mono flex items-center justify-between">
+              <span>往返基准延迟</span>
+              <span>PING</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+              <span id="metric-ping" class="text-2xl font-bold font-mono text-white">--</span>
+              <span class="text-xs font-mono text-zinc-500">ms</span>
+            </div>
+            <div id="metric-server-info" class="text-[11px] text-zinc-400 truncate">未测速</div>
+          </div>
+
+          <div class="card p-4 space-y-1">
+            <div class="text-[11px] text-zinc-500 font-mono flex items-center justify-between">
+              <span>下载峰值带宽</span>
+              <span>DOWNLOAD</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+              <span id="metric-download" class="text-2xl font-bold font-mono text-emerald-400">--</span>
+              <span class="text-xs font-mono text-zinc-500">Mbps</span>
+            </div>
+            <div id="metric-dl-bytes" class="text-[11px] text-zinc-400 truncate">数据流: 待测速</div>
+          </div>
+
+          <div class="card p-4 space-y-1">
+            <div class="text-[11px] text-zinc-500 font-mono flex items-center justify-between">
+              <span>上传峰值带宽</span>
+              <span>UPLOAD</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+              <span id="metric-upload" class="text-2xl font-bold font-mono text-cyan-400">--</span>
+              <span class="text-xs font-mono text-zinc-500">Mbps</span>
+            </div>
+            <div id="metric-ul-bytes" class="text-[11px] text-zinc-400 truncate">数据流: 待测速</div>
+          </div>
+
+          <div class="card p-4 space-y-1">
+            <div class="text-[11px] text-zinc-500 font-mono flex items-center justify-between">
+              <span>综合网络质量</span>
+              <span>GRADE</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+              <span id="metric-grade" class="text-2xl font-bold font-mono text-amber-400">--</span>
+              <span id="metric-grade-desc" class="text-xs text-zinc-400">点击按钮发起测速</span>
+            </div>
+            <div id="metric-cn-avg" class="text-[11px] text-zinc-400 truncate">国内三网均值: 待探测</div>
+          </div>
+        </div>
+
+        <!-- Three-Network Backbone Latency Table -->
+        <div class="card p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-semibold text-white">国内三网与国际核心骨干往返延迟矩阵</h3>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">8 Targets</span>
+            </div>
+            <span class="text-xs text-zinc-500 font-mono">ICMP RTT / Jitter 探测</span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+              <thead class="text-zinc-500 border-b border-zinc-800 text-[11px]">
+                <tr>
+                  <th class="pb-2 font-normal">测试目标节点</th>
+                  <th class="pb-2 font-normal">运营商 / 类型</th>
+                  <th class="pb-2 font-normal">区域</th>
+                  <th class="pb-2 font-normal">丢包率</th>
+                  <th class="pb-2 font-normal">平均延迟 (RTT)</th>
+                  <th class="pb-2 font-normal">抖动 (Jitter)</th>
+                  <th class="pb-2 font-normal text-right">链路状态</th>
+                </tr>
+              </thead>
+              <tbody id="three-network-tbody" class="divide-y divide-zinc-800/60 text-zinc-300">
+                <tr>
+                  <td colspan="7" class="py-4 text-center text-zinc-500">点击上方「开始一键全速压测」或「三网低延迟探测」获取实时数据</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </main>
@@ -1297,7 +1630,11 @@
 
       if (tabId === 'rules') loadRulesConfig();
       if (tabId === 'transits') { loadTransits(); loadCustomNodes(); }
-      if (tabId === 'services') loadServicesStatus();
+      if (tabId === 'services') {
+        loadServicesStatus();
+        loadIPAudit(false);
+        loadSpeedtestStatus();
+      }
     }
 
     function togglePrivacy(el) {
@@ -1764,6 +2101,7 @@
           const payload = JSON.parse(event.data);
           if (payload.type === 'initial' || payload.type === 'telemetry') {
             updateOverview(payload.state, payload.sentinel);
+            if (payload.speedtest) updateSpeedtestUI(payload.speedtest);
             if (payload.logs) payload.logs.forEach(l => appendLog(l));
           } else if (payload.type === 'log') {
             appendLog(payload.data);
@@ -2277,6 +2615,445 @@
       }
     }
 
+    // --- Smooth Scroll Anchor Helper ---
+    function scrollToSection(sectionId) {
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('ring-2', 'ring-cyan-500/40', 'rounded-xl', 'transition-all');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-cyan-500/40', 'rounded-xl'), 2000);
+      }
+    }
+
+    // --- IP Purity & Unlock Audit ---
+    let isAuditing = false;
+    async function loadIPAudit(force = false) {
+      if (isAuditing) return;
+      isAuditing = true;
+      const btn = document.getElementById('btn-re-audit');
+      const icon = document.getElementById('icon-re-audit');
+      if (btn) btn.disabled = true;
+      if (icon) icon.classList.add('animate-spin');
+
+      try {
+        const res = await fetch(`/api/ip/audit?force=${force ? 'true' : 'false'}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        
+        // Update Time
+        const timeEl = document.getElementById('audit-last-time');
+        if (timeEl) {
+          timeEl.innerText = `检测时间: ${data.timestamp || '刚刚'}${data.cached ? ' (缓存)' : ''}`;
+        }
+
+        // Network Profile
+        const net = data.network || {};
+        if (net.flag_emoji) {
+          const flagEl = document.getElementById('audit-flag');
+          if (flagEl) flagEl.innerText = net.flag_emoji;
+        }
+        if (net.ip) {
+          const ipEl = document.getElementById('audit-ip');
+          if (ipEl) {
+            ipEl.innerText = net.ip;
+            if (!ipEl.classList.contains('revealed')) ipEl.classList.add('privacy-blur');
+          }
+        }
+        
+        const purityBadge = document.getElementById('audit-purity-badge');
+        if (purityBadge) {
+          purityBadge.innerText = `${data.purity_rating || 'A'} ${data.purity_desc || ''}`;
+        }
+
+        const geoEl = document.getElementById('audit-geo');
+        if (geoEl) {
+          geoEl.innerText = [net.city, net.region, net.country].filter(Boolean).join(', ') || 'Unknown Location';
+        }
+
+        // Scamalytics Fraud Score
+        const risk = data.risk || {};
+        const score = risk.scamalytics_score !== undefined ? risk.scamalytics_score : 0;
+        const scoreEl = document.getElementById('audit-fraud-score');
+        if (scoreEl) scoreEl.innerText = score;
+        
+        const riskBadge = document.getElementById('audit-fraud-risk-badge');
+        const fraudBar = document.getElementById('audit-fraud-bar');
+        if (fraudBar) fraudBar.style.width = `${Math.min(100, Math.max(3, score))}%`;
+
+        if (score <= 15) {
+          if (riskBadge) {
+            riskBadge.className = 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px] ml-1';
+            riskBadge.innerText = risk.risk_zh || '极低风险';
+          }
+          if (fraudBar) fraudBar.className = 'bg-emerald-500 h-1.5 rounded-full transition-all duration-500';
+        } else if (score <= 40) {
+          if (riskBadge) {
+            riskBadge.className = 'badge bg-amber-950/70 border border-amber-600/30 text-amber-400 text-[10px] ml-1';
+            riskBadge.innerText = risk.risk_zh || '中等风险';
+          }
+          if (fraudBar) fraudBar.className = 'bg-amber-500 h-1.5 rounded-full transition-all duration-500';
+        } else {
+          if (riskBadge) {
+            riskBadge.className = 'badge bg-rose-950/70 border border-rose-600/30 text-rose-400 text-[10px] ml-1';
+            riskBadge.innerText = risk.risk_zh || '高风险';
+          }
+          if (fraudBar) fraudBar.className = 'bg-rose-500 h-1.5 rounded-full transition-all duration-500';
+        }
+
+        // Specs
+        if (net.asn) {
+          const asnEl = document.getElementById('audit-asn');
+          if (asnEl) asnEl.innerText = `${net.asn} ${net.asname || ''}`.trim();
+        }
+        if (net.ip_type_desc) {
+          const typeEl = document.getElementById('audit-type-desc');
+          if (typeEl) typeEl.innerText = net.ip_type_desc;
+        }
+        if (risk.google_captcha) {
+          const gc = risk.google_captcha;
+          const gcEl = document.getElementById('audit-google-captcha');
+          if (gcEl) {
+            gcEl.innerText = gc.label;
+            gcEl.className = gc.status === 'clean' ? 'text-emerald-400 font-mono text-[11px] truncate mt-0.5' : 'text-amber-400 font-mono text-[11px] truncate mt-0.5';
+          }
+        }
+        if (net.reverse_dns) {
+          const ptrEl = document.getElementById('audit-ptr');
+          if (ptrEl) ptrEl.innerText = net.reverse_dns;
+        }
+
+        // DNSBL
+        const dnsblDetails = risk.dnsbl_tested || [];
+        if (dnsblDetails.length > 0) {
+          const cleanCount = dnsblDetails.filter(d => d.clean).length;
+          const overallEl = document.getElementById('audit-dnsbl-overall');
+          if (overallEl) {
+            overallEl.innerText = `${cleanCount}/${dnsblDetails.length} 项 ${risk.dnsbl_clean ? '全项 CLEAN' : '有记录'}`;
+          }
+          const listHtml = dnsblDetails.map(d => {
+            const colorClass = d.clean ? 'text-emerald-400 border-zinc-800' : 'text-rose-400 border-rose-800/60 bg-rose-950/30';
+            const statusText = d.clean ? '洁净' : '列入黑名单';
+            return `<div class="bg-zinc-900/70 p-1 rounded border ${colorClass}">${d.name}: ${statusText}</div>`;
+          }).join('');
+          const listEl = document.getElementById('audit-dnsbl-list');
+          if (listEl) listEl.innerHTML = listHtml;
+        }
+
+        // Unlock Matrix
+        const matrix = data.unlock_matrix || {};
+        const ai = matrix.ai || {};
+        const streaming = matrix.streaming || {};
+
+        // OpenAI
+        if (ai.openai) {
+          const badge = document.getElementById('unlock-badge-openai');
+          const desc = document.getElementById('unlock-desc-openai');
+          if (badge) {
+            badge.innerText = ai.openai.status === 'unlocked' ? '原生全解' : (ai.openai.status === 'blocked' ? '受限拦截' : '需WARP');
+            badge.className = ai.openai.status === 'unlocked' ? 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]' : 'badge bg-rose-950/70 border border-rose-600/30 text-rose-400 text-[10px]';
+          }
+          if (desc) desc.innerText = ai.openai.label;
+        }
+
+        // Claude
+        if (ai.claude) {
+          const badge = document.getElementById('unlock-badge-claude');
+          const desc = document.getElementById('unlock-desc-claude');
+          const dot = document.getElementById('dot-claude');
+          if (ai.claude.status === 'unlocked') {
+            if (badge) {
+              badge.innerText = '原生全解';
+              badge.className = 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]';
+            }
+            if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+            if (desc) desc.innerText = ai.claude.label;
+          } else {
+            if (badge) {
+              badge.innerText = 'WARP接管';
+              badge.className = 'badge bg-purple-950/70 border border-purple-600/30 text-purple-400 text-[10px]';
+            }
+            if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-purple-400';
+            if (desc) desc.innerText = '机房 IP 拦截防御，已由系统内置 WARP 双栈无缝接管出站';
+          }
+        }
+
+        // Gemini
+        if (ai.gemini) {
+          const badge = document.getElementById('unlock-badge-gemini');
+          const desc = document.getElementById('unlock-desc-gemini');
+          if (badge) {
+            badge.innerText = ai.gemini.status === 'unlocked' ? '原生解锁' : '区域受限';
+            badge.className = ai.gemini.status === 'unlocked' ? 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]' : 'badge bg-rose-950/70 border border-rose-600/30 text-rose-400 text-[10px]';
+          }
+          if (desc) desc.innerText = ai.gemini.label;
+        }
+
+        // Netflix
+        if (streaming.netflix) {
+          const badge = document.getElementById('unlock-badge-netflix');
+          const desc = document.getElementById('unlock-desc-netflix');
+          if (badge) {
+            if (streaming.netflix.status === 'full') {
+              badge.innerText = '原生全解';
+              badge.className = 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]';
+            } else if (streaming.netflix.status === 'originals') {
+              badge.innerText = '仅自制剧';
+              badge.className = 'badge bg-amber-950/70 border border-amber-600/30 text-amber-400 text-[10px]';
+            } else {
+              badge.innerText = '需WARP';
+              badge.className = 'badge bg-rose-950/70 border border-rose-600/30 text-rose-400 text-[10px]';
+            }
+          }
+          if (desc) desc.innerText = streaming.netflix.label;
+        }
+
+        // YouTube
+        if (streaming.youtube) {
+          const badge = document.getElementById('unlock-badge-youtube');
+          const desc = document.getElementById('unlock-desc-youtube');
+          const region = streaming.youtube.region || 'US';
+          if (badge) {
+            badge.innerText = `Premium ${region}`;
+            badge.className = 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]';
+          }
+          if (desc) desc.innerText = streaming.youtube.label;
+        }
+
+        // Disney+
+        if (streaming.disney) {
+          const badge = document.getElementById('unlock-badge-disney');
+          const desc = document.getElementById('unlock-desc-disney');
+          if (badge) {
+            badge.innerText = streaming.disney.status === 'unlocked' ? '原生解锁' : '区域受限';
+            badge.className = streaming.disney.status === 'unlocked' ? 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 text-[10px]' : 'badge bg-rose-950/70 border border-rose-600/30 text-rose-400 text-[10px]';
+          }
+          if (desc) desc.innerText = streaming.disney.label;
+        }
+
+        // WARP
+        const warp = data.warp || {};
+        const warpStatusEl = document.getElementById('audit-warp-status');
+        const warpIpEl = document.getElementById('audit-warp-ip');
+        if (warp.active) {
+          if (warpStatusEl) warpStatusEl.innerText = warp.label || `WARP 双栈接管中 (${warp.colo || 'LAX'} 节点)`;
+          if (warpIpEl && warp.warp_ip) warpIpEl.innerText = `${warp.warp_ip} (${warp.colo || 'US'})`;
+        } else {
+          if (warpStatusEl) warpStatusEl.innerText = '未接入 WARP 代理';
+        }
+
+      } catch (err) {
+        console.error('IP Audit error:', err);
+      } finally {
+        isAuditing = false;
+        if (btn) btn.disabled = false;
+        if (icon) icon.classList.remove('animate-spin');
+      }
+    }
+
+    // --- Network Speedtest & Benchmarks ---
+    let speedtestPollTimer = null;
+    let speedtestElapsedTimer = null;
+    let speedtestStartTime = 0;
+
+    async function startSpeedtest(mode = 'full') {
+      const btnPing = document.getElementById('btn-st-ping');
+      const btnFull = document.getElementById('btn-st-full');
+      const spinIcon = document.getElementById('icon-st-spin');
+      const banner = document.getElementById('speedtest-progress-banner');
+      const msgEl = document.getElementById('speedtest-progress-msg');
+      const elapsedEl = document.getElementById('speedtest-elapsed');
+      const pillText = document.getElementById('speedtest-status-text');
+      const pillDot = document.getElementById('speedtest-status-dot');
+
+      if (btnPing) btnPing.disabled = true;
+      if (btnFull) btnFull.disabled = true;
+      if (spinIcon) spinIcon.classList.add('animate-spin');
+      if (banner) banner.classList.remove('hidden');
+      if (msgEl) msgEl.innerText = mode === 'full' ? '正在连接测速引擎，开始全速综合测速...' : '正在探测国内三网骨干节点往返延迟...';
+      if (pillText) pillText.innerText = '正在测速...';
+      if (pillDot) pillDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse';
+
+      speedtestStartTime = Date.now();
+      if (speedtestElapsedTimer) clearInterval(speedtestElapsedTimer);
+      speedtestElapsedTimer = setInterval(() => {
+        const sec = ((Date.now() - speedtestStartTime) / 1000).toFixed(1);
+        if (elapsedEl) elapsedEl.innerText = `耗时 ${sec}s`;
+      }, 200);
+
+      try {
+        const res = await fetch('/api/speedtest/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: mode })
+        });
+        if (res.status === 409) {
+          alert('已有测速任务在运行中，请等待完成');
+        } else if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        pollSpeedtestStatus();
+      } catch (e) {
+        console.error('Speedtest start failed:', e);
+        resetSpeedtestUIState();
+      }
+    }
+
+    function pollSpeedtestStatus() {
+      if (speedtestPollTimer) clearInterval(speedtestPollTimer);
+      speedtestPollTimer = setInterval(async () => {
+        try {
+          const res = await fetch('/api/speedtest/status');
+          if (res.ok) {
+            const data = await res.json();
+            updateSpeedtestUI(data);
+            if (!data.is_running) {
+              clearInterval(speedtestPollTimer);
+              speedtestPollTimer = null;
+              resetSpeedtestUIState();
+            }
+          }
+        } catch (e) {
+          console.error('Poll speedtest status error:', e);
+        }
+      }, 1000);
+    }
+
+    async function loadSpeedtestStatus() {
+      try {
+        const res = await fetch('/api/speedtest/status');
+        if (res.ok) {
+          const data = await res.json();
+          updateSpeedtestUI(data);
+          if (data.is_running) {
+            pollSpeedtestStatus();
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load speedtest status:', e);
+      }
+    }
+
+    function resetSpeedtestUIState() {
+      if (speedtestElapsedTimer) {
+        clearInterval(speedtestElapsedTimer);
+        speedtestElapsedTimer = null;
+      }
+      const btnPing = document.getElementById('btn-st-ping');
+      const btnFull = document.getElementById('btn-st-full');
+      const spinIcon = document.getElementById('icon-st-spin');
+      const banner = document.getElementById('speedtest-progress-banner');
+      const pillText = document.getElementById('speedtest-status-text');
+      const pillDot = document.getElementById('speedtest-status-dot');
+
+      if (btnPing) btnPing.disabled = false;
+      if (btnFull) btnFull.disabled = false;
+      if (spinIcon) spinIcon.classList.remove('animate-spin');
+      if (banner) banner.classList.add('hidden');
+      if (pillText) pillText.innerText = '空闲待命';
+      if (pillDot) pillDot.className = 'w-1.5 h-1.5 rounded-full bg-zinc-500';
+    }
+
+    function updateSpeedtestUI(st) {
+      if (!st) return;
+
+      const banner = document.getElementById('speedtest-progress-banner');
+      const msgEl = document.getElementById('speedtest-progress-msg');
+      const pillText = document.getElementById('speedtest-status-text');
+      const pillDot = document.getElementById('speedtest-status-dot');
+
+      if (st.is_running) {
+        if (banner) banner.classList.remove('hidden');
+        if (msgEl) msgEl.innerText = st.progress_msg || '正在测速中...';
+        if (pillText) pillText.innerText = '正在测速...';
+        if (pillDot) pillDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse';
+      }
+
+      const res = st.last_result;
+      if (!res) return;
+
+      // Grade
+      if (res.rating) {
+        const gradeEl = document.getElementById('metric-grade');
+        const descEl = document.getElementById('metric-grade-desc');
+        if (gradeEl) gradeEl.innerText = res.rating;
+        if (descEl) descEl.innerText = res.rating_desc || '';
+      }
+
+      // Bandwidth metrics
+      if (res.bandwidth) {
+        const bw = res.bandwidth;
+        const pingEl = document.getElementById('metric-ping');
+        const dlEl = document.getElementById('metric-download');
+        const ulEl = document.getElementById('metric-upload');
+        const srvEl = document.getElementById('metric-server-info');
+        const dlBytesEl = document.getElementById('metric-dl-bytes');
+        const ulBytesEl = document.getElementById('metric-ul-bytes');
+
+        if (pingEl) pingEl.innerText = bw.ping_ms || '--';
+        if (dlEl) dlEl.innerText = bw.download_mbps || '--';
+        if (ulEl) ulEl.innerText = bw.upload_mbps || '--';
+        if (srvEl && bw.server_name) {
+          srvEl.innerText = `${bw.server_name} (${bw.server_sponsor})`;
+        }
+        if (dlBytesEl && bw.bytes_received_mb) {
+          dlBytesEl.innerText = `下行流量: ${bw.bytes_received_mb} MB`;
+        }
+        if (ulBytesEl && bw.bytes_sent_mb) {
+          ulBytesEl.innerText = `上行流量: ${bw.bytes_sent_mb} MB`;
+        }
+      }
+
+      // Three-network targets table
+      if (res.three_network && res.three_network.length > 0) {
+        const tbody = document.getElementById('three-network-tbody');
+        if (tbody) {
+          const rowsHtml = res.three_network.map(item => {
+            let dotColor = 'bg-zinc-500';
+            if (item.isp === '电信') dotColor = 'bg-blue-500';
+            else if (item.isp === '联通') dotColor = 'bg-rose-500';
+            else if (item.isp === '移动') dotColor = 'bg-emerald-500';
+            else if (item.isp === 'BGP') dotColor = 'bg-amber-500';
+            else if (item.isp === '国际') dotColor = 'bg-orange-500';
+
+            const lossText = item.loss !== null ? `${item.loss}%` : '--%';
+            const lossClass = item.loss === 0 ? 'text-emerald-400' : (item.loss < 20 ? 'text-amber-400' : 'text-rose-400');
+            const avgText = item.avg_ms !== null ? `${item.avg_ms} ms` : '超时';
+            const jitterText = item.jitter_ms !== null ? `${item.jitter_ms} ms` : '--';
+
+            let badgeClass = 'badge bg-zinc-800 text-zinc-400 text-[10px]';
+            if (item.badge === 'success') badgeClass = 'badge bg-emerald-950/70 text-emerald-400 border border-emerald-600/30 text-[10px]';
+            else if (item.badge === 'info') badgeClass = 'badge bg-blue-950/70 text-blue-400 border border-blue-600/30 text-[10px]';
+            else if (item.badge === 'warning') badgeClass = 'badge bg-amber-950/70 text-amber-400 border border-amber-600/30 text-[10px]';
+            else if (item.badge === 'danger') badgeClass = 'badge bg-rose-950/70 text-rose-400 border border-rose-600/30 text-[10px]';
+
+            return `
+              <tr>
+                <td class="py-2.5 font-medium text-white flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full ${dotColor}"></span>
+                  <span>${item.name}</span>
+                </td>
+                <td class="py-2.5 text-zinc-400">${item.isp}</td>
+                <td class="py-2.5 text-zinc-400">${item.region}</td>
+                <td class="py-2.5 ${lossClass}">${lossText}</td>
+                <td class="py-2.5 text-white font-semibold">${avgText}</td>
+                <td class="py-2.5 text-zinc-400">${jitterText}</td>
+                <td class="py-2.5 text-right"><span class="${badgeClass}">${item.status}</span></td>
+              </tr>
+            `;
+          }).join('');
+          tbody.innerHTML = rowsHtml;
+        }
+
+        // Calculate and update cn avg
+        const cnPings = res.three_network.filter(x => ['电信', '联通', '移动'].includes(x.isp) && x.avg_ms).map(x => x.avg_ms);
+        if (cnPings.length > 0) {
+          const avg = (cnPings.reduce((a, b) => a + b, 0) / cnPings.length).toFixed(1);
+          const cnAvgEl = document.getElementById('metric-cn-avg');
+          if (cnAvgEl) cnAvgEl.innerText = `国内三网均值: ~${avg}ms`;
+        }
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       const tabParam = new URLSearchParams(window.location.search).get('tab') || window.location.hash.replace('#', '') || 'overview';
       switchTab(tabParam);
@@ -2288,6 +3065,8 @@
       const tCmd = document.getElementById('transit-curl-cmd');
       if (tCmd) tCmd.innerText = `curl -fsSL ${window.location.origin}/scripts/setup-relay.sh | sudo bash`;
       loadServicesStatus();
+      loadIPAudit(false);
+      loadSpeedtestStatus();
     });
   </script>
 </body>

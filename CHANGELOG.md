@@ -5,6 +5,36 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-09-27
+
+### 🛡️ IP Purity & Streaming/AI Unlock Audit (IP 纯净度与流媒体/AI 解锁体检中心)
+- **Base IP Profile & Risk Intelligence (`ip_audit.py`)**:
+  - Automatically queries IPv4 ASN, ISP, organization, country flag, and detects DataCenter / Hosting vs. Residential ISP profiles.
+  - Integrates Scamalytics fraud scoring engine (0~100 rating) and risk rating breakdown (Low / Medium / High / Very High).
+  - Queries multi-vendor DNSBL blacklists (SpamCop, DroneBL, S5h, GBUdb Truncate) with clean status verification.
+  - Detects Google Search "Unusual Traffic" Captcha restrictions.
+- **AI & Global Streaming Media Unlock Matrix (`ip_audit.py`)**:
+  - Native verification for OpenAI (API & Web 1020 firewall check), Claude (Anthropic), Google Gemini, Netflix (full catalog vs originals-only detection), YouTube Premium (with country code extraction), and Disney+.
+  - Cloudflare WARP dual-stack verification via local Wireproxy SOCKS5 with out-of-band proxy status.
+  - In-memory 30-minute caching with on-demand force refresh.
+
+### ⚡ Multi-Node Network Performance & Speedtest Benchmark (多节点网络性能与基准测速中心)
+- **Native Speedtest Engine (`speedtest_mgr.py`)**:
+  - Integrates host `speedtest-cli` with full bandwidth extraction (Download, Upload, Ping, Server sponsor/location, data transferred).
+  - Background asynchronous execution worker with live status updates over WebSocket and REST endpoints.
+- **Three-Network & Global Backbone Benchmarks (`speedtest_mgr.py`)**:
+  - Real-time ICMP RTT, loss percentage, and jitter measurements for China Telecom (Shanghai), China Unicom (Beijing), China Mobile (Shanghai & Guangzhou), Tencent Cloud BGP, Alibaba Cloud BGP, Cloudflare Anycast, and Google DNS.
+  - Composite network quality rating (`A+` to `C`) based on throughput, packet loss, and overseas latency.
+- **Interactive Control UI & Dropdown Navigation (`static/index.html`)**:
+  - Embedded seamlessly into Section 3 and Section 4 of `tab-services` (仪表盘与管理后台).
+  - Added direct quick-jump anchor links in the navbar dropdown with smooth scrolling and highlight animations.
+  - Full support for `.privacy-blur` click-to-reveal on sensitive IP displays.
+- **RESTful Endpoints & WebSocket Feeds (`app.py`)**:
+  - `GET /api/ip/audit` (supports `?force=true`), `POST /api/speedtest/run` (full/ping_only), `GET /api/speedtest/status`.
+  - Streamed live speedtest state and progress in the `/ws/live` telemetry broadcast.
+
+---
+
 ## [2.2.1] - 2026-09-26
 
 ### 🩹 Reliability & OpenClash Router Integration Fixes (订阅兼容性与软路由深度加固)
