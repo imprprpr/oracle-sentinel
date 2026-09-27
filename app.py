@@ -22,6 +22,9 @@ import notification
 import ip_audit
 import speedtest_mgr
 import auth_mgr
+import traffic_mgr
+import mesh_mgr
+import bot_mgr
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
@@ -125,6 +128,10 @@ async def broadcast_log(msg: str, level='INFO'):
 @app.on_event('startup')
 async def startup_event():
     asyncio.create_task(background_monitor_loop())
+    traffic_mgr.TrafficManager.start_background_collector(cfg_mgr.load, interval_sec=60)
+    mesh_mgr.MeshManager.start_background_poller(interval_sec=60)
+    bot = bot_mgr.get_bot_instance(get_state_func=monitor.get_full_state, get_config_func=cfg_mgr.load)
+    bot.start()
 
 async def background_monitor_loop():
     logger.info('Starting background probe & monitor task...')
@@ -904,6 +911,99 @@ async def websocket_endpoint(websocket: WebSocket):
         ws_manager.disconnect(websocket)
     except Exception:
         ws_manager.disconnect(websocket)
+
+# --- Traffic Auditing & Quota Endpoints ---
+
+@app.get('/api/traffic/stats')
+async def get_traffic_stats():
+    return traffic_mgr.TrafficManager.get_traffic_stats()
+
+class TrafficConfigModel(BaseModel):
+    monthly_limit_gb: Optional[float] = None
+    alert_threshold_pct: Optional[int] = None
+    reset_day: Optional[int] = None
+
+@app.post('/api/traffic/config')
+async def set_traffic_config(data: TrafficConfigModel, request: Request):
+    check_admin(request)
+    success = traffic_mgr.TrafficManager.set_quota_config(
+        monthly_limit_gb=data.monthly_limit_gb,
+        alert_threshold_pct=data.alert_threshold_pct,
+        reset_day=data.reset_day
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save traffic quota config")
+    await broadcast_log(f'Updated traffic billing quota: limit={data.monthly_limit_gb}GB, threshold={data.alert_threshold_pct}%, reset_day={data.reset_day}')
+    return {'status': 'ok', 'config': traffic_mgr.TrafficManager.get_quota_config()}
+
+# --- Sentinel Mesh Cluster Endpoints ---
+
+class MeshNodeModel(BaseModel):
+    name: str
+    host: str
+    api_token: Optional[str] = ''
+    location: Optional[str] = 'Global'
+    tag: Optional[str] = 'REMOTE'
+    enabled: Optional[bool] = True
+
+@app.get('/api/mesh/overview')
+async def get_mesh_overview():
+    return mesh_mgr.MeshManager.get_mesh_overview(local_state_func=monitor.get_full_state)
+
+@app.get('/api/mesh/nodes')
+async def get_mesh_nodes():
+    return mesh_mgr.MeshManager.get_nodes()
+
+@app.post('/api/mesh/nodes')
+async def add_mesh_node(node: MeshNodeModel, request: Request):
+    check_admin(request)
+    created = mesh_mgr.MeshManager.add_node(
+        name=node.name,
+        host=node.host,
+        api_token=node.api_token or '',
+        location=node.location or 'Global',
+        tag=node.tag or 'REMOTE',
+        enabled=node.enabled if node.enabled is not None else True
+    )
+    def _probe_new():
+        stat = mesh_mgr.MeshManager.probe_remote_node(created)
+        with mesh_mgr.MeshManager._lock:
+            mesh_mgr.MeshManager._node_cache[created['id']] = stat
+    threading.Thread(target=_probe_new, daemon=True).start()
+    await broadcast_log(f'Added new Sentinel Mesh node: {node.name} ({node.host})')
+    return {'status': 'ok', 'node': created}
+
+@app.put('/api/mesh/nodes/{node_id}')
+async def update_mesh_node(node_id: str, node: MeshNodeModel, request: Request):
+    check_admin(request)
+    updated = mesh_mgr.MeshManager.update_node(node_id, node.dict(exclude_unset=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Node not found")
+    await broadcast_log(f'Updated Sentinel Mesh node: {node_id}')
+    return {'status': 'ok', 'node': updated}
+
+@app.delete('/api/mesh/nodes/{node_id}')
+async def delete_mesh_node(node_id: str, request: Request):
+    check_admin(request)
+    deleted = mesh_mgr.MeshManager.delete_node(node_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Node not found")
+    await broadcast_log(f'Removed Sentinel Mesh node ID: {node_id}')
+    return {'status': 'ok', 'deleted_id': node_id}
+
+@app.post('/api/mesh/refresh')
+async def refresh_mesh(request: Request):
+    check_admin(request)
+    mesh_mgr.MeshManager.refresh_all_nodes()
+    return mesh_mgr.MeshManager.get_mesh_overview(local_state_func=monitor.get_full_state)
+
+# --- Interactive Bot Endpoints ---
+
+@app.get('/api/bot/status')
+async def get_bot_status(request: Request):
+    check_admin(request)
+    bot = bot_mgr.get_bot_instance(get_state_func=monitor.get_full_state, get_config_func=cfg_mgr.load)
+    return bot.get_status()
 
 # Mount static folder and dedicated metacubexd app
 if os.path.exists(STATIC_PATH):

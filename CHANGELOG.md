@@ -5,6 +5,45 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-09-27
+
+### Traffic Auditing & Billing Quota Hub (智能流量多维度审计与账单预警中心)
+- **Persistent Network IO Accounting (`traffic_mgr.py`)**:
+  - Direct per-NIC hardware interface sampling via `psutil.net_io_counters(pernic=True)`, filtering out virtual bridge and docker interfaces (`lo`, `docker*`, `br-*`, `veth*`).
+  - Persistent SQLite storage in `/etc/oracle-sentinel/traffic.db` tracking daily ingress/egress/total bandwidth.
+  - Multi-dimension traffic aggregation: today usage, billing cycle month-to-date calculation (default reset day 1, custom 10TB Oracle free quota).
+  - Multi-tier quota alerts (80%, 90%, 100%) integrated with `NotificationManager` for instant emergency broadcast across Telegram, Discord, and Bark.
+- **Visual Analytics & Quota Configuration (`static/index.html`)**:
+  - Embedded responsive 30-day SVG bar chart with day-by-day ingress/egress breakdown.
+  - Interactive quota policy configuration modal (`/api/traffic/config`) for setting billing reset dates, monthly limits, and alert triggers.
+
+### Multi-Node Sentinel Mesh Cluster (多实例集中集群纳管中枢)
+- **Distributed Mesh Architecture (`mesh_mgr.py`)**:
+  - Master-Probe Hub-Spoke topology coordinating multiple remote Sentinel instances worldwide from a single unified panel.
+  - Concurrent multi-threaded background health prober querying `/api/status` with custom timeouts and self-signed TLS support.
+  - Mesh health aggregation calculating overall cluster uptime, average inter-node latency, and telemetry metrics (CPU, RAM, speeds, public IPs).
+  - Node proxy aggregation: automatically imports enabled proxy inbounds from remote child nodes into the master subscription engine.
+- **Cluster Control Dashboard (`static/index.html`)**:
+  - Dedicated "Sentinel Mesh" cluster navigation tab.
+  - Dynamic node status cards with real-time latency badges, resource utilization indicators, and remote management actions.
+  - Interactive node onboarding and editing modal with credential verification.
+
+### Telegram Dual-Direction Interactive Bot (Telegram 双向交互式 Bot)
+- **Inbound-Free Long Polling Engine (`bot_mgr.py`)**:
+  - Pure HTTPS long polling via standard Telegram Bot API (`getUpdates`), requiring no inbound open ports, public IP mapping, or domain SSL certificates.
+  - Strict Chat ID authorization preventing unauthorized command execution.
+- **Rich Interactive Command Suite**:
+  - `/status`: Instant telemetry digest covering CPU, RAM, public IP, ping RTT, and GFW packet loss.
+  - `/sub`: Quick multi-format subscription retrieval links (Clash, Sing-box, v2ray, Shadowrocket).
+  - `/mesh`: Real-time health matrix of all nodes managed in the Sentinel Mesh cluster.
+  - `/reip`: Safe IP replacement workflow with inline keyboard buttons for explicit two-step confirmation.
+  - `/speedtest`: Asynchronous execution of three-network benchmark and automatic speedtest report return.
+  - `/help`: Complete guide of interactive commands and button controls.
+- **Control Center Status Telemetry (`app.py` & `static/index.html`)**:
+  - Settings modal display of live bot daemon connection state and handle.
+
+---
+
 ## [2.3.0] - 2026-09-27
 
 ### 🛡️ IP Purity & Streaming/AI Unlock Audit (IP 纯净度与流媒体/AI 解锁体检中心)

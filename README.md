@@ -421,16 +421,18 @@ EXT_IP="公网IP" EXT_PORT="映射端口" bash scripts/setup-japan-node.sh
 
 ## 版本演进与后续规划 (Changelog & Roadmap)
 
-### ✅ 已在 v2.3+ 全面交付
+### 已在 v2.4+ 全面交付
+* **智能流量多维度审计与账单预警 (Traffic Auditing & Billing Quota Hub)**：可视化近 30 天每日用量趋势图表（入站/出站双流分离），按月循环结算（默认 10TB / 自定义结算日），支持阶梯式自动阻断告警与多渠道即时推送。
+* **多实例集中集群纳管 (Multi-Node Sentinel Mesh)**：单控制台统筹管理全球多台分散 VPS 节点（Hub-Spoke 拓扑），轻量探针定时探活、延迟探测与健康度聚合，并支持子节点一键合并至主控多协议订阅。
+* **Telegram 双向交互式 Bot (Interactive Telegram Bot)**：采用纯长轮询（Long Polling）安全架构，无需公网入站端口与 SSL 证书，支持通过 /status、/sub、/mesh、/reip（二次确认防误触）、/speedtest 等指令或内嵌按钮与控制中枢双向交互。
 * **渐进式立体安全防御**：Host Guard 域名嗅探阻断（裸 IP 返回 404）、Decoy Nginx 伪装页、安全隐蔽路径 `/sentinel`、加盐管理员鉴权与多协议订阅 Token 防探查。
 * **Cloudflare CDN 代理就绪**：开放 2096 端口支持，支持 Anycast 全球 CDN 隐藏源站公网 IP。
 * **IP 纯净度与风控体检中心 (IP Purity & Fraud Audit)**：集成 Scamalytics 欺诈分、4 项 DNSBL 黑名单监测，以及 OpenAI (ChatGPT)、Anthropic (Claude)、Gemini、Netflix、YouTube、Disney+ 全球流媒体与 AI 解锁体检。
 * **多节点网络性能与基准测速 (Speedtest & Network Benchmark)**：集成原生测速内核与国内电信/联通/移动骨干节点链路往返延迟（RTT）、抖动、丢包率与全带宽并发压测。
 
-### 🚀 后续规划路线 (Roadmap)
-* **智能流量多维度用量图表与账单预警**：可视化按日/按月审计出站流量，防止超出云厂商免费配额。
-* **多实例集中集群纳管 (Multi-Node Sentinel Mesh)**：单控制台统筹管理多台分散在全球各地的 VPS 节点与探针健康度。
-* **Telegram / Discord 双向交互式 Bot**：通过聊天软件指令直接触发换 IP、查询节点状态与一键测速。
+### 持续演进路线 (Roadmap)
+* 更多云厂商一键换 IP 驱动适配（AWS Lightsail、Azure、Hetzner 等）。
+* 自动化证书多节点分布式自动同步与热重载。
 
 ---
 

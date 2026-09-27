@@ -186,6 +186,10 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
             <span>中转与独立节点</span>
           </div>
+          <div class="nav-tab" id="tab-btn-mesh" onclick="switchTab('mesh')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <span>集群纳管 (Mesh)</span>
+          </div>
           <div class="relative group" id="services-nav-group">
             <div class="nav-tab flex items-center gap-1.5 cursor-pointer select-none" id="tab-btn-services" onclick="handleServicesNavClick(event)">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
@@ -428,6 +432,91 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Traffic Auditing & Billing Quota Hub -->
+      <div class="card p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-zinc-800 gap-2">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+              <h2 class="text-sm font-semibold text-white">智能流量多维度审计与账单预警</h2>
+              <span class="badge bg-blue-950/60 border border-blue-600/30 text-blue-400 text-[10px]">SQLite 持久化</span>
+            </div>
+            <p class="text-xs text-zinc-400 mt-0.5" id="disp-traffic-cycle-info">账单周期：计算中...</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="btn-neutral text-xs px-2.5 py-1" onclick="openTrafficConfigModal()" title="设置月度免费配额与预警阈值">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>配额设置</span>
+            </button>
+            <button class="btn-neutral text-xs px-2.5 py-1" onclick="loadTrafficStats()" title="刷新流量统计">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>刷新</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="text-xs text-zinc-400">当月累计出站 (Egress)</div>
+            <div class="text-lg font-mono font-semibold text-white mt-1 flex items-baseline gap-1">
+              <span id="disp-traffic-month-sent">0.00</span>
+              <span class="text-xs text-zinc-400 font-normal">GB</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 font-mono mt-0.5" id="disp-traffic-quota-limit">配额：10,240 GB</div>
+          </div>
+
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="text-xs text-zinc-400">当月累计入站 (Ingress)</div>
+            <div class="text-lg font-mono font-semibold text-white mt-1 flex items-baseline gap-1">
+              <span id="disp-traffic-month-recv">0.00</span>
+              <span class="text-xs text-zinc-400 font-normal">GB</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 font-mono mt-0.5" id="disp-traffic-month-total">总计：0.00 GB</div>
+          </div>
+
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="text-xs text-zinc-400">今日用量 (Today)</div>
+            <div class="text-lg font-mono font-semibold text-emerald-400 mt-1 flex items-baseline gap-1">
+              <span id="disp-traffic-today-total">0.00</span>
+              <span class="text-xs text-zinc-400 font-normal">GB</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 font-mono mt-0.5" id="disp-traffic-today-detail">↑ 0.00 GB | ↓ 0.00 GB</div>
+          </div>
+
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="flex items-center justify-between text-xs text-zinc-400">
+              <span>免费额度剩余</span>
+              <span class="badge text-[10px] bg-emerald-950/60 border border-emerald-600/30 text-emerald-400" id="disp-traffic-status-badge">安全</span>
+            </div>
+            <div class="text-lg font-mono font-semibold text-white mt-1 flex items-baseline gap-1">
+              <span id="disp-traffic-remaining">10240.0</span>
+              <span class="text-xs text-zinc-400 font-normal">GB</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 font-mono mt-0.5" id="disp-traffic-days-rem">距账单重置剩余 -- 天</div>
+          </div>
+        </div>
+
+        <div class="p-3 rounded bg-[#161619] border border-zinc-800/80 space-y-1.5">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="text-zinc-400">出站配额消耗进度</span>
+            <span class="text-zinc-200" id="disp-traffic-pct-text">0.0% / 80% 警戒线</span>
+          </div>
+          <div class="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden">
+            <div class="bg-blue-500 h-full w-0 transition-all duration-500" id="bar-traffic-quota"></div>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs text-zinc-400">
+            <span class="font-mono">近 30 天每日用量趋势 (单位: GB)</span>
+            <span class="text-[11px] text-zinc-500 font-mono">鼠标悬停柱条查看精确日期与数据</span>
+          </div>
+          <div id="traffic-chart-container" class="bg-[#09090b] rounded border border-zinc-800/80 p-3 h-32 flex items-end gap-1 overflow-x-auto">
+            <div class="text-zinc-600 text-xs font-mono m-auto">正在加载近 30 天流量数据...</div>
+          </div>
+        </div>
       </div>
 
       <!-- Live Audit Terminal -->
@@ -1134,6 +1223,60 @@
 
     </div>
 
+    <!-- TAB 5: SENTINEL MESH CLUSTER -->
+    <div id="tab-mesh" class="hidden space-y-6">
+      
+      <!-- Mesh Header Card -->
+      <div class="card p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-zinc-800 gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+              <h2 class="text-sm font-semibold text-white">Sentinel Mesh 多实例集中集群纳管</h2>
+              <span class="badge bg-indigo-950/60 border border-indigo-600/30 text-indigo-400 text-[10px]" id="mesh-health-badge">集群健康度 100%</span>
+            </div>
+            <p class="text-xs text-zinc-400 mt-0.5">单控制台统筹管理全球多台 VPS 节点，实时探针与健康度遥测</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="btn-primary text-xs px-3 py-1.5" onclick="openAddMeshNodeModal()">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              <span>纳管新节点</span>
+            </button>
+            <button class="btn-neutral text-xs px-2.5 py-1.5" onclick="refreshMeshNodes()" title="刷新全网探活">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>刷新集群</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mesh Summary Row -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="text-zinc-400">纳管总节点数</div>
+            <div class="text-lg font-semibold text-white mt-1" id="mesh-total-nodes">1</div>
+          </div>
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="text-zinc-400">在线活跃节点</div>
+            <div class="text-lg font-semibold text-emerald-400 mt-1" id="mesh-online-nodes">1</div>
+          </div>
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="text-zinc-400">平均集群延迟</div>
+            <div class="text-lg font-semibold text-white mt-1" id="mesh-avg-latency">-- ms</div>
+          </div>
+          <div class="p-3 rounded bg-[#161619] border border-zinc-800/80">
+            <div class="text-zinc-400">通信拓扑模式</div>
+            <div class="text-lg font-semibold text-indigo-400 mt-1">Hub-Spoke</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mesh Nodes Grid -->
+      <div id="mesh-nodes-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered by loadMeshOverview() -->
+      </div>
+
+    </div>
+
   </main>
 
   <!-- Settings Modal -->
@@ -1192,7 +1335,7 @@
               <input type="checkbox" id="cfg-notify-enabled" class="rounded bg-zinc-900 border-zinc-700 text-blue-600" onchange="toggleNotifySection()">
               <span class="text-zinc-200 font-medium">多渠道阻断告警通知推送</span>
             </label>
-            <button class="btn-neutral text-xs py-1" onclick="testNotification()">发送测试推送 🔔</button>
+            <button class="btn-neutral text-xs py-1" onclick="testNotification()">发送测试推送</button>
           </div>
 
           <div id="notify-fields" class="space-y-2.5 pl-2 border-l-2 border-zinc-800">
@@ -1221,6 +1364,22 @@
                 <span>Bark (iOS)</span>
               </label>
               <input type="password" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-[11px]" id="cfg-bark-key" placeholder="Device Key">
+            </div>
+
+            <!-- Telegram Interactive Bot Subcard -->
+            <div class="p-3 bg-zinc-900/90 border border-zinc-800 rounded space-y-2 mt-2">
+              <div class="flex items-center justify-between">
+                <span class="text-zinc-300 font-medium">Telegram 双向交互式 Bot</span>
+                <span id="bot-status-badge" class="badge bg-zinc-800 text-zinc-400 text-[10px]">检测中...</span>
+              </div>
+              <p class="text-[11px] text-zinc-400">配置上方 Telegram Bot Token 与 Chat ID 即可启用双向交互。在聊天框向 Bot 发送指令即可执行运维：</p>
+              <div class="text-[11px] font-mono text-zinc-400 bg-zinc-950 p-2 rounded border border-zinc-800/80 space-y-1">
+                <div><span class="text-indigo-400">/status</span> - 实时查看 VPS 负载、IP 与丢包率</div>
+                <div><span class="text-indigo-400">/sub</span> - 快速获取 Clash / Sing-box 订阅直链</div>
+                <div><span class="text-indigo-400">/mesh</span> - 查看 Sentinel Mesh 集群全部节点健康度</div>
+                <div><span class="text-indigo-400">/reip</span> - 交互式二次确认安全触发更换公网 IP</div>
+                <div><span class="text-indigo-400">/speedtest</span> - 异步执行国内三网多节点测速并回传报告</div>
+              </div>
             </div>
           </div>
         </div>
@@ -1274,7 +1433,7 @@
       <div class="flex items-center justify-between pt-3 border-t border-zinc-800">
         <button class="btn-neutral text-xs" onclick="closeSettings(); openSetupWizard();">
           <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-          <span>重新运行 Web 部署向导 🚀</span>
+          <span>重新运行 Web 部署向导</span>
         </button>
         <div class="flex gap-2">
           <button class="btn-neutral" onclick="closeSettings()">取消</button>
@@ -1692,10 +1851,115 @@
     </div>
   </div>
 
+  <!-- Traffic Quota Config Modal -->
+  <div class="modal-overlay" id="traffic-quota-modal">
+    <div class="card max-w-md w-full p-6 m-4 space-y-4">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <h3 class="text-sm font-semibold text-white">流量配额与账单预警设置</h3>
+        <button class="text-zinc-500 hover:text-white" onclick="closeTrafficConfigModal()">&times;</button>
+      </div>
+
+      <div class="space-y-3.5 text-xs">
+        <div>
+          <label class="block text-zinc-400 mb-1">每月出站免费流量配额 (GB)</label>
+          <input type="number" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="cfg-traffic-quota-gb" placeholder="10240" min="1">
+          <p class="text-[11px] text-zinc-500 mt-1">例如 Oracle Cloud 终身免费配额通常为 10,240 GB (10 TB)</p>
+        </div>
+
+        <div>
+          <label class="block text-zinc-400 mb-1">每月账单周期结算日</label>
+          <div class="flex items-center gap-2">
+            <span class="text-zinc-400 text-xs">每月</span>
+            <input type="number" class="w-24 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono text-center" id="cfg-traffic-reset-day" min="1" max="31" value="1">
+            <span class="text-zinc-400 text-xs">日 00:00 自动重置本月统计</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-zinc-400 mb-1">超额告警阈值百分比 (%)</label>
+          <div class="flex items-center gap-2">
+            <input type="number" class="w-28 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono text-center" id="cfg-traffic-alert-threshold" min="10" max="100" value="80">
+            <span class="text-zinc-400 text-xs">% (出站达到此用量时发送紧急推送)</span>
+          </div>
+        </div>
+
+        <div class="pt-1">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="cfg-traffic-alert-enabled" class="rounded bg-zinc-900 border-zinc-700 text-blue-600" checked>
+            <span class="text-zinc-300">启用流量超额阻断告警推送 (Telegram / Discord / Bark)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+        <button class="btn-neutral" onclick="closeTrafficConfigModal()">取消</button>
+        <button class="btn-primary" onclick="saveTrafficConfig()">保存配额策略</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sentinel Mesh Node Modal -->
+  <div class="modal-overlay" id="mesh-node-modal">
+    <div class="card max-w-lg w-full p-6 m-4 space-y-4">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <h3 class="text-sm font-semibold text-white" id="mesh-modal-title">纳管 Sentinel 远程节点</h3>
+        <button class="text-zinc-500 hover:text-white" onclick="closeMeshNodeModal()">&times;</button>
+      </div>
+
+      <input type="hidden" id="mesh-node-id" value="">
+
+      <div class="space-y-3.5 text-xs">
+        <div>
+          <label class="block text-zinc-400 mb-1">节点标识名称</label>
+          <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="mesh-form-name" placeholder="例如：Oracle-Tokyo-ARM">
+        </div>
+
+        <div>
+          <label class="block text-zinc-400 mb-1">控制台或 API 终端地址 (URL)</label>
+          <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="mesh-form-url" placeholder="例如：https://140.238.12.34:20540">
+          <p class="text-[11px] text-zinc-500 mt-1">远程节点需已部署 VPSentinel，支持直接 IP:端口 或 绑定域名</p>
+        </div>
+
+        <div>
+          <label class="block text-zinc-400 mb-1">访问凭证 Token (Secret Sub Token)</label>
+          <input type="password" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="mesh-form-token" placeholder="远程节点的 sub_token 鉴权凭据">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-zinc-400 mb-1">物理地区标识</label>
+            <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="mesh-form-location" placeholder="例如：JP Tokyo">
+          </div>
+          <div>
+            <label class="block text-zinc-400 mb-1">探测超时限制 (秒)</label>
+            <input type="number" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="mesh-form-timeout" value="5" min="2" max="30">
+          </div>
+        </div>
+
+        <div class="pt-1">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="mesh-form-sync-proxy" class="rounded bg-zinc-900 border-zinc-700 text-blue-600" checked>
+            <span class="text-zinc-300">自动聚合此节点代理服务至主控多协议订阅</span>
+          </label>
+        </div>
+
+        <div>
+          <label class="block text-zinc-400 mb-1">备忘与注释 (可选)</label>
+          <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" id="mesh-form-notes" placeholder="例如：4C24G 免费春川 ARM 主力机">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+        <button class="btn-neutral" onclick="closeMeshNodeModal()">取消</button>
+        <button class="btn-primary" onclick="saveMeshNode()">保存节点配置</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Tab switching
     function switchTab(tabId) {
-      ['overview', 'rules', 'transits', 'services'].forEach(t => {
+      ['overview', 'rules', 'transits', 'services', 'mesh'].forEach(t => {
         const el = document.getElementById(`tab-${t}`);
         if (el) el.classList.add('hidden');
         const btn = document.getElementById(`tab-btn-${t}`);
@@ -1717,6 +1981,9 @@
         loadServicesStatus();
         loadIPAudit(false);
         loadSpeedtestStatus();
+      }
+      if (tabId === 'mesh') {
+        loadMeshOverview();
       }
     }
 
@@ -2146,6 +2413,7 @@
 
           toggleNotifySection();
           document.getElementById('settings-modal').classList.add('active');
+          loadBotStatus();
         })
         .catch(e => {
           if (e.message !== '未授权') console.error('加载设置失败:', e);
@@ -3339,6 +3607,430 @@
       }
     }
 
+    // --- Traffic Auditing & Quota Management ---
+    let currentTrafficData = null;
+
+    async function loadTrafficStats() {
+      try {
+        const res = await fetch('/api/traffic/stats');
+        if (!res.ok) return;
+        const data = await res.json();
+        currentTrafficData = data;
+        renderTrafficUI(data);
+      } catch (e) {
+        console.error('Failed to load traffic stats:', e);
+      }
+    }
+
+    function renderTrafficUI(data) {
+      if (!data) return;
+      const today = data.today || {};
+      const current_month = data.month || {};
+      const quota_config = data.quota_config || {};
+      const history = data.history_30d || [];
+
+      // Cycle info
+      const cycleEl = document.getElementById('disp-traffic-cycle-info');
+      if (cycleEl && current_month.cycle_start && current_month.next_reset) {
+        cycleEl.textContent = `计费周期：${current_month.cycle_start} 至 ${current_month.next_reset}（每月 ${quota_config.reset_day || 1} 日 00:00 归零重置）`;
+      }
+
+      // Monthly sent / limit
+      const mSentEl = document.getElementById('disp-traffic-month-sent');
+      if (mSentEl) mSentEl.textContent = (current_month.sent_gb || 0).toFixed(2);
+
+      const qLimitEl = document.getElementById('disp-traffic-quota-limit');
+      if (qLimitEl) qLimitEl.textContent = `配额：${(quota_config.monthly_limit_gb || 10240).toLocaleString()} GB`;
+
+      // Monthly recv / total
+      const mRecvEl = document.getElementById('disp-traffic-month-recv');
+      if (mRecvEl) mRecvEl.textContent = (current_month.recv_gb || 0).toFixed(2);
+
+      const mTotalEl = document.getElementById('disp-traffic-month-total');
+      if (mTotalEl) mTotalEl.textContent = `总计：${(current_month.total_gb || 0).toFixed(2)} GB`;
+
+      // Today
+      const tTotalEl = document.getElementById('disp-traffic-today-total');
+      if (tTotalEl) tTotalEl.textContent = (today.total_gb || 0).toFixed(2);
+
+      const tDetailEl = document.getElementById('disp-traffic-today-detail');
+      if (tDetailEl) tDetailEl.textContent = `出站 ${(today.sent_gb || 0).toFixed(2)} GB | 入站 ${(today.recv_gb || 0).toFixed(2)} GB`;
+
+      // Remaining & status
+      const remEl = document.getElementById('disp-traffic-remaining');
+      if (remEl) remEl.textContent = Math.max(0, current_month.remaining_gb || 0).toFixed(1);
+
+      const daysEl = document.getElementById('disp-traffic-days-rem');
+      if (daysEl) daysEl.textContent = `距账单重置剩余 ${current_month.days_remaining || 0} 天`;
+
+      const badgeEl = document.getElementById('disp-traffic-status-badge');
+      const pct = current_month.usage_pct || 0;
+      if (badgeEl) {
+        if (pct >= 90) {
+          badgeEl.className = 'badge text-[10px] bg-rose-950/60 border border-rose-600/30 text-rose-400';
+          badgeEl.textContent = '严重告警';
+        } else if (pct >= (quota_config.alert_threshold_pct || 80)) {
+          badgeEl.className = 'badge text-[10px] bg-amber-950/60 border border-amber-600/30 text-amber-400';
+          badgeEl.textContent = '配额预警';
+        } else {
+          badgeEl.className = 'badge text-[10px] bg-emerald-950/60 border border-emerald-600/30 text-emerald-400';
+          badgeEl.textContent = '正常安全';
+        }
+      }
+
+      // Progress bar
+      const pctTextEl = document.getElementById('disp-traffic-pct-text');
+      if (pctTextEl) pctTextEl.textContent = `${pct.toFixed(2)}% / ${quota_config.alert_threshold_pct || 80}% 警戒线`;
+
+      const barEl = document.getElementById('bar-traffic-quota');
+      if (barEl) {
+        barEl.style.width = `${Math.min(100, Math.max(pct, 1))}%`;
+        if (pct >= 90) {
+          barEl.className = 'bg-rose-500 h-full transition-all duration-500';
+        } else if (pct >= (quota_config.alert_threshold_pct || 80)) {
+          barEl.className = 'bg-amber-500 h-full transition-all duration-500';
+        } else {
+          barEl.className = 'bg-blue-500 h-full transition-all duration-500';
+        }
+      }
+
+      // Render 30-day chart
+      renderTrafficChart(history || []);
+    }
+
+    function renderTrafficChart(history) {
+      const container = document.getElementById('traffic-chart-container');
+      if (!container) return;
+      if (!history || history.length === 0) {
+        container.innerHTML = '<div class="text-zinc-600 text-xs font-mono m-auto">暂无历史流量记录</div>';
+        return;
+      }
+
+      const maxVal = Math.max(...history.map(h => Math.max(h.sent_gb || 0, h.recv_gb || 0)), 1);
+
+      container.innerHTML = history.map(item => {
+        const sentHeight = Math.max(4, Math.round(((item.sent_gb || 0) / maxVal) * 90));
+        const recvHeight = Math.max(2, Math.round(((item.recv_gb || 0) / maxVal) * 90));
+        const dateShort = (item.date || '').slice(5);
+        const title = `${item.date}\n出站: ${(item.sent_gb || 0).toFixed(2)} GB\n入站: ${(item.recv_gb || 0).toFixed(2)} GB\n总计: ${(item.total_gb || 0).toFixed(2)} GB`;
+
+        return `
+          <div class="flex-1 min-w-[20px] max-w-[36px] flex flex-col items-center justify-end h-full group relative cursor-pointer" title="${title}">
+            <div class="w-full flex items-end justify-center gap-0.5 pb-1">
+              <div class="w-1.5 bg-blue-500/80 group-hover:bg-blue-400 rounded-t transition-all" style="height: ${sentHeight}px"></div>
+              <div class="w-1.5 bg-emerald-500/50 group-hover:bg-emerald-400 rounded-t transition-all" style="height: ${recvHeight}px"></div>
+            </div>
+            <span class="text-[9px] font-mono text-zinc-400 group-hover:text-zinc-300 truncate w-full text-center">${dateShort}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openTrafficConfigModal() {
+      if (currentTrafficData && currentTrafficData.quota_config) {
+        const q = currentTrafficData.quota_config;
+        document.getElementById('cfg-traffic-quota-gb').value = q.monthly_limit_gb || 10240;
+        document.getElementById('cfg-traffic-reset-day').value = q.reset_day || 1;
+        document.getElementById('cfg-traffic-alert-threshold').value = q.alert_threshold_pct || 80;
+      }
+      document.getElementById('traffic-quota-modal').classList.add('active');
+    }
+
+    function closeTrafficConfigModal() {
+      document.getElementById('traffic-quota-modal').classList.remove('active');
+    }
+
+    async function saveTrafficConfig() {
+      const quota_gb = parseFloat(document.getElementById('cfg-traffic-quota-gb').value) || 10240;
+      const reset_day = parseInt(document.getElementById('cfg-traffic-reset-day').value) || 1;
+      const threshold = parseInt(document.getElementById('cfg-traffic-alert-threshold').value) || 80;
+
+      try {
+        const res = await fetch('/api/traffic/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            monthly_limit_gb: quota_gb,
+            reset_day: reset_day,
+            alert_threshold_pct: threshold
+          })
+        });
+
+        if (res.ok) {
+          closeTrafficConfigModal();
+          await loadTrafficStats();
+          alert('流量配额策略已更新！');
+        } else {
+          alert('保存失败，请检查输入或登录状态');
+        }
+      } catch (e) {
+        alert('网络请求异常: ' + e.message);
+      }
+    }
+
+    // --- Sentinel Mesh Cluster Management ---
+    let meshOverviewData = null;
+
+    async function loadMeshOverview() {
+      try {
+        const res = await fetch('/api/mesh/overview');
+        if (!res.ok) return;
+        const data = await res.json();
+        meshOverviewData = data;
+        renderMeshUI(data);
+      } catch (e) {
+        console.error('Failed to load mesh overview:', e);
+      }
+    }
+
+    function renderMeshUI(data) {
+      if (!data) return;
+      const nodes = data.nodes || [];
+
+      // Update summary cards
+      const totalEl = document.getElementById('mesh-total-nodes');
+      if (totalEl) totalEl.textContent = data.total_nodes || 0;
+
+      const onlineEl = document.getElementById('mesh-online-nodes');
+      if (onlineEl) onlineEl.textContent = data.online_nodes || 0;
+
+      const latEl = document.getElementById('mesh-avg-latency');
+      const onlineNodesWithRtt = nodes.filter(n => n.last_status && n.last_status.online && n.last_status.rtt_ms > 0);
+      if (latEl) {
+        if (onlineNodesWithRtt.length > 0) {
+          const avgRtt = Math.round(onlineNodesWithRtt.reduce((sum, n) => sum + n.last_status.rtt_ms, 0) / onlineNodesWithRtt.length);
+          latEl.textContent = `${avgRtt} ms`;
+        } else {
+          latEl.textContent = '-- ms';
+        }
+      }
+
+      const healthBadge = document.getElementById('mesh-health-badge');
+      if (healthBadge) {
+        const hp = data.health_pct !== undefined ? data.health_pct : 100;
+        healthBadge.textContent = `集群健康度 ${hp}%`;
+        if (hp >= 80) {
+          healthBadge.className = 'badge bg-indigo-950/60 border border-indigo-600/30 text-indigo-400 text-[10px]';
+        } else if (hp >= 50) {
+          healthBadge.className = 'badge bg-amber-950/60 border border-amber-600/30 text-amber-400 text-[10px]';
+        } else {
+          healthBadge.className = 'badge bg-rose-950/60 border border-rose-600/30 text-rose-400 text-[10px]';
+        }
+      }
+
+      // Render node cards
+      const grid = document.getElementById('mesh-nodes-grid');
+      if (!grid) return;
+
+      if (!nodes || nodes.length === 0) {
+        grid.innerHTML = '<div class="col-span-full text-center py-10 text-zinc-500 text-xs font-mono">暂无纳管节点，点击上方“纳管新节点”添加</div>';
+        return;
+      }
+
+      grid.innerHTML = nodes.map(n => {
+        const isMaster = !!n.is_local;
+        const st = n.last_status || {};
+        const isOnline = !!st.online;
+        const statusBadge = isOnline
+          ? `<span class="badge bg-emerald-950/80 border border-emerald-600/40 text-emerald-400 text-[10px] font-mono">ONLINE ${st.rtt_ms ? st.rtt_ms + 'ms' : ''}</span>`
+          : `<span class="badge bg-rose-950/80 border border-rose-600/40 text-rose-400 text-[10px] font-mono">OFFLINE</span>`;
+
+        const typeBadge = isMaster
+          ? `<span class="badge bg-indigo-950/80 border border-indigo-600/40 text-indigo-300 text-[10px]">Master 本地主控</span>`
+          : `<span class="badge bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px]">Probe 集群探针</span>`;
+
+        const cpu = st.cpu_pct !== undefined ? `${st.cpu_pct}%` : '--';
+        const mem = st.mem_pct !== undefined ? `${st.mem_pct}%` : '--';
+        const ip = st.pub_ip || n.host || '--';
+        const uptime = st.uptime || '--';
+        const loc = n.location || 'Cloud Node';
+        const rx = st.rx_speed_kb || 0;
+        const tx = st.tx_speed_kb || 0;
+
+        const actionButtons = isMaster
+          ? `<span class="text-[11px] text-zinc-500 font-mono">本地主控实例</span>`
+          : `
+            <div class="flex items-center gap-1.5">
+              <button class="btn-neutral text-[11px] px-2 py-0.5" onclick="openEditMeshNodeModal('${n.id}')">编辑</button>
+              <button class="btn-neutral text-[11px] px-2 py-0.5 text-rose-400 hover:text-rose-300 hover:border-rose-700/50" onclick="deleteMeshNode('${n.id}', '${n.name}')">移除</button>
+            </div>
+          `;
+
+        const lastSeen = st.checked_at ? new Date(st.checked_at * 1000).toLocaleTimeString() : '未连接';
+
+        return `
+          <div class="card p-4 space-y-3 border ${isOnline ? 'border-zinc-800/80' : 'border-rose-900/40'} hover:border-zinc-700 transition-all">
+            <div class="flex items-start justify-between">
+              <div class="space-y-0.5">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-semibold text-white text-xs">${n.name}</span>
+                  <span class="text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">${loc}</span>
+                </div>
+                <div class="text-[11px] font-mono text-zinc-400 truncate max-w-[220px]">${ip}</div>
+              </div>
+              <div class="flex flex-col items-end gap-1">
+                ${statusBadge}
+                ${typeBadge}
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[11px] font-mono p-2.5 rounded bg-[#121215] border border-zinc-800/50">
+              <div>
+                <span class="text-zinc-500">CPU:</span>
+                <span class="text-zinc-200 ml-1 font-semibold">${cpu}</span>
+              </div>
+              <div>
+                <span class="text-zinc-500">RAM:</span>
+                <span class="text-zinc-200 ml-1 font-semibold">${mem}</span>
+              </div>
+              <div>
+                <span class="text-zinc-500">下行:</span>
+                <span class="text-zinc-200 ml-1">${rx} KB/s</span>
+              </div>
+              <div>
+                <span class="text-zinc-500">上行:</span>
+                <span class="text-zinc-200 ml-1">${tx} KB/s</span>
+              </div>
+              <div class="col-span-2 text-zinc-500 text-[10px]">
+                运行: <span class="text-zinc-400">${uptime}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-zinc-800/60">
+              <div class="text-[10px] text-zinc-500 font-mono">
+                探针回传: ${lastSeen}
+              </div>
+              ${actionButtons}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openAddMeshNodeModal() {
+      document.getElementById('mesh-modal-title').textContent = '纳管 Sentinel 远程节点';
+      document.getElementById('mesh-node-id').value = '';
+      document.getElementById('mesh-form-name').value = '';
+      document.getElementById('mesh-form-url').value = '';
+      document.getElementById('mesh-form-token').value = '';
+      document.getElementById('mesh-form-location').value = '';
+      document.getElementById('mesh-form-timeout').value = '5';
+      document.getElementById('mesh-form-sync-proxy').checked = true;
+      document.getElementById('mesh-form-notes').value = '';
+      document.getElementById('mesh-node-modal').classList.add('active');
+    }
+
+    function openEditMeshNodeModal(nodeId) {
+      if (!meshOverviewData || !meshOverviewData.nodes) return;
+      const node = meshOverviewData.nodes.find(n => n.id === nodeId);
+      if (!node) return;
+
+      document.getElementById('mesh-modal-title').textContent = '编辑 Sentinel 纳管节点';
+      document.getElementById('mesh-node-id').value = node.id;
+      document.getElementById('mesh-form-name').value = node.name || '';
+      document.getElementById('mesh-form-url').value = node.host || '';
+      document.getElementById('mesh-form-token').value = node.api_token || '';
+      document.getElementById('mesh-form-location').value = node.location || '';
+      document.getElementById('mesh-node-modal').classList.add('active');
+    }
+
+    function closeMeshNodeModal() {
+      document.getElementById('mesh-node-modal').classList.remove('active');
+    }
+
+    async function saveMeshNode() {
+      const id = document.getElementById('mesh-node-id').value;
+      const name = document.getElementById('mesh-form-name').value.trim();
+      const endpoint_url = document.getElementById('mesh-form-url').value.trim();
+      const token = document.getElementById('mesh-form-token').value.trim();
+      const location = document.getElementById('mesh-form-location').value.trim();
+
+      if (!name || !endpoint_url) {
+        alert('请填写节点标识名称与终端地址');
+        return;
+      }
+
+      const payload = {
+        name,
+        host: endpoint_url,
+        api_token: token,
+        location: location || 'Global',
+        tag: 'REMOTE',
+        enabled: true
+      };
+
+      try {
+        let res;
+        if (id) {
+          res = await fetch(`/api/mesh/nodes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          res = await fetch('/api/mesh/nodes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        if (res.ok) {
+          closeMeshNodeModal();
+          await refreshMeshNodes();
+        } else {
+          const err = await res.json();
+          alert('操作失败: ' + (err.detail || '未知错误'));
+        }
+      } catch (e) {
+        alert('请求异常: ' + e.message);
+      }
+    }
+
+    async function deleteMeshNode(id, name) {
+      if (!confirm(`确定要移除节点 [${name}] 吗？`)) return;
+      try {
+        const res = await fetch(`/api/mesh/nodes/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          await loadMeshOverview();
+        } else {
+          alert('删除失败');
+        }
+      } catch (e) {
+        alert('网络请求异常: ' + e.message);
+      }
+    }
+
+    async function refreshMeshNodes() {
+      try {
+        await fetch('/api/mesh/refresh', { method: 'POST' });
+        await loadMeshOverview();
+      } catch (e) {
+        console.error('Refresh mesh error:', e);
+      }
+    }
+
+    // --- Telegram Interactive Bot Controller ---
+    async function loadBotStatus() {
+      try {
+        const res = await fetch('/api/bot/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        const badge = document.getElementById('bot-status-badge');
+        if (badge) {
+          if (data.is_running) {
+            badge.className = 'badge bg-emerald-950/80 border border-emerald-600/40 text-emerald-400 text-[10px]';
+            badge.textContent = `运行中 (@${data.bot_username || 'Bot'})`;
+          } else {
+            badge.className = 'badge bg-zinc-800 text-zinc-500 text-[10px]';
+            badge.textContent = '未启动 (请配置 Token 与 Chat ID)';
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load bot status:', e);
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', async () => {
       const tabParam = new URLSearchParams(window.location.search).get('tab') || window.location.hash.replace('#', '') || 'overview';
       switchTab(tabParam);
@@ -3350,6 +4042,8 @@
         loadServicesStatus();
         loadIPAudit(false);
         loadSpeedtestStatus();
+        loadTrafficStats();
+        loadBotStatus();
       }
       const tCmd = document.getElementById('transit-curl-cmd');
       if (tCmd) tCmd.innerText = `curl -fsSL ${window.location.origin}/scripts/setup-relay.sh | sudo bash`;
