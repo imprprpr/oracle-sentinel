@@ -6,38 +6,21 @@ import time
 import logging
 import urllib.parse
 import base64
+from sentinel_core import ConfigManager
 
 logger = logging.getLogger('CustomNodeManager')
-CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
-    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-)
 
 class CustomNodeManager:
     @staticmethod
     def get_custom_nodes():
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-                    return cfg.get('custom_nodes', [])
-            except Exception as e:
-                logger.error(f'Failed to load custom nodes from config: {e}')
-        return []
+        cfg = ConfigManager.load()
+        return cfg.get('custom_nodes', [])
 
     @staticmethod
     def save_custom_nodes(nodes_list):
-        try:
-            cfg = {}
-            if os.path.exists(CONFIG_PATH):
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-            cfg['custom_nodes'] = nodes_list
-            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            logger.error(f'Failed to save custom nodes: {e}')
-            return False
+        cfg = ConfigManager.load()
+        cfg['custom_nodes'] = nodes_list
+        return ConfigManager.save(cfg)
 
     @staticmethod
     def parse_link(link: str) -> dict:
@@ -179,6 +162,15 @@ class CustomNodeManager:
                 node_data = node_input.copy()
         else:
             raise ValueError("Invalid node input type")
+
+        if 'port' in node_data:
+            try:
+                p_val = int(node_data['port'])
+                if not (1 <= p_val <= 65535):
+                    raise ValueError(f"Invalid port: {node_data['port']}. Must be 1-65535.")
+                node_data['port'] = p_val
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid node port: {e}")
 
         if 'id' not in node_data:
             node_data['id'] = f'cnode_{int(time.time() * 1000)}'

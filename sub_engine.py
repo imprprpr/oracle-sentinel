@@ -9,12 +9,10 @@ import urllib.parse
 import yaml
 from transit_mgr import TransitManager
 from custom_node_mgr import CustomNodeManager
+from sentinel_core import ConfigManager
 
 logger = logging.getLogger('SubEngine')
 DB_PATH = '/etc/x-ui/x-ui.db'
-CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
-    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-)
 
 DEFAULT_RULES_CONFIG = {
     'adblock': True,
@@ -29,30 +27,15 @@ DEFAULT_RULES_CONFIG = {
 class SubEngine:
     @staticmethod
     def get_rules_config():
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-                    rules = cfg.get('rules_config', DEFAULT_RULES_CONFIG)
-                    return {**DEFAULT_RULES_CONFIG, **rules}
-            except Exception as e:
-                logger.error(f'Error reading rules config: {e}')
-        return DEFAULT_RULES_CONFIG.copy()
+        cfg = ConfigManager.load()
+        rules = cfg.get('rules_config', DEFAULT_RULES_CONFIG)
+        return {**DEFAULT_RULES_CONFIG, **rules}
 
     @staticmethod
     def save_rules_config(rules):
-        try:
-            cfg = {}
-            if os.path.exists(CONFIG_PATH):
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-            cfg['rules_config'] = rules
-            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            logger.error(f'Error saving rules config: {e}')
-            return False
+        cfg = ConfigManager.load()
+        cfg['rules_config'] = rules
+        return ConfigManager.save(cfg)
 
     @staticmethod
     def get_server_ip():
@@ -75,15 +58,13 @@ class SubEngine:
 
     @staticmethod
     def get_server_domain():
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-                    rec = cfg.get('cloudflare', {}).get('record_name')
-                    if rec:
-                        return rec
-            except Exception:
-                pass
+        try:
+            cfg = ConfigManager.load()
+            rec = cfg.get('cloudflare', {}).get('record_name')
+            if rec:
+                return rec
+        except Exception:
+            pass
         return 'vps.example.com'
 
     @staticmethod
@@ -223,6 +204,20 @@ class SubEngine:
             if cp:
                 proxies.append(cp)
                 node_names.append(cp['name'])
+
+        # 4. Multi-Node Sentinel Mesh Aggregated Proxies
+        try:
+            from mesh_mgr import MeshManager
+            for mn in MeshManager.get_nodes():
+                if not mn.get('enabled', True):
+                    continue
+                for mp in mn.get('proxy_nodes', []):
+                    cp = CustomNodeManager.to_clash_proxy(mp)
+                    if cp and cp['name'] not in node_names:
+                        proxies.append(cp)
+                        node_names.append(cp['name'])
+        except Exception as e:
+            logger.debug(f"Error aggregating mesh nodes for Clash: {e}")
 
         if not node_names:
             node_names = ['DIRECT']
@@ -502,6 +497,19 @@ class SubEngine:
             if link:
                 links.append(link)
 
+        # 4. Multi-Node Sentinel Mesh Aggregated Proxies
+        try:
+            from mesh_mgr import MeshManager
+            for mn in MeshManager.get_nodes():
+                if not mn.get('enabled', True):
+                    continue
+                for mp in mn.get('proxy_nodes', []):
+                    link = CustomNodeManager.to_share_link(mp)
+                    if link and link not in links:
+                        links.append(link)
+        except Exception as e:
+            logger.debug(f"Error aggregating mesh nodes for Base64: {e}")
+
         joined_text = "\n".join(links) + "\n"
         return base64.b64encode(joined_text.encode('utf-8')).decode('utf-8')
 
@@ -643,6 +651,20 @@ class SubEngine:
             if sb_out:
                 outbounds.append(sb_out)
                 node_tags.append(sb_out['tag'])
+
+        # 4. Multi-Node Sentinel Mesh Aggregated Proxies
+        try:
+            from mesh_mgr import MeshManager
+            for mn in MeshManager.get_nodes():
+                if not mn.get('enabled', True):
+                    continue
+                for mp in mn.get('proxy_nodes', []):
+                    sb_out = CustomNodeManager.to_singbox_outbound(mp)
+                    if sb_out and sb_out['tag'] not in node_tags:
+                        outbounds.append(sb_out)
+                        node_tags.append(sb_out['tag'])
+        except Exception as e:
+            logger.debug(f"Error aggregating mesh nodes for Sing-box: {e}")
 
         if not node_tags:
             node_tags = ['direct']

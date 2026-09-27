@@ -111,7 +111,7 @@ class NotificationManager:
         # 1. Telegram
         tg = notify_cfg.get("telegram", {})
         if tg.get("enabled") and tg.get("bot_token") and tg.get("chat_id"):
-            formatted_tg = f"🛡️ <b>[Sentinel {level}] {title}</b>\n\n{message}"
+            formatted_tg = f"<b>[Sentinel {level}] {title}</b>\n\n{message}"
             ok, msg = cls.send_telegram(tg.get("bot_token"), tg.get("chat_id"), formatted_tg)
             results.append(("Telegram", ok, msg))
 

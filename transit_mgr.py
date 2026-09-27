@@ -4,41 +4,29 @@ import os
 import json
 import time
 import logging
+from sentinel_core import ConfigManager
 
 logger = logging.getLogger('TransitManager')
-CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
-    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-)
 
 class TransitManager:
     @staticmethod
     def get_transits():
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-                    return cfg.get('transits', [])
-            except Exception as e:
-                logger.error(f'Failed to load transits from config: {e}')
-        return []
+        cfg = ConfigManager.load()
+        return cfg.get('transits', [])
 
     @staticmethod
     def save_transits(transits_list):
-        try:
-            cfg = {}
-            if os.path.exists(CONFIG_PATH):
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-            cfg['transits'] = transits_list
-            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            logger.error(f'Failed to save transits: {e}')
-            return False
+        cfg = ConfigManager.load()
+        cfg['transits'] = transits_list
+        return ConfigManager.save(cfg)
 
     @staticmethod
     def add_transit(name, host, hy2_port=20443, reality_port=28443, trojan_port=22083):
+        for p, label in [(hy2_port, 'hy2_port'), (reality_port, 'reality_port'), (trojan_port, 'trojan_port')]:
+            p_int = int(p)
+            if not (1 <= p_int <= 65535):
+                raise ValueError(f"Invalid port for {label}: {p}. Port must be between 1 and 65535.")
+
         transits = TransitManager.get_transits()
         item = {
             'id': f'transit_{int(time.time())}',

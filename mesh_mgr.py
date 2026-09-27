@@ -12,36 +12,22 @@ import urllib.request
 import urllib.error
 import ssl
 import threading
+import base64
+from sentinel_core import ConfigManager
 
 logger = logging.getLogger('MeshManager')
 
-CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
-    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-)
-
 class MeshManager:
-    _lock = threading.Lock()
+    _lock = threading.RLock()
     _node_cache = {}
 
     @classmethod
     def load_config(cls):
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f'Error reading config for mesh: {e}')
-        return {}
+        return ConfigManager.load()
 
     @classmethod
     def save_config(cls, cfg):
-        try:
-            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            logger.error(f'Error saving mesh config: {e}')
-            return False
+        return ConfigManager.save(cfg)
 
     @classmethod
     def get_nodes(cls):
@@ -128,7 +114,10 @@ class MeshManager:
             with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
                 rtt = round((time.time() - t0) * 1000, 1)
                 data = json.loads(resp.read().decode('utf-8'))
-                metrics = data.get('metrics', {})
+                state = data.get('state', data)
+                metrics = state.get('metrics', {})
+                pub_ip = state.get('public_ip', data.get('public_ip', 'N/A'))
+                warp_active = state.get('warp', data.get('warp', {})).get('active', False)
                 return {
                     'online': True,
                     'rtt_ms': rtt,
@@ -136,9 +125,9 @@ class MeshManager:
                     'mem_pct': metrics.get('mem_pct', 0),
                     'rx_speed_kb': metrics.get('rx_speed_kb', 0),
                     'tx_speed_kb': metrics.get('tx_speed_kb', 0),
-                    'pub_ip': data.get('public_ip', 'N/A'),
+                    'pub_ip': pub_ip,
                     'uptime': metrics.get('uptime', 'N/A'),
-                    'warp': data.get('warp', {}).get('active', False),
+                    'warp': warp_active,
                     'checked_at': int(time.time()),
                     'error': None
                 }
@@ -153,6 +142,51 @@ class MeshManager:
                 'checked_at': int(time.time()),
                 'error': str(e)
             }
+
+    @classmethod
+    def sync_remote_proxies(cls, node):
+        host = node.get('host', '').strip()
+        token = node.get('api_token', '').strip()
+        if not host or not token:
+            return []
+
+        if not host.startswith('http://') and not host.startswith('https://'):
+            url = f"https://{host}/sub/base64?token={token}"
+        else:
+            url = f"{host}/sub/base64?token={token}"
+
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'VPSentinel-Mesh/2.4'})
+            with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
+                content = resp.read().decode('utf-8').strip()
+                if not content:
+                    return []
+                try:
+                    decoded = base64.b64decode(content).decode('utf-8')
+                    links = [line.strip() for line in decoded.splitlines() if line.strip()]
+                except Exception:
+                    links = [line.strip() for line in content.splitlines() if line.strip()]
+
+                from custom_node_mgr import CustomNodeManager
+                parsed_nodes = []
+                for link in links:
+                    try:
+                        n = CustomNodeManager.parse_link(link)
+                        prefix = f"[{node.get('name', 'Remote')}]"
+                        if not n.get('name', '').startswith(prefix):
+                            n['name'] = f"{prefix} {n.get('name', '')}".strip()
+                        n['mesh_node_id'] = node.get('id')
+                        parsed_nodes.append(n)
+                    except Exception as pe:
+                        logger.debug(f"Failed to parse proxy link from mesh node {node.get('name')}: {pe}")
+                return parsed_nodes
+        except Exception as e:
+            logger.warning(f"Failed to sync proxies from mesh node {node.get('name')}: {e}")
+            return []
 
     @classmethod
     def get_mesh_overview(cls, local_state_func=None):
@@ -214,15 +248,18 @@ class MeshManager:
                 continue
             def _probe(target_node):
                 stat = cls.probe_remote_node(target_node)
+                proxies = cls.sync_remote_proxies(target_node)
                 with cls._lock:
                     cls._node_cache[target_node['id']] = stat
                     target_node['last_status'] = stat
+                    if proxies:
+                        target_node['proxy_nodes'] = proxies
             t = threading.Thread(target=_probe, args=(n,))
             threads.append(t)
             t.start()
 
         for t in threads:
-            t.join(timeout=6)
+            t.join(timeout=8)
         cls.save_nodes(nodes)
 
     @classmethod

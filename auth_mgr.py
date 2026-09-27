@@ -210,6 +210,10 @@ class AuthManager:
         if not sec.get("enable_host_guard", True):
             return True
 
+        # Authenticated requests (admin session or valid sub/bearer token) bypass Host Guard
+        if self.is_request_authenticated(request) or self.verify_subscription_access(request):
+            return True
+
         raw_host = request.headers.get("host", "").strip()
         if not raw_host:
             return False

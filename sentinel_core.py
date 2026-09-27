@@ -12,6 +12,8 @@ import socket
 import logging
 import platform
 import subprocess
+import threading
+import tempfile
 import requests
 import psutil
 
@@ -131,32 +133,49 @@ def get_cloud_info():
     return {'provider': 'Generic VPS / Dedicated Server', 'region': 'Global', 'arch': arch}
 
 class ConfigManager:
-    @staticmethod
-    def load():
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-                    merged = DEFAULT_CONFIG.copy()
-                    for k, v in cfg.items():
-                        if isinstance(v, dict) and k in merged:
-                            merged[k].update(v)
-                        else:
-                            merged[k] = v
-                    return merged
-            except Exception as e:
-                logger.error(f'Error reading {CONFIG_PATH}: {e}')
-        return DEFAULT_CONFIG.copy()
+    _lock = threading.RLock()
 
-    @staticmethod
-    def save(cfg):
-        try:
-            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            logger.error(f'Error saving {CONFIG_PATH}: {e}')
-            return False
+    @classmethod
+    def load(cls):
+        with cls._lock:
+            if os.path.exists(CONFIG_PATH):
+                try:
+                    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                        cfg = json.load(f)
+                        merged = DEFAULT_CONFIG.copy()
+                        for k, v in cfg.items():
+                            if isinstance(v, dict) and k in merged:
+                                merged[k].update(v)
+                            else:
+                                merged[k] = v
+                        return merged
+                except Exception as e:
+                    logger.error(f'Error reading {CONFIG_PATH}: {e}')
+            return DEFAULT_CONFIG.copy()
+
+    @classmethod
+    def save(cls, cfg):
+        with cls._lock:
+            try:
+                config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
+                os.makedirs(config_dir, exist_ok=True)
+                tmp_path = f"{CONFIG_PATH}.tmp.{os.getpid()}_{time.time_ns()}"
+                with open(tmp_path, 'w', encoding='utf-8') as f:
+                    json.dump(cfg, f, indent=2, ensure_ascii=False)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, CONFIG_PATH)
+                return True
+            except Exception as e:
+                logger.error(f'Error saving {CONFIG_PATH}: {e}')
+                return False
+
+    @classmethod
+    def update_key(cls, key, value):
+        with cls._lock:
+            cfg = cls.load()
+            cfg[key] = value
+            return cls.save(cfg)
 
 class SystemMonitor:
     def __init__(self):

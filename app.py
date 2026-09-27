@@ -9,11 +9,12 @@ import sqlite3
 import asyncio
 import logging
 import threading
+import hmac
 from typing import List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 import sentinel_core
 import sub_engine
@@ -30,7 +31,7 @@ import bot_mgr
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
 
-app = FastAPI(title='VPSentinel Control Center')
+app = FastAPI(title='VPSentinel Control Center', docs_url=None, redoc_url=None, openapi_url=None)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_PATH = '/opt/vpsentinel/static' if os.path.exists('/opt/vpsentinel/static') else (
@@ -80,6 +81,16 @@ async def security_middleware(request: Request, call_next):
 def check_admin(request: Request):
     if not auth.is_request_authenticated(request):
         raise HTTPException(status_code=401, detail="Administrator authentication required")
+
+def check_setup_allowed(request: Request):
+    cfg = cfg_mgr.load()
+    if cfg.get('initialized', False):
+        check_admin(request)
+        return
+    client_ip = request.client.host if request.client else ""
+    if client_ip in ("127.0.0.1", "::1", "localhost"):
+        return
+    check_admin(request)
 
 class ConnectionManager:
     def __init__(self):
@@ -174,7 +185,7 @@ async def background_monitor_loop():
                         notification.NotificationManager.broadcast(
                             cfg,
                             title="GFW Block Detected / 节点探针阻断告警",
-                            message=f"⚠️ Loss rate reached {state['probes']['loss_pct']}% across domestic probes.\nConsecutive failures: {monitor.consecutive_failures}/{consec_limit}.\nInitiating recovery sequence...",
+                            message=f"[GFW Block] Loss rate reached {state['probes']['loss_pct']}% across domestic probes.\nConsecutive failures: {monitor.consecutive_failures}/{consec_limit}.\nInitiating recovery sequence...",
                             level="WARN"
                         )
                         asyncio.create_task(run_healing_routine('AUTO'))
@@ -209,7 +220,9 @@ class SettingsModel(BaseModel):
     enable_host_guard: Optional[bool] = None
 
 @app.get('/api/status')
-async def get_status():
+async def get_status(request: Request):
+    if not auth.verify_subscription_access(request):
+        raise HTTPException(status_code=401, detail="Authentication required")
     cfg = cfg_mgr.load()
     state = monitor.get_full_state()
     return {
@@ -356,9 +369,8 @@ async def update_settings(data: SettingsModel, request: Request):
     return {'status': 'ok'}
 
 @app.post('/api/notifications/test')
-async def test_notifications(data: Optional[dict] = None, request: Request = None):
-    if request:
-        check_admin(request)
+async def test_notifications(request: Request, data: Optional[dict] = None):
+    check_admin(request)
     cfg = cfg_mgr.load()
     if data and 'notifications' in data:
         cfg['notifications'] = data['notifications']
@@ -366,7 +378,7 @@ async def test_notifications(data: Optional[dict] = None, request: Request = Non
     results = notification.NotificationManager.broadcast(
         cfg,
         title="Probe Alert Test / 告警测试",
-        message="🎉 Universal Sentinel notification channel test successful! All systems operational.\n全能哨兵消息推送测试成功，节点状态良好。",
+        message="Universal Sentinel notification channel test successful! All systems operational.\n全能哨兵消息推送测试成功，节点状态良好。",
         level="SUCCESS"
     )
     return {'status': 'ok', 'results': results}
@@ -489,8 +501,7 @@ async def setup_status():
 
 @app.post('/api/setup/verify-cf')
 async def verify_cf(data: dict, request: Request):
-    if cfg_mgr.load().get('initialized', False):
-        check_admin(request)
+    check_setup_allowed(request)
     token = data.get('token', '').strip()
     if not token:
         return {'success': False, 'message': 'API Token 不能为空'}
@@ -500,8 +511,7 @@ async def verify_cf(data: dict, request: Request):
 
 @app.post('/api/setup/generate-key')
 async def generate_key(request: Request):
-    if cfg_mgr.load().get('initialized', False):
-        check_admin(request)
+    check_setup_allowed(request)
     try:
         pub_key, key_path = sentinel_core.generate_rsa_keypair()
         return {'success': True, 'public_key': pub_key, 'key_path': key_path}
@@ -510,8 +520,7 @@ async def generate_key(request: Request):
 
 @app.post('/api/setup/save')
 async def complete_setup(data: SetupSaveModel, request: Request):
-    if cfg_mgr.load().get('initialized', False):
-        check_admin(request)
+    check_setup_allowed(request)
     cfg = cfg_mgr.load()
     cfg['initialized'] = True
     cfg['provider'] = {
@@ -596,7 +605,8 @@ async def get_singbox_sub(request: Request):
     return Response(content=json_content, media_type='application/json; charset=utf-8', headers=headers)
 
 @app.get('/api/sub/rules')
-async def get_sub_rules():
+async def get_sub_rules(request: Request):
+    check_admin(request)
     return sub_engine.SubEngine.get_rules_config()
 
 @app.post('/api/sub/rules')
@@ -615,8 +625,16 @@ class TransitCreateModel(BaseModel):
     reality_port: int = 28443
     trojan_port: int = 22083
 
+    @field_validator('hy2_port', 'reality_port', 'trojan_port')
+    @classmethod
+    def validate_ports(cls, v):
+        if not (1 <= v <= 65535):
+            raise ValueError("Port must be between 1 and 65535")
+        return v
+
 @app.get('/api/transits')
-async def list_transits():
+async def list_transits(request: Request):
+    check_admin(request)
     return transit_mgr.TransitManager.get_transits()
 
 @app.post('/api/transits')
@@ -655,7 +673,8 @@ async def get_relay_script():
 # --- Custom Standalone Nodes Endpoints ---
 
 @app.get('/api/custom-nodes')
-async def list_custom_nodes():
+async def list_custom_nodes(request: Request):
+    check_admin(request)
     return custom_node_mgr.CustomNodeManager.get_custom_nodes()
 
 @app.post('/api/custom-nodes')
@@ -684,7 +703,8 @@ async def toggle_custom_node(node_id: str, data: dict, request: Request):
     return {'status': 'ok'}
 
 @app.get('/api/services')
-async def get_services():
+async def get_services(request: Request):
+    check_admin(request)
     xui_base_path = '/'
     xui_port = 20530
     db_path = '/etc/x-ui/x-ui.db'
@@ -873,11 +893,12 @@ async def trigger_speedtest(request: Request, req: Optional[SpeedtestRequest] = 
     if not started:
         raise HTTPException(status_code=409, detail='已有网络测速任务正在执行中，请稍候')
     mode_name = '全带宽与三网压测' if mode == 'full' else '国内三网低延迟探测'
-    await broadcast_log(f'⚡ 网络测速任务已发起 ({mode_name})', 'INFO')
+    await broadcast_log(f'网络测速任务已发起 ({mode_name})', 'INFO')
     return {'status': 'started', 'message': f'测速任务已启动 ({mode_name})'}
 
 @app.get('/api/speedtest/status')
-async def get_speedtest_status():
+async def get_speedtest_status(request: Request):
+    check_admin(request)
     return speedtest_mgr.speedtest_mgr.get_status()
 
 @app.websocket('/ws/live')
@@ -885,7 +906,9 @@ async def websocket_endpoint(websocket: WebSocket):
     sec = auth.get_security_config()
     if sec.get("auth_enabled", True):
         token = websocket.cookies.get("sentinel_session") or websocket.query_params.get("token")
-        if not token or not auth.verify_session_token(token):
+        is_session_valid = auth.verify_session_token(token)
+        is_sub_valid = bool(token and hmac.compare_digest(token, sec.get("sub_token", "")))
+        if not (is_session_valid or is_sub_valid):
             await websocket.close(code=1008)
             return
     await ws_manager.connect(websocket)
@@ -916,7 +939,8 @@ async def websocket_endpoint(websocket: WebSocket):
 # --- Traffic Auditing & Quota Endpoints ---
 
 @app.get('/api/traffic/stats')
-async def get_traffic_stats():
+async def get_traffic_stats(request: Request):
+    check_admin(request)
     return traffic_mgr.TrafficManager.get_traffic_stats()
 
 class TrafficConfigModel(BaseModel):
@@ -948,11 +972,13 @@ class MeshNodeModel(BaseModel):
     enabled: Optional[bool] = True
 
 @app.get('/api/mesh/overview')
-async def get_mesh_overview():
+async def get_mesh_overview(request: Request):
+    check_admin(request)
     return mesh_mgr.MeshManager.get_mesh_overview(local_state_func=monitor.get_full_state)
 
 @app.get('/api/mesh/nodes')
-async def get_mesh_nodes():
+async def get_mesh_nodes(request: Request):
+    check_admin(request)
     return mesh_mgr.MeshManager.get_nodes()
 
 @app.post('/api/mesh/nodes')
