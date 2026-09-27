@@ -910,6 +910,7 @@
           <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
             <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
             <span>IP 纯净度与全球流媒体/AI 解锁体检中心 (IP Purity & Unlock Audit)</span>
+            <span class="badge bg-cyan-950/60 border border-cyan-600/30 text-cyan-400 text-[10px]">VPS 本地网络出站</span>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-[11px] font-mono text-zinc-500" id="audit-last-time">检测时间: 未体检</span>
@@ -3185,18 +3186,26 @@
       isAuditing = true;
       const btn = document.getElementById('btn-re-audit');
       const icon = document.getElementById('icon-re-audit');
+      const btnText = btn ? btn.querySelector('span') : null;
       if (btn) btn.disabled = true;
+      if (btnText && force) btnText.textContent = '全项体检中...';
       if (icon) icon.classList.add('animate-spin');
 
       try {
         const res = await fetch(`/api/ip/audit?force=${force ? 'true' : 'false'}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert('需要管理员权限，请先登录控制台后再执行全项体检');
+            document.getElementById('login-modal').classList.add('active');
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
         const data = await res.json();
         
         // Update Time
         const timeEl = document.getElementById('audit-last-time');
         if (timeEl) {
-          timeEl.innerText = `检测时间: ${data.timestamp || '刚刚'}${data.cached ? ' (缓存)' : ''}`;
+          timeEl.innerText = `检测时间: ${data.timestamp || '刚刚'}${data.cached ? ' (缓存)' : ' (已更新)'}`;
         }
 
         // Network Profile
@@ -3400,6 +3409,12 @@
         isAuditing = false;
         if (btn) btn.disabled = false;
         if (icon) icon.classList.remove('animate-spin');
+        if (btnText && force) {
+          btnText.textContent = '体检已完成';
+          setTimeout(() => {
+            btnText.textContent = '立即全项体检';
+          }, 2000);
+        }
       }
     }
 
