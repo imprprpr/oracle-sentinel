@@ -23,7 +23,7 @@ DEFAULT_RULES_CONFIG = {
     'auto_test': True,
     'direct_cn': True,
     'hy2_hop': True,
-    'oracle_bypass': False
+    'oracle_bypass': True
 }
 
 class SubEngine:
@@ -295,7 +295,7 @@ class SubEngine:
             'IP-CIDR6,::1/128,🎯 全球直连,no-resolve'
         ]
 
-        if rules_cfg.get('oracle_bypass', False):
+        if rules_cfg.get('oracle_bypass', True):
             rules.extend([
                 'DOMAIN-SUFFIX,oracle.com,🎯 全球直连',
                 'DOMAIN-SUFFIX,oraclecloud.com,🎯 全球直连',
@@ -382,6 +382,13 @@ class SubEngine:
                 'listen': '0.0.0.0:1053',
                 'enhanced-mode': 'fake-ip',
                 'fake-ip-range': '198.18.0.1/16',
+                'fake-ip-filter': [
+                    '*.lan',
+                    '*.local',
+                    '+.oracle.com',
+                    '+.oraclecloud.com',
+                    '+.oracleiaas.com'
+                ],
                 'default-nameserver': [
                     '223.5.5.5',
                     '119.29.29.29',
@@ -391,6 +398,11 @@ class SubEngine:
                     '223.5.5.5',
                     '119.29.29.29'
                 ],
+                'nameserver-policy': {
+                    '+.oracle.com': ['223.5.5.5', '119.29.29.29'],
+                    '+.oraclecloud.com': ['223.5.5.5', '119.29.29.29'],
+                    '+.oracleiaas.com': ['223.5.5.5', '119.29.29.29']
+                },
                 'fallback': [
                     'https://1.1.1.1/dns-query',
                     'https://8.8.8.8/dns-query'
@@ -650,7 +662,7 @@ class SubEngine:
         route_rules = [
             {'ip_is_private': True, 'outbound': 'direct'}
         ]
-        if rules_cfg.get('oracle_bypass', False):
+        if rules_cfg.get('oracle_bypass', True):
             route_rules.append({
                 'domain_suffix': ['oracle.com', 'oraclecloud.com', 'oracleiaas.com'],
                 'outbound': 'direct'
