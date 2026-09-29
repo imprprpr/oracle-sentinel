@@ -12,6 +12,8 @@ import sub_engine
 import mesh_mgr
 
 class TestSecurityAudit(unittest.TestCase):
+    TEST_ADMIN_PASS = "TestAdminPass2026!"
+
     @classmethod
     def setUpClass(cls):
         cls.orig_config = sentinel_core.ConfigManager.load()
@@ -20,7 +22,7 @@ class TestSecurityAudit(unittest.TestCase):
         test_cfg["security"] = {
             "auth_enabled": True,
             "admin_username": "admin",
-            "admin_password_hash": app.auth.hash_password(auth_mgr.DEFAULT_ADMIN_PASS),
+            "admin_password_hash": app.auth.hash_password(cls.TEST_ADMIN_PASS),
             "session_secret": "test_security_session_secret_12345",
             "secret_path": "/sentinel",
             "sub_token": "test_security_sub_token_123",
@@ -193,6 +195,95 @@ class TestSecurityAudit(unittest.TestCase):
             self.assertIn("[Tokyo-Test] VLESS-Reality", decoded)
         finally:
             mesh_mgr.MeshManager.get_nodes = original_get_nodes
+
+    def test_pbkdf2_hashing_and_legacy_compatibility(self):
+        # 1. PBKDF2 hash generation
+        pwd = "MySecretPass_2026!"
+        h = app.auth.hash_password(pwd)
+        self.assertTrue(h.startswith("pbkdf2_sha256$100000$"))
+        self.assertTrue(app.auth.verify_password(pwd, h))
+        self.assertFalse(app.auth.verify_password("WrongPass", h))
+
+        # 2. Legacy salt:sha256 verification and auto-upgrade
+        import hashlib
+        salt = "testsalt123456"
+        legacy_key = hashlib.sha256((salt + pwd).encode("utf-8")).hexdigest()
+        legacy_hash = f"{salt}:{legacy_key}"
+        self.assertTrue(app.auth.verify_password(pwd, legacy_hash))
+
+        # Test auto-upgrade via authenticate_admin
+        cfg = sentinel_core.ConfigManager.load()
+        cfg.setdefault("security", {})["admin_password_hash"] = legacy_hash
+        sentinel_core.ConfigManager.save(cfg)
+
+        ok, token = app.auth.authenticate_admin("admin", pwd, client_ip="198.51.100.1")
+        self.assertTrue(ok)
+        new_cfg = sentinel_core.ConfigManager.load()
+        upgraded_hash = new_cfg.get("security", {}).get("admin_password_hash", "")
+        self.assertTrue(upgraded_hash.startswith("pbkdf2_sha256$100000$"))
+        self.assertTrue(app.auth.verify_password(pwd, upgraded_hash))
+
+    def test_brute_force_lockout(self):
+        target_ip = "198.51.100.99"
+        # Reset any previous attempts for this IP
+        app.auth._failed_attempts.pop(target_ip, None)
+
+        # 5 failed attempts
+        for i in range(auth_mgr.MAX_LOGIN_ATTEMPTS):
+            ok, msg = app.auth.authenticate_admin("admin", "invalid_password", client_ip=target_ip)
+            self.assertFalse(ok)
+
+        # 6th attempt should be blocked by rate limiter
+        ok, msg = app.auth.authenticate_admin("admin", "invalid_password", client_ip=target_ip)
+        self.assertFalse(ok)
+        self.assertIn("登录失败次数过多", msg)
+
+        # Another IP should not be blocked
+        other_ip = "198.51.100.100"
+        app.auth._failed_attempts.pop(other_ip, None)
+        locked, _ = app.auth.is_client_locked(other_ip)
+        self.assertFalse(locked)
+
+    def test_query_param_session_token_rejected(self):
+        # Even with valid session token in query param, request must return 401
+        res = self.client.get(f'/api/custom-nodes?session_token={self.admin_token}')
+        self.assertEqual(res.status_code, 401)
+
+    def test_udp_listening_socket_check(self):
+        import socket
+        sys_monitor = sentinel_core.SystemMonitor()
+        
+        # Test an unbound high UDP port -> should return False
+        self.assertFalse(sys_monitor.check_port_listening(59999, proto='udp'))
+
+        # Bind a real UDP port and verify check_port_listening returns True
+        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            udp_sock.bind(('127.0.0.1', 0))
+            bound_port = udp_sock.getsockname()[1]
+            self.assertTrue(sys_monitor.check_port_listening(bound_port, proto='udp'))
+            # Check TCP on same port should return False
+            self.assertFalse(sys_monitor.check_port_listening(bound_port, proto='tcp'))
+        finally:
+            udp_sock.close()
+
+    def test_reip_cooldown_circuit_breaker(self):
+        import asyncio
+        cfg = sentinel_core.ConfigManager.load()
+        cfg.setdefault('monitor', {})['auto_heal_enabled'] = True
+        cfg['monitor']['reip_cooldown_hours'] = 24
+        # Set last_reip_timestamp to 1 hour ago
+        cfg['monitor']['last_reip_timestamp'] = int(time.time()) - 3600
+        sentinel_core.ConfigManager.save(cfg)
+
+        app.runtime_state['heal_in_progress'] = False
+        app.runtime_state['status'] = 'healthy'
+
+        # Running AUTO heal within 24h window should be suppressed
+        asyncio.run(app.run_healing_routine('AUTO'))
+        # Should not transition to 'healing' because cooldown blocked it
+        self.assertFalse(app.runtime_state['heal_in_progress'])
+        self.assertEqual(app.runtime_state['status'], 'healthy')
 
 if __name__ == '__main__':
     unittest.main()

@@ -24,13 +24,16 @@ except ImportError:
 logger = logging.getLogger("AuthMgr")
 
 DEFAULT_ADMIN_USER = "admin"
-DEFAULT_ADMIN_PASS = "mNq7gQGr"
 DEFAULT_SAFE_PATH = "/sentinel"
 SESSION_TTL_SEC = 86400 * 30  # 30 days session validity
+PBKDF2_ITERATIONS = 100_000
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_WINDOW_SEC = 900  # 15 minutes
 
 class AuthManager:
     def __init__(self, cfg_mgr):
         self.cfg_mgr = cfg_mgr
+        self._failed_attempts: Dict[str, list] = {}
         self._ensure_security_config()
 
     def _ensure_security_config(self):
@@ -47,13 +50,20 @@ class AuthManager:
             sec["admin_username"] = DEFAULT_ADMIN_USER
             changed = True
 
-        if "admin_password_hash" not in sec or not sec["admin_password_hash"]:
-            sec["admin_password_hash"] = self.hash_password(DEFAULT_ADMIN_PASS)
-            changed = True
-
         if "session_secret" not in sec or not sec["session_secret"]:
             sec["session_secret"] = secrets.token_hex(32)
             changed = True
+
+        if "admin_password_hash" not in sec or not sec["admin_password_hash"]:
+            initial_pass = secrets.token_urlsafe(16)
+            sec["admin_password_hash"] = self.hash_password(initial_pass)
+            sec["must_change_password"] = True
+            sec["initial_password"] = initial_pass
+            changed = True
+            logger.warning("====================================================================")
+            logger.warning(f"Generated Random Initial Admin Password: {initial_pass}")
+            logger.warning("Please record this password and change it upon first login.")
+            logger.warning("====================================================================")
 
         if "sub_token" not in sec or not sec["sub_token"]:
             sec["sub_token"] = secrets.token_hex(16)
@@ -82,33 +92,81 @@ class AuthManager:
         return cfg.get("security", {})
 
     @staticmethod
-    def hash_password(password: str, salt: Optional[str] = None) -> str:
+    def hash_password(password: str, salt: Optional[str] = None, iterations: int = PBKDF2_ITERATIONS) -> str:
         if not salt:
             salt = secrets.token_hex(16)
-        key = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-        return f"{salt}:{key}"
+        derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations)
+        return f"pbkdf2_sha256${iterations}${salt}${derived.hex()}"
 
     @classmethod
     def verify_password(cls, password: str, stored_hash: str) -> bool:
-        if not stored_hash or ":" not in stored_hash:
+        if not stored_hash:
             return False
         try:
-            salt, expected_key = stored_hash.split(":", 1)
-            calculated_key = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-            return hmac.compare_digest(expected_key, calculated_key)
+            if stored_hash.startswith("pbkdf2_sha256$"):
+                parts = stored_hash.split("$")
+                if len(parts) != 4:
+                    return False
+                _, iter_str, salt, expected_hex = parts
+                iterations = int(iter_str)
+                calculated = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations)
+                return hmac.compare_digest(expected_hex, calculated.hex())
+            elif ":" in stored_hash:
+                # Backward compatibility with legacy salt:key
+                salt, expected_key = stored_hash.split(":", 1)
+                calculated_key = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+                return hmac.compare_digest(expected_key, calculated_key)
+            return False
         except Exception:
             return False
 
-    def authenticate_admin(self, username: str, password: str) -> Tuple[bool, str]:
+    def is_client_locked(self, client_ip: str) -> Tuple[bool, int]:
+        """Checks if a client IP is temporarily locked out due to repeated failures."""
+        if not client_ip or client_ip in ("127.0.0.1", "::1", "localhost", "unknown"):
+            return False, 0
+        now = time.time()
+        attempts = [t for t in self._failed_attempts.get(client_ip, []) if now - t < LOCKOUT_WINDOW_SEC]
+        self._failed_attempts[client_ip] = attempts
+        if len(attempts) >= MAX_LOGIN_ATTEMPTS:
+            remaining = int(LOCKOUT_WINDOW_SEC - (now - attempts[0]))
+            return True, max(1, remaining)
+        return False, 0
+
+    def record_login_attempt(self, client_ip: str, success: bool):
+        if not client_ip:
+            return
+        now = time.time()
+        if success:
+            self._failed_attempts.pop(client_ip, None)
+        else:
+            attempts = [t for t in self._failed_attempts.get(client_ip, []) if now - t < LOCKOUT_WINDOW_SEC]
+            attempts.append(now)
+            self._failed_attempts[client_ip] = attempts
+
+    def authenticate_admin(self, username: str, password: str, client_ip: str = "unknown") -> Tuple[bool, str]:
+        locked, rem_sec = self.is_client_locked(client_ip)
+        if locked:
+            return False, f"登录失败次数过多，已被系统临时封锁，请在 {rem_sec} 秒后重试"
+
         sec = self.get_security_config()
         expected_user = sec.get("admin_username", DEFAULT_ADMIN_USER)
         expected_hash = sec.get("admin_password_hash", "")
 
-        if username != expected_user:
+        if username != expected_user or not self.verify_password(password, expected_hash):
+            self.record_login_attempt(client_ip, success=False)
             return False, "用户名或密码错误"
 
-        if not self.verify_password(password, expected_hash):
-            return False, "用户名或密码错误"
+        self.record_login_attempt(client_ip, success=True)
+
+        # Smoothly upgrade legacy salt:sha256 hash to PBKDF2 upon successful login
+        if expected_hash and not expected_hash.startswith("pbkdf2_sha256$"):
+            try:
+                cfg = self.cfg_mgr.load()
+                cfg.setdefault("security", {})["admin_password_hash"] = self.hash_password(password)
+                self.cfg_mgr.save(cfg)
+                logger.info("Upgraded admin password hash to PBKDF2-HMAC-SHA256.")
+            except Exception as e:
+                logger.warning(f"Failed to auto-upgrade password hash: {e}")
 
         # Generate HMAC session token
         token = self.create_session_token(username)
@@ -116,7 +174,13 @@ class AuthManager:
 
     def create_session_token(self, username: str) -> str:
         sec = self.get_security_config()
-        secret_key = sec.get("session_secret", "sentinel_secret").encode("utf-8")
+        secret_str = sec.get("session_secret")
+        if not secret_str:
+            secret_str = secrets.token_hex(32)
+            cfg = self.cfg_mgr.load()
+            cfg.setdefault("security", {})["session_secret"] = secret_str
+            self.cfg_mgr.save(cfg)
+        secret_key = secret_str.encode("utf-8")
         timestamp = str(int(time.time()))
         payload = f"{username}:{timestamp}"
         signature = hmac.new(secret_key, payload.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -142,7 +206,10 @@ class AuthManager:
             if now - timestamp > SESSION_TTL_SEC:
                 return False  # Expired
 
-            secret_key = sec.get("session_secret", "sentinel_secret").encode("utf-8")
+            secret_str = sec.get("session_secret")
+            if not secret_str:
+                return False
+            secret_key = secret_str.encode("utf-8")
             expected_payload = f"{username}:{timestamp_str}"
             expected_sig = hmac.new(secret_key, expected_payload.encode("utf-8"), hashlib.sha256).hexdigest()
             return hmac.compare_digest(signature, expected_sig)
@@ -166,11 +233,7 @@ class AuthManager:
             if self.verify_session_token(token):
                 return True
 
-        # 3. Check Query parameter
-        query_token = request.query_params.get("session_token")
-        if self.verify_session_token(query_token):
-            return True
-
+        # Query parameter session_token intentionally rejected to prevent log leakage
         return False
 
     def verify_subscription_access(self, request: Request) -> bool:
@@ -260,6 +323,8 @@ class AuthManager:
         cfg = self.cfg_mgr.load()
         sec = cfg.setdefault("security", {})
         sec["admin_password_hash"] = self.hash_password(new_password)
+        sec["must_change_password"] = False
+        sec.pop("initial_password", None)
         # Invalidate existing sessions by rotating session secret
         sec["session_secret"] = secrets.token_hex(32)
         self.cfg_mgr.save(cfg)

@@ -21,7 +21,7 @@ DEFAULT_RULES_CONFIG = {
     'media_group': True,
     'auto_test': True,
     'direct_cn': True,
-    'hy2_hop': True,
+    'hy2_hop': False,
     'oracle_bypass': True
 }
 
@@ -278,7 +278,7 @@ class SubEngine:
         # 1. Direct Nodes
         for ntype, node_data in raw_nodes:
             n = node_data.copy()
-            if ntype == 'hy2' and rules_cfg.get('hy2_hop', True):
+            if ntype == 'hy2' and rules_cfg.get('hy2_hop', False):
                 n['ports'] = '20000-40000'
                 n['name'] = 'Oracle-US-Hy2 (Hop)'
             native_proxies.append(n)
@@ -673,7 +673,7 @@ class SubEngine:
                 links.append(link)
 
             elif ntype == 'hy2':
-                hop = rules_cfg.get('hy2_hop', True)
+                hop = rules_cfg.get('hy2_hop', False)
                 name = urllib.parse.quote('Oracle-Hy2 (端口跳跃)' if hop else 'Oracle-Hy2')
                 mport_param = "&mport=20000-40000" if hop else ""
                 link = f"hysteria2://{n['password']}@{n['server']}:{n['port']}?sni={n['sni']}&insecure=0{mport_param}#{name}"

@@ -127,11 +127,46 @@ SERVER_IP=$(curl -s4 --max-time 3 https://api.ipify.org 2>/dev/null || curl -s4 
 echo "===================================================================="
 echo "[OK] VPSentinel 核心服务已成功安装并启动就绪！"
 echo "===================================================================="
+
+# Retrieve or generate random initial admin password
+INITIAL_PASS=$(python3 -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
+try:
+    from auth_mgr import AuthManager
+    from sentinel_core import ConfigManager
+    mgr = AuthManager(ConfigManager)
+    sec = mgr.get_security_config()
+    print(sec.get('initial_password', ''))
+except Exception:
+    pass
+" 2>/dev/null || true)
+
+if [ -z "$INITIAL_PASS" ]; then
+    INITIAL_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))" 2>/dev/null || echo "Sentinel$(date +%s)")
+    python3 -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
+try:
+    from auth_mgr import AuthManager
+    from sentinel_core import ConfigManager
+    mgr = AuthManager(ConfigManager)
+    cfg = ConfigManager.load()
+    sec = cfg.setdefault('security', {})
+    sec['admin_password_hash'] = mgr.hash_password('$INITIAL_PASS')
+    sec['must_change_password'] = True
+    sec['initial_password'] = '$INITIAL_PASS'
+    ConfigManager.save(cfg)
+except Exception:
+    pass
+" 2>/dev/null || true
+fi
+
 echo "控制台访问信息："
 echo "  访问地址: https://${SERVER_IP}:20540/sentinel"
 echo "  初始账号: admin"
-echo "  初始密码: mNq7gQGr"
-echo ""
+echo "  初始随机密码: ${INITIAL_PASS}"
+echo "  (请妥善保存此密码，首次登入后请立即在控制台中修改)"
 echo "新手极简上手指南："
 echo "  1. 复制上方链接在浏览器打开；"
 echo "  2. 若 Chrome/Edge 提示'您的连接不是私密连接'，直接键盘盲打这几个字母即可跳过：thisisunsafe"

@@ -71,7 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/imprprpr/vpsentinel/main/scripts/in
 https://<你的服务器IP>:20540/sentinel
 ```
 * **跳过证书提示**：若 Chrome / Edge 提示“您的连接不是私密连接”，直接在网页任意空白处键盘盲打这几个英文字母即可跳过：`thisisunsafe`
-* **默认账号密码**：账号 `admin`，初始密码 `mNq7gQGr`
+* **管理员凭据**：账号 `admin`，初始密码由系统初始化时自动生成并在终端打印，首次登入后强制提示修改。
 
 ### 第 3 步：选择【新手极速模式】一键生成订阅
 网页会自动唤起初始化向导，默认处于 **新手极速模式**：
@@ -94,11 +94,11 @@ https://<你的服务器IP>:20540/sentinel
 ```text
 https://<你的域名或IP>:20540/sentinel
 ```
-首次打开会自动进入 **6 步交互式向导**（默认管理员账号 `admin`，初始密码 `mNq7gQGr`）：
+首次打开会自动进入 **6 步交互式向导**（管理员账号 `admin`，初始密码见终端安装输出）：
 1. **环境检测**：自动识别云厂商与 CPU 架构（`x86_64` / `aarch64`）。
 2. **运行模式**：甲骨文模式一键生成 RSA 密钥对并打印公钥；通用 VPS 模式开启监控告警。
 3. **Cloudflare 联动**：输入 Token，自动拉取名下所有域名下拉选择，自动配 A 记录。
-4. **核心节点生成**：一键写入 VLESS-Reality (:8443)、Hysteria 2 (:443 端口跳跃) 与 Trojan (:2083)。
+4. **核心节点生成**：一键写入 VLESS-Reality (:8443)、Hysteria 2 (:443) 与 Trojan (:2083)。
 5. **通知配置**：填入 Telegram / Discord / Bark 凭据，网页端直接点按钮发测试消息。
 6. **启动守护**：点击保存，守护进程与订阅引擎直接就绪。
 
@@ -110,7 +110,7 @@ https://<你的域名或IP>:20540/sentinel
 curl -fsSL https://raw.githubusercontent.com/imprprpr/vpsentinel/main/scripts/install.sh | sudo bash
 ```
 
-脚本会自动放行防火墙端口、开启 BBR、配置 Hysteria 2 端口跳跃（`UDP 20000:40000 -> 443`），并引导输入 Cloudflare Token 与通知凭据。
+脚本会自动放行防火墙端口、开启 BBR、配置安全基线，并引导输入 Cloudflare Token 与通知凭据。
 
 后续随时可以重新运行向导：
 ```bash
@@ -125,14 +125,15 @@ sudo python3 /opt/vpsentinel/scripts/wizard.py
 
 ### 1. 方案 1：Host Guard 域名嗅探与直接 IP 扫描防御
 * **直接 IP 探测拦截**：任何通过裸 IP（如 `https://129.146.230.81:20540/` 或 `https://129.146.230.81:2096/`）发起的扫描，中间件直接丢弃并返回 **0 字节空白 404**，不泄露任何 Server 签名与页面信息。
-* **白名单域名校验**：仅允许通过配置的受信域名（如 `vpsoracle.ccwu.cc`）以及本机回环接口访问。
+* **白名单域名校验**：仅允许通过配置的受信域名（如 `vps.example.com`）以及本机回环接口访问。
 
 ### 2. 方案 2：隐蔽路径 + 逼真伪装页 + 管理员鉴权体系
 * **根路径欺骗伪装 (`/`)**：访问域名根路径 `https://vps.yourdomain.com:20540/` 返回逼真的标准 **Debian/Ubuntu Nginx 1.22.1 欢迎页**，使外网测绘扫描器误判为未配置的空闲 Web 服务。
 * **隐蔽安全路径 (`/sentinel`)**：控制台迁移至安全路径，只有访问 `https://vps.yourdomain.com:20540/sentinel` 才会唤起控制中枢。
 * **管理员身份认证网关**：
-  * **默认凭据**：账号 `admin`，密码 `mNq7gQGr`（首次登入后可在设置中随时修改）。
-  * **加盐哈希 & 30 天 HttpOnly 会话**：登录后自动下发安全 Cookie 会话，敏感运维 API（触发换 IP、保存配置、节点管理、测速）严格鉴权，未登录直接 401。
+  * **PBKDF2-HMAC-SHA256 (100,000轮) 加密**：彻底取代单轮 SHA256；密码存储与校验具备工业级抗暴力破解能力。
+  * **登录防爆破锁定**：客户端 IP 连续 5 次登录失败自动锁定 15 分钟。
+  * **安全会话隔离**：严格通过 HttpOnly Cookie / Authorization Bearer 验证，禁止通过 URL 查询参数传递 Session Token。
 * **多协议订阅保护 (Sub Token Guard)**：
   * `/sub/clash`、`/sub/v2ray`、`/sub/singbox` 必须携带 `?token=<sub_token>` 凭据或处于管理员登录状态。
   * 外网探测无 Token 访问直接返回 **403 Forbidden**，杜绝节点信息与订阅流量被爬取。
@@ -359,8 +360,10 @@ curl -fsSL https://<你的域名>:20540/scripts/setup-relay.sh | sudo bash -s --
   "monitor": {
     "interval_sec": 15,        // 探测周期 (秒)
     "loss_threshold": 75.0,    // 判定为阻断的丢包率阈值 (%)
-    "consecutive_failures": 3, // 连续失败多少次触发自愈换 IP
-    "auto_heal_enabled": true  // 自动换 IP 总开关
+    "consecutive_failures": 3, // 连续失败多少次触发阻断逻辑
+    "auto_heal_enabled": false,// 自动修复总开关 (默认安全关闭)
+    "auto_heal_mode": "notify_only", // "notify_only" 仅通知告警，或 "reip_auto" 自动换 IP
+    "reip_cooldown_hours": 24  // 自动换 IP 冷却熔断保护期 (小时)
   },
   "notifications": {
     "enabled": true,
@@ -374,7 +377,7 @@ curl -fsSL https://<你的域名>:20540/scripts/setup-relay.sh | sudo bash -s --
     "media_group": true,
     "auto_test": true,
     "direct_cn": true,
-    "hy2_hop": true
+    "hy2_hop": false
   }
 }
 ```

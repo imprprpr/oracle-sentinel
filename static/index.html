@@ -2759,7 +2759,7 @@
         document.getElementById('rule-media').checked = r.media_group !== false;
         document.getElementById('rule-autotest').checked = r.auto_test !== false;
         document.getElementById('rule-directcn').checked = r.direct_cn !== false;
-        document.getElementById('rule-hy2hop').checked = r.hy2_hop !== false;
+        document.getElementById('rule-hy2hop').checked = !!r.hy2_hop;
         document.getElementById('rule-oraclebypass').checked = r.oracle_bypass !== false;
       } catch (e) {
         console.error(e);

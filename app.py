@@ -174,8 +174,9 @@ async def background_monitor_loop():
 
             # Auto-healing condition check
             if cfg.get('monitor', {}).get('auto_heal_enabled', False) and not runtime_state['heal_in_progress']:
-                loss_thresh = cfg.get('monitor', {}).get('loss_threshold', 80.0)
-                consec_limit = cfg.get('monitor', {}).get('consecutive_failures', 5)
+                loss_thresh = float(cfg.get('monitor', {}).get('loss_threshold', 75.0))
+                consec_limit = int(cfg.get('monitor', {}).get('consecutive_failures', 3))
+                auto_heal_mode = cfg.get('monitor', {}).get('auto_heal_mode', 'notify_only')
                 
                 if state['probes']['loss_pct'] >= loss_thresh:
                     monitor.consecutive_failures += 1
@@ -185,19 +186,33 @@ async def background_monitor_loop():
                         'WARN'
                     )
                     if monitor.consecutive_failures >= consec_limit:
-                        await broadcast_log('Triggering automated Re-IP self-healing routine!', 'WARN')
-                        notification.NotificationManager.broadcast(
-                            cfg,
-                            title="GFW Block Detected / 节点探针阻断告警",
-                            message=f"[GFW Block] Loss rate reached {state['probes']['loss_pct']}% across domestic probes.\nConsecutive failures: {monitor.consecutive_failures}/{consec_limit}.\nInitiating recovery sequence...",
-                            level="WARN"
-                        )
-                        asyncio.create_task(run_healing_routine('AUTO'))
+                        if auto_heal_mode == 'reip_auto':
+                            await broadcast_log('Triggering automated Re-IP self-healing routine!', 'WARN')
+                            notification.NotificationManager.broadcast(
+                                cfg,
+                                title="GFW Block Detected / 节点探针阻断告警",
+                                message=f"[GFW Block] Loss rate reached {state['probes']['loss_pct']}% across domestic probes.\nConsecutive failures: {monitor.consecutive_failures}/{consec_limit}.\nInitiating recovery sequence...",
+                                level="WARN"
+                            )
+                            asyncio.create_task(run_healing_routine('AUTO'))
+                        else:
+                            await broadcast_log(
+                                f'GFW Block confirmed ({state["probes"]["loss_pct"]}% loss). '
+                                f'Mode is notify_only: skipping automated Re-IP.',
+                                'WARN'
+                            )
+                            notification.NotificationManager.broadcast(
+                                cfg,
+                                title="GFW Block Alert / 探针阻断告警 (仅通知)",
+                                message=f"[GFW Block] Loss rate reached {state['probes']['loss_pct']}%. Consecutive failures: {monitor.consecutive_failures}/{consec_limit}.\nMode is notify_only, manual review recommended.",
+                                level="WARN"
+                            )
+                            monitor.consecutive_failures = 0
                 else:
                     if monitor.consecutive_failures > 0:
                         monitor.consecutive_failures = 0
 
-            interval = cfg.get('monitor', {}).get('interval_sec', 10)
+            interval = cfg.get('monitor', {}).get('interval_sec', 15)
             await asyncio.sleep(interval)
         except Exception as e:
             logger.error(f'Monitor loop error: {e}')
@@ -208,6 +223,8 @@ class SettingsModel(BaseModel):
     cf_zone: Optional[str] = ''
     cf_record: Optional[str] = ''
     auto_heal: Optional[bool] = False
+    auto_heal_mode: Optional[str] = None
+    reip_cooldown_hours: Optional[int] = None
     provider_type: Optional[str] = 'auto'
     provider_hook: Optional[str] = ''
     lightsail: Optional[dict] = None
@@ -342,7 +359,11 @@ async def update_settings(data: SettingsModel, request: Request):
     if data.cf_record is not None:
         cfg['cloudflare']['record_name'] = data.cf_record
     if data.auto_heal is not None:
-        cfg['monitor']['auto_heal_enabled'] = data.auto_heal
+        cfg.setdefault('monitor', {})['auto_heal_enabled'] = data.auto_heal
+    if data.auto_heal_mode is not None:
+        cfg.setdefault('monitor', {})['auto_heal_mode'] = data.auto_heal_mode
+    if data.reip_cooldown_hours is not None:
+        cfg.setdefault('monitor', {})['reip_cooldown_hours'] = data.reip_cooldown_hours
 
     if 'provider' not in cfg:
         cfg['provider'] = {}
@@ -469,8 +490,9 @@ async def test_cf_token(data: dict, request: Request):
 # --- Authentication & Security Endpoints ---
 
 @app.post('/api/auth/login')
-async def login(req: LoginRequest, response: Response):
-    ok, token_or_msg = auth.authenticate_admin(req.username, req.password)
+async def login(req: LoginRequest, request: Request, response: Response):
+    client_ip = getattr(request.state, "client_ip", "") or (request.client.host if request.client else "unknown")
+    ok, token_or_msg = auth.authenticate_admin(req.username, req.password, client_ip=client_ip)
     if not ok:
         raise HTTPException(status_code=401, detail=token_or_msg)
     
@@ -490,7 +512,8 @@ async def login(req: LoginRequest, response: Response):
         "token": token_or_msg,
         "sub_token": sec.get("sub_token", ""),
         "secret_path": sec.get("secret_path", "/sentinel"),
-        "username": req.username
+        "username": req.username,
+        "must_change_password": sec.get("must_change_password", False)
     }
 
 @app.get('/api/auth/check')
@@ -502,7 +525,8 @@ async def check_auth(request: Request):
         "auth_enabled": sec.get("auth_enabled", True),
         "username": sec.get("admin_username", "admin") if authenticated else None,
         "sub_token": sec.get("sub_token", "") if authenticated else None,
-        "secret_path": sec.get("secret_path", "/sentinel")
+        "secret_path": sec.get("secret_path", "/sentinel"),
+        "must_change_password": sec.get("must_change_password", False) if authenticated else False
     }
 
 @app.post('/api/auth/logout')
@@ -515,14 +539,15 @@ async def update_password(req: UpdatePasswordRequest, request: Request, response
     check_admin(request)
     sec = auth.get_security_config()
     current_user = sec.get("admin_username", "admin")
-    ok, _ = auth.authenticate_admin(current_user, req.old_password)
+    client_ip = getattr(request.state, "client_ip", "") or (request.client.host if request.client else "unknown")
+    ok, _ = auth.authenticate_admin(current_user, req.old_password, client_ip=client_ip)
     if not ok:
         raise HTTPException(status_code=400, detail="原密码输入错误")
     
     if not auth.update_password(req.new_password):
         raise HTTPException(status_code=400, detail="新密码长度不能少于 6 位")
     
-    _, new_token = auth.authenticate_admin(current_user, req.new_password)
+    _, new_token = auth.authenticate_admin(current_user, req.new_password, client_ip=client_ip)
     response.set_cookie(
         key="sentinel_session",
         value=new_token,
@@ -1164,6 +1189,29 @@ async def get_services(request: Request):
 async def run_healing_routine(trigger_source='MANUAL'):
     if runtime_state['heal_in_progress']:
         return
+
+    cfg = cfg_mgr.load()
+    mon_cfg = cfg.get('monitor', {})
+    now = time.time()
+
+    # Cooldown circuit breaker for AUTO triggers
+    if trigger_source == 'AUTO':
+        cooldown_sec = mon_cfg.get('reip_cooldown_hours', 24) * 3600
+        last_reip = mon_cfg.get('last_reip_timestamp', 0)
+        if (now - last_reip) < cooldown_sec:
+            rem_h = round((cooldown_sec - (now - last_reip)) / 3600, 1)
+            msg = f"Auto Re-IP suppressed by cooldown circuit breaker. Last Re-IP cooldown has {rem_h}h remaining ({mon_cfg.get('reip_cooldown_hours', 24)}h window)."
+            logger.warning(msg)
+            await broadcast_log(f'[WARN] {msg}', 'WARN')
+            notification.NotificationManager.broadcast(
+                cfg,
+                title="Re-IP Cooldown Active / 换IP保护中",
+                message=msg,
+                level="WARN"
+            )
+            monitor.consecutive_failures = 0
+            return
+
     runtime_state['heal_in_progress'] = True
     runtime_state['status'] = 'healing'
     t_start = time.time()
@@ -1171,7 +1219,6 @@ async def run_healing_routine(trigger_source='MANUAL'):
     await broadcast_log(f'[HEAL STEP 1/5] Initiated {trigger_source} Re-IP rebirth routine...', 'WARN')
     await asyncio.sleep(1)
 
-    cfg = cfg_mgr.load()
     cf_token = cfg.get('cloudflare', {}).get('api_token')
     cf_zone = cfg.get('cloudflare', {}).get('zone_name', '')
     cf_record = cfg.get('cloudflare', {}).get('record_name', '')
@@ -1190,30 +1237,65 @@ async def run_healing_routine(trigger_source='MANUAL'):
         await asyncio.sleep(1)
 
         # Step 3: Cloudflare DNS update
+        dns_ok = False
         if cf_token and cf_record:
             await broadcast_log(f'[HEAL STEP 4/5] Updating Cloudflare DNS: {cf_record} -> {new_ip}...')
             cf_mgr = sentinel_core.CloudflareManager(cf_token, cf_zone)
-            await loop.run_in_executor(None, cf_mgr.update_dns_record, cf_record, new_ip)
-            await broadcast_log('[OK] [HEAL STEP 4/5] Cloudflare DNS record updated successfully!')
+            try:
+                dns_res = await loop.run_in_executor(None, cf_mgr.update_dns_record, cf_record, new_ip)
+                dns_ok = bool(dns_res)
+                await broadcast_log('[OK] [HEAL STEP 4/5] Cloudflare DNS record updated successfully!')
+            except Exception as cf_err:
+                logger.warning(f"Cloudflare DNS update error: {cf_err}")
+                await broadcast_log(f'[WARN] [HEAL STEP 4/5] Cloudflare DNS update failed: {cf_err}', 'WARN')
         else:
             await broadcast_log('[WARN] [HEAL STEP 4/5] Cloudflare token not set; skipping DNS update.', 'WARN')
 
         # Step 4: Verification
         await broadcast_log('[HEAL STEP 5/5] Verifying edge routing & resetting health state...')
+        
+        def test_reachability():
+            try:
+                r = requests.get('https://api.ipify.org', timeout=5)
+                return r.status_code == 200
+            except Exception:
+                return False
+
+        reachability_ok = await loop.run_in_executor(None, test_reachability)
+
+        # Record timestamp of successful Re-IP
+        try:
+            cur_cfg = cfg_mgr.load()
+            cur_cfg.setdefault('monitor', {})['last_reip_timestamp'] = int(time.time())
+            cfg_mgr.save(cur_cfg)
+        except Exception as ts_err:
+            logger.warning(f"Failed to record last_reip_timestamp: {ts_err}")
+
         runtime_state['last_healed'] = time.strftime('%Y-%m-%d %H:%M:%S')
         runtime_state['heal_count'] += 1
         monitor.consecutive_failures = 0
-        runtime_state['status'] = 'healthy'
         
         dt = round(time.time() - t_start, 1)
-        await broadcast_log(f'[OK] Rebirth completed in {dt}s! Server is now operational on IP: {new_ip}')
 
-        notification.NotificationManager.broadcast(
-            cfg,
-            title="IP Swapped & Restored / 节点IP重生命名成功",
-            message=f"[OK] Rebirth routine succeeded!\nProvider: {prov_name}\nNew IP: {new_ip}\nCloudflare DNS: {cf_record} -> {new_ip}\nDuration: {dt}s",
-            level="SUCCESS"
-        )
+        if reachability_ok and (not cf_record or dns_ok):
+            runtime_state['status'] = 'healthy'
+            await broadcast_log(f'[OK] Rebirth completed and verified in {dt}s! Server is now operational on IP: {new_ip}')
+            notification.NotificationManager.broadcast(
+                cfg,
+                title="IP Swapped & Restored / 节点IP重生命名成功",
+                message=f"[OK] Rebirth routine succeeded and verified!\nProvider: {prov_name}\nNew IP: {new_ip}\nCloudflare DNS: {cf_record} -> {new_ip}\nDuration: {dt}s",
+                level="SUCCESS"
+            )
+        else:
+            runtime_state['status'] = 'warning'
+            warn_msg = f"[WARN] Rebirth completed in {dt}s on IP {new_ip}, but post-healing verification flagged issues (DNS ok: {dns_ok}, reachability ok: {reachability_ok})."
+            await broadcast_log(warn_msg, 'WARN')
+            notification.NotificationManager.broadcast(
+                cfg,
+                title="IP Swapped with Verification Warning / 节点换IP完成但需复核",
+                message=warn_msg,
+                level="WARN"
+            )
 
     except Exception as e:
         logger.error(f'Healing routine failed: {e}', exc_info=True)

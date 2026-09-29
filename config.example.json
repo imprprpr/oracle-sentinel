@@ -16,7 +16,11 @@
     "interval_sec": 15,
     "loss_threshold": 75.0,
     "consecutive_failures": 3,
-    "auto_heal_enabled": true
+    "auto_heal_enabled": false,
+    "auto_heal_mode": "notify_only",
+    "reip_cooldown_hours": 24,
+    "max_reip_per_day": 2,
+    "last_reip_timestamp": 0
   },
   "notifications": {
     "enabled": false,
@@ -44,14 +48,14 @@
     "media_group": true,
     "auto_test": true,
     "direct_cn": true,
-    "hy2_hop": true
+    "hy2_hop": false
   },
   "security": {
     "auth_enabled": true,
     "admin_username": "admin",
     "secret_path": "/sentinel",
     "enable_host_guard": true,
-    "allowed_hosts": ["vpsoracle.ccwu.cc"]
+    "allowed_hosts": ["vps.example.com"]
   },
   "transits": [
     {

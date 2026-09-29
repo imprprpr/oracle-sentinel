@@ -12,7 +12,10 @@ from uptime_kuma_api import UptimeKumaApi, MonitorType
 
 KUMA_URL = os.getenv("KUMA_URL", "http://127.0.0.1:3001")
 KUMA_USER = os.getenv("KUMA_USER", "admin")
-KUMA_PASS = os.getenv("KUMA_PASS", "mNq7gQGr")
+KUMA_PASS = os.getenv("KUMA_PASS")
+if not KUMA_PASS:
+    print("[ERROR] Environment variable KUMA_PASS must be provided to run this setup script.")
+    sys.exit(1)
 
 GITHUB_DARK_CSS = """
 /* GitHub / Linear Dark Modern Theme for Uptime Kuma Status Page */

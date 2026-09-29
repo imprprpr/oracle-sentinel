@@ -465,7 +465,11 @@ def finalize_setup(provider_type, hook_cmd, cf_token, zone_name, record_name, oc
             "interval_sec": 15,
             "loss_threshold": 75.0,
             "consecutive_failures": 3,
-            "auto_heal_enabled": bool(cf_token and (oci_path or hook_cmd))
+            "auto_heal_enabled": False,
+            "auto_heal_mode": "notify_only",
+            "reip_cooldown_hours": 24,
+            "max_reip_per_day": 2,
+            "last_reip_timestamp": 0
         },
         "notifications": notify_cfg,
         "rules_config": {
@@ -474,7 +478,7 @@ def finalize_setup(provider_type, hook_cmd, cf_token, zone_name, record_name, oc
             "media_group": True,
             "auto_test": True,
             "direct_cn": True,
-            "hy2_hop": True
+            "hy2_hop": False
         },
         "transits": []
     }

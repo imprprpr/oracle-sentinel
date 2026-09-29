@@ -77,7 +77,11 @@ DEFAULT_CONFIG = {
         'interval_sec': 15,
         'loss_threshold': 75.0,
         'consecutive_failures': 3,
-        'auto_heal_enabled': True
+        'auto_heal_enabled': False,
+        'auto_heal_mode': 'notify_only',
+        'reip_cooldown_hours': 24,
+        'max_reip_per_day': 2,
+        'last_reip_timestamp': 0
     },
     'notifications': {
         'enabled': False,
@@ -105,7 +109,7 @@ DEFAULT_CONFIG = {
         'media_group': True,
         'auto_test': True,
         'direct_cn': True,
-        'hy2_hop': True
+        'hy2_hop': False
     },
     'security': {
         'auth_enabled': True,
@@ -319,35 +323,49 @@ class SystemMonitor:
         total = len(self.probes)
         success = 0
         latencies = []
+        details = []
 
         for p in self.probes:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1.5)
             t0 = time.time()
+            ok = False
+            rtt = 0.0
             try:
                 s.connect((p['host'], p['port']))
-                latencies.append((time.time() - t0) * 1000)
+                rtt = round((time.time() - t0) * 1000, 1)
+                latencies.append(rtt)
                 success += 1
+                ok = True
             except Exception:
                 pass
             finally:
                 s.close()
+            details.append({'name': p['name'], 'host': p['host'], 'port': p['port'], 'success': ok, 'rtt_ms': rtt})
 
-        loss = round((total - success) / total * 100, 1)
+        loss = round((total - success) / total * 100, 1) if total else 0.0
         avg_rtt = round(sum(latencies) / len(latencies), 1) if latencies else 0.0
 
         return {
             'loss_pct': loss,
             'avg_rtt_ms': avg_rtt,
             'success_probes': success,
-            'total_probes': total
+            'total_probes': total,
+            'direction': 'outbound',
+            'details': details
         }
 
     def check_port_listening(self, port, proto='tcp'):
+        proto = proto.lower()
         try:
             for conn in psutil.net_connections(kind='inet'):
-                if conn.laddr.port == port and conn.status == (psutil.CONN_LISTEN if proto == 'tcp' else conn.status):
-                    return True
+                if conn.laddr and conn.laddr.port == port:
+                    if proto == 'tcp':
+                        if conn.type == socket.SOCK_STREAM and conn.status == psutil.CONN_LISTEN:
+                            return True
+                    elif proto == 'udp':
+                        if conn.type == socket.SOCK_DGRAM:
+                            return True
         except Exception:
             pass
         return False
@@ -417,7 +435,8 @@ class SystemMonitor:
             }
         ]
 
-        if probes['loss_pct'] >= 80:
+        loss_thresh = float(cfg.get('monitor', {}).get('loss_threshold', 75.0))
+        if probes['loss_pct'] >= loss_thresh:
             health = 'critical'
         elif probes['loss_pct'] > 0:
             health = 'warning'
@@ -552,9 +571,26 @@ class OracleCloudProvider(BaseCloudProvider):
             private_ip_id=primary_priv_ip.id,
             display_name=f'sentinel-ephemeral-{int(time.time())}'
         )
-        new_pub_ip = self.client.create_public_ip(create_details).data
-        logger.info(f'Successfully assigned NEW Public IP: {new_pub_ip.ip_address}')
-        return new_pub_ip.ip_address
+        try:
+            new_pub_ip = self.client.create_public_ip(create_details).data
+            logger.info(f'Successfully assigned NEW Public IP: {new_pub_ip.ip_address}')
+            return new_pub_ip.ip_address
+        except Exception as alloc_err:
+            logger.error(f'Initial allocation failed ({alloc_err}). Initiating emergency failsafe recovery...')
+            time.sleep(3)
+            try:
+                emergency_details = oci.core.models.CreatePublicIpDetails(
+                    compartment_id=self.compartment_id,
+                    lifetime='EPHEMERAL',
+                    private_ip_id=primary_priv_ip.id,
+                    display_name=f'sentinel-recovery-{int(time.time())}'
+                )
+                recovered = self.client.create_public_ip(emergency_details).data
+                logger.warning(f'Emergency failsafe recovery restored public IP: {recovered.ip_address}')
+                return recovered.ip_address
+            except Exception as rec_err:
+                logger.critical(f'Emergency failsafe recovery failed: {rec_err}')
+                raise RuntimeError(f'Public IP creation failed ({alloc_err}) and emergency recovery failed ({rec_err}).')
 
 class LightsailCloudProvider(BaseCloudProvider):
     def __init__(self, access_key_id: str = '', secret_access_key: str = '', region: str = 'us-east-1', instance_name: str = ''):

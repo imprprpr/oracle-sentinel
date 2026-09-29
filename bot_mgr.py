@@ -129,7 +129,7 @@ class TelegramInteractiveBot:
         try:
             import sub_engine
             cfg = self.get_config_func() if callable(self.get_config_func) else {}
-            domain = cfg.get('cloudflare', {}).get('record_name', 'vpsoracle.ccwu.cc')
+            domain = cfg.get('cloudflare', {}).get('record_name', 'vps.example.com')
             token = cfg.get('security', {}).get('sub_token', '')
             t_query = f"?token={token}" if token else ""
 
