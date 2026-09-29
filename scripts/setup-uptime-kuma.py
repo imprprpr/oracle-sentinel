@@ -269,7 +269,7 @@ def main():
             ],
         },
         {
-            "name": "云端家庭实验室套件 (Cloud Homelab)",
+            "name": "核心微服务套件 (Core Microservices)",
             "monitors": [
                 {
                     "name": "Alist 网盘挂载中心 (:5244)",

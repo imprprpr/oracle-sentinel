@@ -4,7 +4,7 @@
 
 <img src="docs/images/dashboard.png" alt="VPSentinel 控制中心仪表盘" width="100%" style="border-radius: 8px; border: 1px solid #27272a; margin-bottom: 16px;" />
 
-**为境外 Linux VPS 量身打造的自动换 IP 自愈守卫、多协议订阅聚合引擎与云端家庭实验室中枢**
+**为境外 Linux VPS 量身打造的自动换 IP 自愈守卫、多协议订阅聚合引擎与私有微服务运维中枢**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -13,7 +13,7 @@
 [![OCI SDK](https://img.shields.io/badge/Oracle%20Cloud-OCI%20SDK-F80000.svg)](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/pythonsdk.htm)
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-DNS%20API-F38020.svg)](https://developers.cloudflare.com/api/)
 
-[特性速览](#特性速览) • [极速部署](#极速部署) • [安全防御加固](#渐进式安全防御加固体系-anti-sniffing--security-hardening) • [进阶玩法: 家庭实验室](#进阶玩法-云端家庭实验室-homelab) • [订阅引擎](#订阅引擎与客户端适配) • [中转与独立节点](#链式中转与外部独立节点) • [告警配置](#多渠道即时告警) • [常见排查 (FAQ)](#常见问题排查-faq)
+[特性速览](#特性速览) • [极速部署](#极速部署) • [安全防御加固](#渐进式安全防御加固体系-anti-sniffing--security-hardening) • [微服务套件](#进阶玩法-私有云与微服务套件) • [订阅引擎](#订阅引擎与客户端适配) • [中转与独立节点](#链式中转与外部独立节点) • [告警配置](#多渠道即时告警) • [常见排查 (FAQ)](#常见问题排查-faq)
 
 </div>
 
@@ -30,7 +30,7 @@
 **VPSentinel** 把这些杂事整合成一套开箱即用的自动化系统：
 1. **自动换 IP 自愈**：国内探针连续检测超时，自动通过云商 API 更换被封公网 IP，秒级同步 Cloudflare A 记录，发通知到手机。
 2. **全协议统一订阅**：直连 3x-ui 数据库，自动生成 Clash/OpenClash、Sing-box、v2rayN、小火箭订阅，规则全自动分流。
-3. **进阶云端 Homelab**：内核级 TCP BBR 缓冲区调优、WARP 智能分流（ChatGPT/Claude/流媒体洗白）、Uptime Kuma 监控大屏、Alist 4K 网盘串流、Sub-Store 订阅清洗大脑。
+3. **进阶微服务集群**：内核级 TCP BBR 缓冲区调优、WARP 智能分流（ChatGPT/Claude/流媒体解锁）、Uptime Kuma 高可用态势感知监控、Alist 分布式多存储挂载聚合、Sub-Store 订阅清洗中枢。
 
 ---
 
@@ -40,13 +40,14 @@
 | :--- | :--- |
 | **全自动换 IP 自愈** | 支持甲骨文云（OCI 原生秒级换 IP）、通用 VPS（多探针监控+告警）、自定义脚本 Hook。换完自动改 Cloudflare DNS。 |
 | **智能订阅引擎** | 自动提取 VLESS-Reality、Hysteria 2、Trojan。输出直连 IP 节点，免疫国内 DNS 污染，彻底解决软路由 Fake-IP 冲突。 |
+| **EdgeTunnel 边缘与优选调度** | 深度纳管 Cloudflare Pages / Workers Serverless 端点，集成电信、联通、移动三网 Anycast Clean IP 自动测速与动态节点拼装，策略组物理隔离与容灾自愈回退。 |
 | **渐进式安全防御加固** | **Host Guard** 域名嗅探拦截（裸 IP 扫描直接丢弃返回空白 404）、根路径 `/` 逼真 Nginx 欢迎页伪装、安全隐蔽路径（`/sentinel`）、加盐哈希管理员认证网关、多协议订阅 Token 防抓取，以及 Cloudflare CDN 代理就绪（2096 端口支持）。 |
 | **IP 纯净度与解锁体检** | 实时公网画像、Scamalytics 权威欺诈分与风控评估、4 项 DNSBL 黑名单洁净监测，以及 OpenAI (ChatGPT)、Anthropic (Claude)、Gemini、Netflix、YouTube Premium、Disney+ 解锁状态体检。 |
 | **多节点三网性能测速** | 集成原生测速内核与国内电信、联通、移动骨干节点链路往返延迟（RTT）、抖动、丢包率与全带宽并发压测，输出综合链路评级。 |
 | **多节点与中转聚合** | 支持挂载外部独立节点（如日本原生机、香港低延迟机）及国内跳板机（Realm 端口转发），自动合并到统一订阅中。 |
 | **WARP 双栈智能洗白** | 本地 Wireproxy 用户态 WireGuard，仅针对 OpenAI、Anthropic、Netflix、Disney+ 走 WARP，YouTube/常规网页直连千兆带宽。 |
 | **BBR + TCP 暴力调优** | FQ 队列、64MB 发送/接收缓冲区、空闲不降速（`tcp_slow_start_after_idle=0`），彻底跑满跨洋高延迟带宽。 |
-| **云端 Homelab 套件** | 预置 Docker 编排：Uptime Kuma 颜值监控、Alist 4K 网盘挂载、Sub-Store 订阅大脑（内置前后端一体化）。 |
+| **私有微服务套件** | 预置 Docker 容器化编排：Uptime Kuma 态势感知监控、Alist 分布式多存储聚合挂载、Sub-Store 订阅处理流水线（内置前后端一体化）。 |
 | **即时阻断告警** | 支持 Telegram Bot、Discord Webhook、Bark (iOS) 及自定义 Webhook，被墙/自愈/换 IP 即刻推送到手。 |
 | **工业风控制台** | 实时 CPU/内存/磁盘/网络图表、WARP 状态检测、敏感 IP/域名一键高斯模糊防截屏泄露。 |
 
@@ -110,7 +111,7 @@ sudo python3 /opt/vpsentinel/scripts/wizard.py
 
 ---
 
-## 进阶玩法: 云端家庭实验室 (Homelab)
+## 进阶玩法: 私有云与微服务套件
 
 为彻底压榨 VPS 性能（尤其甲骨文 ARM 12G/24G 大内存机），系统提供了全套进阶优化与容器服务。
 
@@ -217,7 +218,7 @@ cd /opt/containers && docker compose up -d
 
 | 服务 | 端口 | 默认账号密码 / 初始化方式 | 用途 |
 | :--- | :--- | :--- | :--- |
-| **Uptime Kuma** | `3001` | 首次打开网页直接注册管理员 | 监控多台 VPS、家庭宽带、博客的存活与延迟折线图。提供 `/status/services` 公开状态页。 |
+| **Uptime Kuma** | `3001` | 首次打开网页直接注册管理员 | 监控多台跨云 VPS、本地公网链路、服务站点的存活与延迟折线图。提供 `/status/services` 公开状态页。 |
 | **Alist** | `5244` | 账号 `admin`，密码查日志或命令重置 | 挂载阿里云盘、夸克、百度网盘、OneDrive，WebDAV 4K 在线串流播放。 |
 | **Sub-Store** | `3000` | 免密直接打开全功能 Web 页面 | 订阅清洗、多机场聚合、正则重命名、国旗 Emoji 注入。 |
 
@@ -226,7 +227,7 @@ cd /opt/containers && docker compose up -d
 #### 探针与监控自动化配置 (Uptime Kuma)
 
 配套脚本 `scripts/setup-uptime-kuma.py` 支持一键初始化全部监控项并注入 GitHub Dark 风格状态页：
-* **监控矩阵**：自动化录入甲骨文美西节点（Ping/20540/20530/8443/443/2083）、日本绿云节点（Ping/Reality/SSH）、Homelab 套件与全球 AI 节点（OpenAI/Anthropic/Cloudflare）。
+* **监控矩阵**：自动化录入甲骨文美西节点（Ping/20540/20530/8443/443/2083）、日本绿云节点（Ping/Reality/SSH）、核心微服务套件与全球 AI 节点（OpenAI/Anthropic/Cloudflare）。
 * **前端风格**：深度适配 GitHub/Linear 极简暗黑工程美学（`#0d1117` 主色调、细分卡片边框、等宽字体指标展示），避免浮夸渐变与设计冗余。
 * **一键配置命令**：
   ```bash
