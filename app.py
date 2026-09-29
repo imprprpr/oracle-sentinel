@@ -16,6 +16,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel, field_validator
+import requests
 
 import sentinel_core
 import sub_engine
