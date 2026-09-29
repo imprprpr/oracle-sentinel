@@ -16,6 +16,7 @@ class TestSecurityAudit(unittest.TestCase):
     def setUpClass(cls):
         cls.orig_config = sentinel_core.ConfigManager.load()
         test_cfg = json.loads(json.dumps(cls.orig_config))
+        test_cfg["initialized"] = True
         test_cfg["security"] = {
             "auth_enabled": True,
             "admin_username": "admin",

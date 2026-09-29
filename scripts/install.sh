@@ -16,7 +16,7 @@ INSTALL_DIR="/opt/vpsentinel"
 REPO_URL="https://github.com/imprprpr/vpsentinel.git"
 
 echo "===================================================================="
-echo "         🚀 Installing VPSentinel Control Center & Daemon           "
+echo "          Installing VPSentinel Control Center & Daemon             "
 echo "===================================================================="
 
 # Check root
@@ -104,25 +104,49 @@ elif command -v firewall-cmd >/dev/null 2>&1; then
     fi
 fi
 
+# Ensure firewall allows port 20540 and node ports (especially on Oracle Cloud)
+if command -v iptables >/dev/null 2>&1; then
+    iptables -C INPUT -p tcp --dport 20540 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p tcp --dport 20540 -j ACCEPT
+    iptables -C INPUT -p tcp --dport 8443 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p tcp --dport 8443 -j ACCEPT
+    iptables -C INPUT -p udp --dport 20000:40000 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport 20000:40000 -j ACCEPT
+    if command -v netfilter-persistent >/dev/null 2>&1; then
+        netfilter-persistent save >/dev/null 2>&1 || true
+    fi
+fi
+
+# Start or restart background service
+echo ">>> Starting VPSentinel service..."
+if systemctl is-enabled --quiet vpsentinel 2>/dev/null; then
+    systemctl restart vpsentinel
+else
+    systemctl restart oracle-sentinel 2>/dev/null || true
+fi
+
+SERVER_IP=$(curl -s4 --max-time 3 https://api.ipify.org 2>/dev/null || curl -s4 --max-time 3 https://icanhazip.com 2>/dev/null || echo "127.0.0.1")
+
 echo "===================================================================="
-echo "🎉 Core components and dependencies installed successfully!"
+echo "[OK] VPSentinel 核心服务已成功安装并启动就绪！"
+echo "===================================================================="
+echo "控制台访问信息："
+echo "  访问地址: https://${SERVER_IP}:20540/sentinel"
+echo "  初始账号: admin"
+echo "  初始密码: mNq7gQGr"
+echo ""
+echo "新手极简上手指南："
+echo "  1. 复制上方链接在浏览器打开；"
+echo "  2. 若 Chrome/Edge 提示'您的连接不是私密连接'，直接键盘盲打这几个字母即可跳过：thisisunsafe"
+echo "  3. 网页将自动唤起向导，推荐选择【新手极速模式】，仅需 2 步即可直接生成可用订阅！"
 echo "===================================================================="
 
-# Check if running interactively in terminal
+# Check if running interactively in terminal and user wants CLI wizard
 if [ -t 0 ]; then
-    read -rp ">>> 是否立即启动全交互式配置向导 (自动配置 OCI、Cloudflare、BBR、防火墙)？[Y/n]: " RUN_WIZARD
-    RUN_WIZARD=${RUN_WIZARD:-y}
+    read -rp ">>> 是否在终端中启动 CLI 高级向导 (输入 n 可直接在网页端使用)？[y/N]: " RUN_WIZARD
+    RUN_WIZARD=${RUN_WIZARD:-n}
     if [[ "$RUN_WIZARD" =~ ^[Yy]$ ]]; then
         python3 "$INSTALL_DIR/scripts/wizard.py"
         exit 0
     fi
 fi
 
-echo "--------------------------------------------------------------------"
-echo " 您可以随时运行以下命令启动全流程交互式配置向导："
-echo "   sudo python3 $INSTALL_DIR/scripts/wizard.py"
-echo "--------------------------------------------------------------------"
-echo " 或者手动维护配置文件："
-echo "   nano $INSTALL_DIR/config.json"
-echo "   systemctl restart vpsentinel"
+echo "提示：您可以随时通过浏览器控制台进行管理，或运行 sudo python3 $INSTALL_DIR/scripts/wizard.py"
 echo "===================================================================="

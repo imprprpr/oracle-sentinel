@@ -210,6 +210,12 @@ class AuthManager:
         if not sec.get("enable_host_guard", True):
             return True
 
+        # During first-run uninitialized state without configured allowed_hosts,
+        # allow IP access so user can open setup wizard
+        cfg = self.cfg_mgr.load()
+        if not cfg.get("initialized", False) and not sec.get("allowed_hosts"):
+            return True
+
         # Authenticated requests (admin session or valid sub/bearer token) bypass Host Guard
         if self.is_request_authenticated(request) or self.verify_subscription_access(request):
             return True

@@ -57,10 +57,30 @@ def sanitize_domain(domain_str: str) -> str:
     return d.strip().lower()
 
 
+def validate_uuid(val: str) -> str:
+    """
+    Validates and normalizes UUID string.
+    Returns normalized lowercase UUID string with hyphens, or empty string if invalid.
+    """
+    if not val or not isinstance(val, str):
+        return ""
+    import uuid
+    v = val.strip().lower()
+    try:
+        u = uuid.UUID(v)
+        return str(u)
+    except Exception:
+        return ""
+
+
 class CleanIPManager:
     @staticmethod
     def sanitize_domain(domain_str: str) -> str:
         return sanitize_domain(domain_str)
+
+    @staticmethod
+    def validate_uuid(val: str) -> str:
+        return validate_uuid(val)
 
     @classmethod
     def get_edt_config(cls):

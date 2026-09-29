@@ -10,6 +10,7 @@ import asyncio
 import logging
 import threading
 import hmac
+import secrets
 from typing import List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
@@ -563,8 +564,72 @@ async def complete_setup(data: SetupSaveModel, request: Request):
         except Exception as e:
             logger.warning(f"Auto-provision nodes warning: {e}")
 
-    await broadcast_log('🎉 Web 初始化向导配置已完成，Sentinel 引擎已全面接管自愈守护！', 'INFO')
+    await broadcast_log('Web 初始化向导配置已完成，Sentinel 引擎已全面接管自愈守护！', 'INFO')
     return {'success': True, 'message': 'Setup completed successfully'}
+
+class QuickStartRequest(BaseModel):
+    outbound_mode: str = 'edgetunnel'
+    admin_password: Optional[str] = None
+    pages_domain: Optional[str] = None
+    pages_uuid: Optional[str] = None
+    worker_domain: Optional[str] = None
+    worker_uuid: Optional[str] = None
+
+@app.post('/api/setup/quick-start')
+async def quick_start_setup(data: QuickStartRequest, request: Request):
+    check_setup_allowed(request)
+    cfg = cfg_mgr.load()
+    cfg['initialized'] = True
+    cfg.setdefault('provider', {})['type'] = 'auto'
+    cfg.setdefault('monitor', {})['auto_heal_enabled'] = True
+
+    sec = cfg.setdefault('security', {})
+    if data.admin_password and len(data.admin_password.strip()) >= 6:
+        sec['admin_password_hash'] = auth.hash_password(data.admin_password.strip())
+        sec['session_secret'] = secrets.token_hex(32)
+
+    if not sec.get('sub_token'):
+        sec['sub_token'] = secrets.token_hex(16)
+    sub_token = sec['sub_token']
+
+    if data.outbound_mode == 'edgetunnel':
+        edt = cfg.setdefault('edgetunnel', {})
+        edt['enabled'] = True
+        if data.pages_domain:
+            edt['pages_domain'] = clean_ip_mgr.sanitize_domain(data.pages_domain)
+        if data.pages_uuid:
+            clean_uuid = clean_ip_mgr.validate_uuid(data.pages_uuid) or data.pages_uuid.strip()
+            edt['pages_uuid'] = clean_uuid
+        if data.worker_domain:
+            edt['worker_domain'] = clean_ip_mgr.sanitize_domain(data.worker_domain)
+        if data.worker_uuid:
+            clean_w_uuid = clean_ip_mgr.validate_uuid(data.worker_uuid) or data.worker_uuid.strip()
+            edt['worker_uuid'] = clean_w_uuid
+        clean_ip_mgr.CleanIPManager.refresh_clean_ips(active_test=False)
+    else:
+        cfg.setdefault('edgetunnel', {})['enabled'] = False
+        try:
+            script_path = os.path.join(BASE_DIR, 'scripts')
+            if script_path not in sys.path:
+                sys.path.insert(0, script_path)
+            import node_provisioner
+            node_provisioner.provision_nodes()
+        except Exception as e:
+            logger.warning(f"Native nodes auto-provision note: {e}")
+
+    cfg_mgr.save(cfg)
+
+    await broadcast_log('Web 极速向导配置已完成，系统已就绪！', 'INFO')
+    return {
+        'success': True,
+        'message': 'Quick start setup completed successfully',
+        'sub_token': sub_token,
+        'urls': {
+            'clash': f'/sub/clash?token={sub_token}',
+            'singbox': f'/sub/singbox?token={sub_token}',
+            'v2ray': f'/sub/v2ray?token={sub_token}'
+        }
+    }
 
 # --- Subscription Engine Endpoints ---
 
@@ -889,43 +954,43 @@ async def run_healing_routine(trigger_source='MANUAL'):
 
     try:
         # Step 2: IP swap via Provider
-        await broadcast_log(f'🌐 [HEAL STEP 2/5] Initiating IP rebirth via provider: {prov_name}...')
+        await broadcast_log(f'[HEAL STEP 2/5] Initiating IP rebirth via provider: {prov_name}...')
         
         loop = asyncio.get_event_loop()
         new_ip = await loop.run_in_executor(None, cloud_prov.change_public_ip)
         
-        await broadcast_log(f'✨ [HEAL STEP 3/5] Fresh Public IP acquired: {new_ip}', 'INFO')
+        await broadcast_log(f'[HEAL STEP 3/5] Fresh Public IP acquired: {new_ip}', 'INFO')
         await asyncio.sleep(1)
 
         # Step 3: Cloudflare DNS update
         if cf_token and cf_record:
-            await broadcast_log(f'☁️ [HEAL STEP 4/5] Updating Cloudflare DNS: {cf_record} -> {new_ip}...')
+            await broadcast_log(f'[HEAL STEP 4/5] Updating Cloudflare DNS: {cf_record} -> {new_ip}...')
             cf_mgr = sentinel_core.CloudflareManager(cf_token, cf_zone)
             await loop.run_in_executor(None, cf_mgr.update_dns_record, cf_record, new_ip)
-            await broadcast_log('✅ [HEAL STEP 4/5] Cloudflare DNS record updated successfully!')
+            await broadcast_log('[OK] [HEAL STEP 4/5] Cloudflare DNS record updated successfully!')
         else:
-            await broadcast_log('⚠️ [HEAL STEP 4/5] Cloudflare token not set; skipping DNS update.', 'WARN')
+            await broadcast_log('[WARN] [HEAL STEP 4/5] Cloudflare token not set; skipping DNS update.', 'WARN')
 
         # Step 4: Verification
-        await broadcast_log('🔄 [HEAL STEP 5/5] Verifying edge routing & resetting health state...')
+        await broadcast_log('[HEAL STEP 5/5] Verifying edge routing & resetting health state...')
         runtime_state['last_healed'] = time.strftime('%Y-%m-%d %H:%M:%S')
         runtime_state['heal_count'] += 1
         monitor.consecutive_failures = 0
         runtime_state['status'] = 'healthy'
         
         dt = round(time.time() - t_start, 1)
-        await broadcast_log(f'🎉 Rebirth completed in {dt}s! Server is now operational on IP: {new_ip}')
+        await broadcast_log(f'[OK] Rebirth completed in {dt}s! Server is now operational on IP: {new_ip}')
 
         notification.NotificationManager.broadcast(
             cfg,
             title="IP Swapped & Restored / 节点IP重生命名成功",
-            message=f"🎉 Rebirth routine succeeded!\nProvider: {prov_name}\nNew IP: {new_ip}\nCloudflare DNS: {cf_record} -> {new_ip}\nDuration: {dt}s",
+            message=f"[OK] Rebirth routine succeeded!\nProvider: {prov_name}\nNew IP: {new_ip}\nCloudflare DNS: {cf_record} -> {new_ip}\nDuration: {dt}s",
             level="SUCCESS"
         )
 
     except Exception as e:
         logger.error(f'Healing routine failed: {e}', exc_info=True)
-        await broadcast_log(f'❌ Healing failed: {str(e)}', 'ERROR')
+        await broadcast_log(f'[ERROR] Healing failed: {str(e)}', 'ERROR')
         runtime_state['status'] = 'warning'
 
         notification.NotificationManager.broadcast(

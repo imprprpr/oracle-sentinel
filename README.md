@@ -53,6 +53,39 @@
 
 ---
 
+## 3 分钟极速新手指南 (Quick Start for Beginners)
+
+小白用户仅需三步即可完成部署并获取可用节点订阅：
+
+### 第 1 步：在 VPS 执行一键安装命令
+连接你的 VPS 终端（Ubuntu / Debian / CentOS / Oracle Linux），粘贴执行：
+```bash
+curl -fsSL https://raw.githubusercontent.com/imprprpr/vpsentinel/main/scripts/install.sh | sudo bash
+```
+> [!NOTE]
+> 安装脚本会自动放行甲骨文云和系统防火墙端口、启动后台守卫服务，并在终端打印出专属访问地址与初始登录凭据。
+
+### 第 2 步：打开浏览器进入控制台
+在浏览器中打开终端打印出的控制台地址：
+```text
+https://<你的服务器IP>:20540/sentinel
+```
+* **跳过证书提示**：若 Chrome / Edge 提示“您的连接不是私密连接”，直接在网页任意空白处键盘盲打这几个英文字母即可跳过：`thisisunsafe`
+* **默认账号密码**：账号 `admin`，初始密码 `mNq7gQGr`
+
+### 第 3 步：选择【新手极速模式】一键生成订阅
+网页会自动唤起初始化向导，默认处于 **新手极速模式**：
+1. **确认出海模式**：
+   * **EdgeTunnel 智能优选（推荐）**：填入你的 Pages / Worker 域名与 UUID（支持一键随机生成），借助 Cloudflare 全球边缘网络，节点免被封，并自动测速优选三大运营商低延迟 IP。
+   * **原生 VPS 直出**：直接以本机 VPS 公网 IP 直连出海。
+2. **设置常用密码**（可选，建议设置）。
+3. 点击 **【一键开启自愈与生成订阅】**，页面将直接弹出订阅就绪卡片，提供 **Clash / Sing-box / v2rayN** 一键导入与复制链接，即可直接使用！
+
+> [!TIP]
+> 如果你是资深玩家并拥有甲骨文 OCI API 凭据、Cloudflare Token 或 Telegram Bot，可随时在向导顶部切换为 **【专家深度模式】** 进行 6 步精细化配置。
+
+---
+
 ## 极速部署
 
 ### 方式一：Web 首次启动向导（推荐，零门槛）
