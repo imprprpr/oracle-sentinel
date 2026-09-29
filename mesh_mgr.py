@@ -20,6 +20,7 @@ logger = logging.getLogger('MeshManager')
 class MeshManager:
     _lock = threading.RLock()
     _node_cache = {}
+    _serverless_cache = {}
 
     @classmethod
     def load_config(cls):
@@ -144,6 +145,81 @@ class MeshManager:
             }
 
     @classmethod
+    def probe_serverless_endpoint(cls, domain, path="/"):
+        domain_str = domain.strip().rstrip('/')
+        if not domain_str:
+            return {'online': False, 'rtt_ms': 0, 'error': 'Domain empty', 'checked_at': int(time.time())}
+        url = domain_str if domain_str.startswith('https://') else f"https://{domain_str}{path}"
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        t0 = time.time()
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'VPSentinel-Probe/2.4'})
+            with urllib.request.urlopen(req, timeout=3.5, context=ctx) as resp:
+                rtt = round((time.time() - t0) * 1000, 1)
+                return {
+                    'online': True,
+                    'status_code': resp.status,
+                    'rtt_ms': rtt,
+                    'error': None,
+                    'checked_at': int(time.time())
+                }
+        except urllib.error.HTTPError as he:
+            rtt = round((time.time() - t0) * 1000, 1)
+            if he.code in (200, 400, 404):
+                return {
+                    'online': True,
+                    'status_code': he.code,
+                    'rtt_ms': rtt,
+                    'error': None,
+                    'checked_at': int(time.time())
+                }
+            return {
+                'online': False,
+                'status_code': he.code,
+                'rtt_ms': rtt,
+                'error': f"HTTP {he.code}",
+                'checked_at': int(time.time())
+            }
+        except Exception as e:
+            rtt = round((time.time() - t0) * 1000, 1)
+            return {
+                'online': False,
+                'status_code': 0,
+                'rtt_ms': rtt,
+                'error': str(e),
+                'checked_at': int(time.time())
+            }
+
+    @classmethod
+    def get_serverless_endpoints(cls):
+        cfg = cls.load_config()
+        edt = cfg.get('edgetunnel', {})
+        if not edt.get('enabled', False):
+            return []
+        endpoints = []
+        pages = edt.get('pages_domain', '').strip()
+        worker = edt.get('worker_domain', '').strip()
+        if pages:
+            endpoints.append({
+                'id': 'edt_pages',
+                'name': 'EdgeTunnel (Pages)',
+                'domain': pages,
+                'type': 'pages',
+                'enabled': True
+            })
+        if worker:
+            endpoints.append({
+                'id': 'edt_worker',
+                'name': 'EdgeTunnel (Worker)',
+                'domain': worker,
+                'type': 'worker',
+                'enabled': True
+            })
+        return endpoints
+
+    @classmethod
     def sync_remote_proxies(cls, node):
         host = node.get('host', '').strip()
         token = node.get('api_token', '').strip()
@@ -232,10 +308,24 @@ class MeshManager:
         online_count = sum(1 for n in result_nodes if n.get('last_status', {}).get('online'))
         total_count = len(result_nodes)
 
+        # Serverless endpoints
+        serverless = []
+        endpoints = cls.get_serverless_endpoints()
+        for ep in endpoints:
+            ep_id = ep['id']
+            status = cls._serverless_cache.get(ep_id)
+            if not status or int(time.time()) - status.get('checked_at', 0) > 120:
+                status = cls.probe_serverless_endpoint(ep['domain'])
+                cls._serverless_cache[ep_id] = status
+            ep_data = dict(ep)
+            ep_data['last_status'] = status
+            serverless.append(ep_data)
+
         return {
             'total_nodes': total_count,
             'online_nodes': online_count,
             'nodes': result_nodes,
+            'serverless_endpoints': serverless,
             'health_pct': round((online_count / total_count * 100) if total_count > 0 else 100.0, 1)
         }
 
@@ -255,6 +345,15 @@ class MeshManager:
                     if proxies:
                         target_node['proxy_nodes'] = proxies
             t = threading.Thread(target=_probe, args=(n,))
+            threads.append(t)
+            t.start()
+
+        for ep in cls.get_serverless_endpoints():
+            def _probe_ep(target_ep):
+                stat = cls.probe_serverless_endpoint(target_ep['domain'])
+                with cls._lock:
+                    cls._serverless_cache[target_ep['id']] = stat
+            t = threading.Thread(target=_probe_ep, args=(ep,))
             threads.append(t)
             t.start()
 

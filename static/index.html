@@ -639,6 +639,92 @@
         </div>
       </div>
 
+      <!-- EdgeTunnel (edt) Serverless 边缘与三网优选中枢 Card -->
+      <div class="card p-5 space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-semibold text-white">EdgeTunnel (edt) 边缘与三网优选调度中枢</h3>
+              <span id="edt-status-badge" class="badge bg-zinc-800 text-zinc-400 text-[10px] font-mono">未启用</span>
+            </div>
+            <p class="text-xs text-zinc-400 mt-0.5">融合 Cloudflare Pages / Workers VLESS-WS 端点，自动注入电信、联通、移动 Anycast 优选 IP，且策略组与原生节点严格物理隔离</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button class="btn-neutral text-xs" onclick="refreshCleanIPs()" id="btn-refresh-clean-ips">
+              <span>刷新三网优选 IP</span>
+            </button>
+            <button class="btn-primary text-xs" onclick="saveEdtConfig()">保存 EdgeTunnel 配置</button>
+          </div>
+        </div>
+
+        <!-- Strategy Notice -->
+        <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded text-xs text-blue-300">
+          <strong>策略组严格隔离说明：</strong>
+          开启后，订阅将自动区分生成【原生节点 (VPS)】和【边缘节点 (EDT)】两大独立策略组，分别独立测速；顶层提供【节点选择】进行总控，并配置【容灾自愈 (Fallback)】在 VPS 发生故障时秒级切至 edt 边缘优选节点。
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div class="col-span-1 md:col-span-2 flex items-center justify-between p-3 rounded bg-[#161619] border border-zinc-800">
+            <div>
+              <div class="font-medium text-zinc-200">启用 EdgeTunnel (edt) 边缘融合下发</div>
+              <div class="text-zinc-500 mt-0.5">勾选后将自动向 Clash、Sing-box 及 Base64 订阅中写入三网优选节点与隔离策略组</div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="edt-enabled" class="sr-only peer">
+              <div class="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 mb-1 font-mono">Pages 域名 (pages_domain)</label>
+            <input type="text" id="edt-pages-domain" placeholder="例如: your-project.pages.dev" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 mb-1 font-mono">Worker 域名 (worker_domain)</label>
+            <input type="text" id="edt-worker-domain" placeholder="例如: your-worker.yourname.workers.dev" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 mb-1 font-mono">UUID (edt 部署设定的 UUID)</label>
+            <input type="text" id="edt-uuid" placeholder="例如: d342d11e-d424-4583-b36e-524ab1f0afa4" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 mb-1 font-mono">WebSocket 路径 (path)</label>
+            <input type="text" id="edt-path" placeholder="/?ed=2048" value="/?ed=2048" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Clean IP Current Pools -->
+        <div class="mt-4 pt-4 border-t border-zinc-800 space-y-3">
+          <div class="text-xs font-semibold text-zinc-300">当前活跃三网 Anycast Clean IP 优选池</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div class="p-3 rounded bg-[#161619] border border-zinc-800">
+              <div class="font-medium text-emerald-400 mb-1.5 flex items-center justify-between">
+                <span>中国电信优选</span>
+                <span class="text-[10px] font-mono text-zinc-500" id="edt-telecom-count">0 项</span>
+              </div>
+              <div class="font-mono text-[11px] text-zinc-400 space-y-1" id="edt-telecom-ips">加载中...</div>
+            </div>
+            <div class="p-3 rounded bg-[#161619] border border-zinc-800">
+              <div class="font-medium text-amber-400 mb-1.5 flex items-center justify-between">
+                <span>中国联通优选</span>
+                <span class="text-[10px] font-mono text-zinc-500" id="edt-unicom-count">0 项</span>
+              </div>
+              <div class="font-mono text-[11px] text-zinc-400 space-y-1" id="edt-unicom-ips">加载中...</div>
+            </div>
+            <div class="p-3 rounded bg-[#161619] border border-zinc-800">
+              <div class="font-medium text-blue-400 mb-1.5 flex items-center justify-between">
+                <span>中国移动优选</span>
+                <span class="text-[10px] font-mono text-zinc-500" id="edt-mobile-count">0 项</span>
+              </div>
+              <div class="font-mono text-[11px] text-zinc-400 space-y-1" id="edt-mobile-ips">加载中...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- TAB 3: TRANSIT / RELAY DISPATCHER -->
@@ -1976,7 +2062,7 @@
         targetBtn.classList.add('active');
       }
 
-      if (tabId === 'rules') loadRulesConfig();
+      if (tabId === 'rules') { loadRulesConfig(); loadEdtConfig(); }
       if (tabId === 'transits') { loadTransits(); loadCustomNodes(); }
       if (tabId === 'services') {
         loadServicesStatus();
@@ -2128,6 +2214,94 @@
         if (res.ok) alert('分流规则已更新！下次更新订阅时将立即生效。');
       } catch (e) {
         alert('保存失败: ' + e);
+      }
+    }
+
+    // --- EdgeTunnel (EDT) Management Functions ---
+    async function loadEdtConfig() {
+      try {
+        const res = await fetch('/api/edt/config');
+        if (!res.ok) return;
+        const data = await res.json();
+        const edt = data.edgetunnel || {};
+        const enabled = Boolean(edt.enabled);
+        const enabledCheckbox = document.getElementById('edt-enabled');
+        if (enabledCheckbox) enabledCheckbox.checked = enabled;
+        const badge = document.getElementById('edt-status-badge');
+        if (badge) {
+          badge.innerText = enabled ? '已激活' : '未启用';
+          badge.className = enabled ? 'badge bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 text-[10px] font-mono' : 'badge bg-zinc-800 text-zinc-400 text-[10px] font-mono';
+        }
+
+        if (document.getElementById('edt-pages-domain')) document.getElementById('edt-pages-domain').value = edt.pages_domain || '';
+        if (document.getElementById('edt-worker-domain')) document.getElementById('edt-worker-domain').value = edt.worker_domain || '';
+        if (document.getElementById('edt-uuid')) document.getElementById('edt-uuid').value = edt.uuid || '';
+        if (document.getElementById('edt-path')) document.getElementById('edt-path').value = edt.path || '/?ed=2048';
+
+        renderCleanIPs(edt.clean_ips || {});
+      } catch (e) {
+        console.error('Failed to load EDT config:', e);
+      }
+    }
+
+    function renderCleanIPs(clean_ips) {
+      ['telecom', 'unicom', 'mobile'].forEach(isp => {
+        const list = clean_ips[isp] || [];
+        const container = document.getElementById(`edt-${isp}-ips`);
+        const count = document.getElementById(`edt-${isp}-count`);
+        if (count) count.innerText = `${list.length} 项`;
+        if (container) {
+          if (list.length === 0) {
+            container.innerText = '暂无 IP';
+          } else {
+            container.innerHTML = list.slice(0, 4).map(ip => `<div>• ${ip}</div>`).join('');
+          }
+        }
+      });
+    }
+
+    async function saveEdtConfig() {
+      const payload = {
+        enabled: document.getElementById('edt-enabled').checked,
+        pages_domain: document.getElementById('edt-pages-domain').value.trim(),
+        worker_domain: document.getElementById('edt-worker-domain').value.trim(),
+        uuid: document.getElementById('edt-uuid').value.trim(),
+        path: document.getElementById('edt-path').value.trim() || '/?ed=2048'
+      };
+      try {
+        const res = await fetch('/api/edt/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert('EdgeTunnel (edt) 配置已更新！下次更新订阅时将立即生效。');
+          loadEdtConfig();
+        } else {
+          const err = await res.json();
+          alert('保存失败: ' + (err.detail || '未知错误'));
+        }
+      } catch (e) {
+        alert('保存异常: ' + e);
+      }
+    }
+
+    async function refreshCleanIPs() {
+      const btn = document.getElementById('btn-refresh-clean-ips');
+      if (btn) btn.innerText = '正在测速刷新...';
+      try {
+        const res = await fetch('/api/edt/refresh-clean-ips', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          renderCleanIPs(data.clean_ips || {});
+          alert('三网 Anycast Clean IP 优选池已完成重测与刷新！');
+        } else {
+          alert('刷新失败');
+        }
+      } catch (e) {
+        alert('刷新异常: ' + e);
+      } finally {
+        if (btn) btn.innerText = '刷新三网优选 IP';
       }
     }
 

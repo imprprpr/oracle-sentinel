@@ -168,6 +168,15 @@ class TelegramInteractiveBot:
                 ip = st.get('pub_ip', n.get('host', 'N/A'))
                 lines.append(f"• <b>{n.get('name', 'Node')}</b> [{n.get('location', 'Global')}]\n  状态: {status_icon} | 延迟: {rtt} | {cpu}\n  IP: <code>{ip}</code>")
 
+            serverless = overview.get('serverless_endpoints', [])
+            if serverless:
+                lines.append("\n<b>EdgeTunnel Serverless 边缘端点:</b>")
+                for s in serverless:
+                    st = s.get('last_status', {})
+                    st_icon = "[在线]" if st.get('online') else "[离线]"
+                    rtt_txt = f"{st.get('rtt_ms', 0)}ms" if st.get('online') else "TIMEOUT"
+                    lines.append(f"• <b>{s.get('name')}</b>\n  状态: {st_icon} | 延迟: {rtt_txt}\n  域名: <code>{s.get('domain')}</code>")
+
             msg = "\n".join(lines)
             self.send_message(bot_token, chat_id, msg, self.get_main_keyboard())
         except Exception as e:

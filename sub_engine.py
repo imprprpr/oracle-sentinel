@@ -10,6 +10,7 @@ import yaml
 from transit_mgr import TransitManager
 from custom_node_mgr import CustomNodeManager
 from sentinel_core import ConfigManager
+from clean_ip_mgr import CleanIPManager
 
 logger = logging.getLogger('SubEngine')
 DB_PATH = '/etc/x-ui/x-ui.db'
@@ -144,6 +145,111 @@ class SubEngine:
 
         return nodes
 
+    @staticmethod
+    def extract_edt_nodes():
+        """
+        Extracts EdgeTunnel VLESS-WS clean IP nodes.
+        Strictly zero emojis.
+        """
+        try:
+            if not CleanIPManager.is_edt_enabled():
+                return []
+            edt = CleanIPManager.get_edt_config()
+            uuid = edt.get('uuid', '').strip()
+            pages = edt.get('pages_domain', '').strip()
+            worker = edt.get('worker_domain', '').strip()
+            path = edt.get('path', '/?ed=2048').strip() or '/?ed=2048'
+            clean_ips = CleanIPManager.get_clean_ips()
+
+            nodes = []
+            isp_map = [
+                ('telecom', '电信优选'),
+                ('unicom', '联通优选'),
+                ('mobile', '移动优选'),
+                ('anycast', 'Anycast优选')
+            ]
+
+            endpoints = []
+            if pages:
+                endpoints.append(('Pages', pages))
+            if worker:
+                endpoints.append(('Worker', worker))
+
+            for ep_type, ep_domain in endpoints:
+                for isp_key, isp_title in isp_map:
+                    pool = clean_ips.get(isp_key, [])
+                    server = pool[0] if pool else 'cloudflare.com'
+                    node_name = f'[edt-{ep_type}] {isp_title}'
+                    nodes.append({
+                        'name': node_name,
+                        'server': server,
+                        'port': 443,
+                        'uuid': uuid,
+                        'host': ep_domain,
+                        'path': path,
+                        'isp': isp_key,
+                        'source': ep_type.lower()
+                    })
+            return nodes
+        except Exception as e:
+            logger.debug(f"Error extracting edt nodes: {e}")
+            return []
+
+    @staticmethod
+    def edt_node_to_clash(n):
+        return {
+            'name': n['name'],
+            'type': 'vless',
+            'server': n['server'],
+            'port': n['port'],
+            'uuid': n['uuid'],
+            'network': 'ws',
+            'tls': True,
+            'udp': True,
+            'servername': n['host'],
+            'ws-opts': {
+                'path': n['path'],
+                'headers': {
+                    'Host': n['host']
+                }
+            },
+            'client-fingerprint': 'chrome'
+        }
+
+    @staticmethod
+    def edt_node_to_singbox(n):
+        return {
+            'type': 'vless',
+            'tag': n['name'],
+            'server': n['server'],
+            'server_port': n['port'],
+            'uuid': n['uuid'],
+            'network': 'tcp',
+            'tls': {
+                'enabled': True,
+                'server_name': n['host'],
+                'utls': {
+                    'enabled': True,
+                    'fingerprint': 'chrome'
+                }
+            },
+            'transport': {
+                'type': 'ws',
+                'path': n['path'],
+                'headers': {
+                    'Host': n['host']
+                }
+            },
+            'packet_encoding': 'xudp'
+        }
+
+    @staticmethod
+    def edt_node_to_v2ray_link(n):
+        encoded_path = urllib.parse.quote(n['path'])
+        encoded_host = urllib.parse.quote(n['host'])
+        encoded_name = urllib.parse.quote(n['name'])
+        return f"vless://{n['uuid']}@{n['server']}:{n['port']}?type=ws&security=tls&path={encoded_path}&host={encoded_host}&sni={encoded_host}#{encoded_name}"
+
     # --- 1. Clash / Mihomo YAML Generator ---
     @staticmethod
     def generate_clash_yaml(rules_override=None):
@@ -151,23 +257,23 @@ class SubEngine:
         raw_nodes = SubEngine.extract_nodes_from_db()
         transits = TransitManager.get_transits()
 
-        proxies = []
-        node_names = []
+        native_proxies = []
+        native_names = []
 
         # 1. Direct Nodes
         for ntype, node_data in raw_nodes:
             n = node_data.copy()
             if ntype == 'hy2' and rules_cfg.get('hy2_hop', True):
                 n['ports'] = '20000-40000'
-                n['name'] = '🇺🇸 Oracle-美西-Hy2 (跳跃)'
-            proxies.append(n)
-            node_names.append(n['name'])
+                n['name'] = 'Oracle-US-Hy2 (Hop)'
+            native_proxies.append(n)
+            native_names.append(n['name'])
 
         # 2. Transit / Relay Nodes
         for t in transits:
             if not t.get('enabled', True):
                 continue
-            t_name = t.get('name', '中转')
+            t_name = t.get('name', 'Transit')
             t_host = t.get('host', '')
             if not t_host:
                 continue
@@ -175,25 +281,25 @@ class SubEngine:
             for ntype, base_node in raw_nodes:
                 relay_node = base_node.copy()
                 if ntype == 'hy2':
-                    relay_node['name'] = f'[{t_name}] Hy2专线'
+                    relay_node['name'] = f'[{t_name}] Hy2 Relay'
                     relay_node['server'] = t_host
                     relay_node['port'] = t.get('hy2_port', 20443)
                     if 'ports' in relay_node:
                         del relay_node['ports']
-                    proxies.append(relay_node)
-                    node_names.append(relay_node['name'])
+                    native_proxies.append(relay_node)
+                    native_names.append(relay_node['name'])
                 elif ntype == 'reality':
-                    relay_node['name'] = f'[{t_name}] Reality专线'
+                    relay_node['name'] = f'[{t_name}] Reality Relay'
                     relay_node['server'] = t_host
                     relay_node['port'] = t.get('reality_port', 28443)
-                    proxies.append(relay_node)
-                    node_names.append(relay_node['name'])
+                    native_proxies.append(relay_node)
+                    native_names.append(relay_node['name'])
                 elif ntype == 'trojan':
-                    relay_node['name'] = f'[{t_name}] Trojan专线'
+                    relay_node['name'] = f'[{t_name}] Trojan Relay'
                     relay_node['server'] = t_host
                     relay_node['port'] = t.get('trojan_port', 22083)
-                    proxies.append(relay_node)
-                    node_names.append(relay_node['name'])
+                    native_proxies.append(relay_node)
+                    native_names.append(relay_node['name'])
 
         # 3. Custom / External Standalone Nodes
         custom_nodes = CustomNodeManager.get_custom_nodes()
@@ -202,8 +308,8 @@ class SubEngine:
                 continue
             cp = CustomNodeManager.to_clash_proxy(cn)
             if cp:
-                proxies.append(cp)
-                node_names.append(cp['name'])
+                native_proxies.append(cp)
+                native_names.append(cp['name'])
 
         # 4. Multi-Node Sentinel Mesh Aggregated Proxies
         try:
@@ -213,71 +319,179 @@ class SubEngine:
                     continue
                 for mp in mn.get('proxy_nodes', []):
                     cp = CustomNodeManager.to_clash_proxy(mp)
-                    if cp and cp['name'] not in node_names:
-                        proxies.append(cp)
-                        node_names.append(cp['name'])
+                    if cp and cp['name'] not in native_names:
+                        native_proxies.append(cp)
+                        native_names.append(cp['name'])
         except Exception as e:
             logger.debug(f"Error aggregating mesh nodes for Clash: {e}")
 
-        if not node_names:
-            node_names = ['DIRECT']
+        # 5. EdgeTunnel (EDT) Serverless Clean IP Nodes
+        edt_proxies = []
+        edt_names = []
+        for en in SubEngine.extract_edt_nodes():
+            cp = SubEngine.edt_node_to_clash(en)
+            if cp and cp['name'] not in edt_names:
+                edt_proxies.append(cp)
+                edt_names.append(cp['name'])
+
+        all_proxies = native_proxies + edt_proxies
+
+        if not native_names and not edt_names:
+            native_names = ['DIRECT']
 
         proxy_groups = []
 
-        # Group: 🚀 节点选择
-        group_select_proxies = []
-        if rules_cfg.get('auto_test', True):
-            group_select_proxies.append('⚡ 自动优选')
-        group_select_proxies.extend(node_names)
-        group_select_proxies.append('DIRECT')
+        if edt_names:
+            # Segregated Strategy Groups when EdgeTunnel is active
+            # 1. Native VPS Select Group (strictly native nodes only)
+            native_group_proxies = []
+            if rules_cfg.get('auto_test', True) and native_names:
+                native_group_proxies.append('原生-自动测速')
+            native_group_proxies.extend(native_names)
+            native_group_proxies.append('DIRECT')
 
-        proxy_groups.append({
-            'name': '🚀 节点选择',
-            'type': 'select',
-            'proxies': group_select_proxies
-        })
-
-        # Group: ⚡ 自动优选
-        if rules_cfg.get('auto_test', True):
             proxy_groups.append({
-                'name': '⚡ 自动优选',
-                'type': 'url-test',
+                'name': '原生节点 (VPS)',
+                'type': 'select',
+                'proxies': native_group_proxies
+            })
+
+            # 2. Native URL-Test Group (tests native nodes only)
+            if rules_cfg.get('auto_test', True) and native_names:
+                proxy_groups.append({
+                    'name': '原生-自动测速',
+                    'type': 'url-test',
+                    'url': 'https://www.gstatic.com/generate_204',
+                    'interval': 300,
+                    'tolerance': 50,
+                    'proxies': list(native_names)
+                })
+
+            # 3. EDT Edge Select Group (strictly edt clean IP nodes only)
+            edt_group_proxies = []
+            if rules_cfg.get('auto_test', True):
+                edt_group_proxies.append('边缘-自动测速')
+            edt_group_proxies.extend(edt_names)
+
+            proxy_groups.append({
+                'name': '边缘节点 (EDT)',
+                'type': 'select',
+                'proxies': edt_group_proxies
+            })
+
+            # 4. EDT URL-Test Group (tests edt clean IP nodes only)
+            if rules_cfg.get('auto_test', True):
+                proxy_groups.append({
+                    'name': '边缘-自动测速',
+                    'type': 'url-test',
+                    'url': 'https://www.gstatic.com/generate_204',
+                    'interval': 300,
+                    'tolerance': 50,
+                    'proxies': list(edt_names)
+                })
+
+            # 5. Fallback Group: Native VPS first, fallback to EDT edge nodes
+            fallback_proxies = list(native_names) + list(edt_names)
+            proxy_groups.append({
+                'name': '容灾自愈 (Fallback)',
+                'type': 'fallback',
                 'url': 'https://www.gstatic.com/generate_204',
-                'interval': 300,
-                'tolerance': 50,
-                'proxies': list(node_names)
+                'interval': 180,
+                'proxies': fallback_proxies
             })
 
-        # Group: 🤖 AI 智能服务
-        if rules_cfg.get('ai_group', True):
+            # 6. Global Selector Group (switches between segregated groups or DIRECT)
             proxy_groups.append({
-                'name': '🤖 AI 智能服务',
+                'name': '🚀 节点选择',
                 'type': 'select',
-                'proxies': ['🚀 节点选择'] + list(node_names)
+                'proxies': ['原生节点 (VPS)', '边缘节点 (EDT)', '容灾自愈 (Fallback)', 'DIRECT']
             })
 
-        # Group: 🎬 国际流媒体
-        if rules_cfg.get('media_group', True):
+            # 7. AI Service Group
+            if rules_cfg.get('ai_group', True):
+                proxy_groups.append({
+                    'name': '🤖 AI 智能服务',
+                    'type': 'select',
+                    'proxies': ['🚀 节点选择', '原生节点 (VPS)', '边缘节点 (EDT)', 'DIRECT']
+                })
+
+            # 8. Media Streaming Group
+            if rules_cfg.get('media_group', True):
+                proxy_groups.append({
+                    'name': '🎬 国际流媒体',
+                    'type': 'select',
+                    'proxies': ['🚀 节点选择', '边缘节点 (EDT)', '原生节点 (VPS)', 'DIRECT']
+                })
+
+            # 9. Ad Block Group
+            if rules_cfg.get('adblock', True):
+                proxy_groups.append({
+                    'name': '🛑 广告拦截',
+                    'type': 'select',
+                    'proxies': ['REJECT', 'DIRECT']
+                })
+
+            # 10. Direct
             proxy_groups.append({
-                'name': '🎬 国际流媒体',
+                'name': '🎯 全球直连',
                 'type': 'select',
-                'proxies': ['🚀 节点选择'] + list(node_names)
+                'proxies': ['DIRECT']
             })
+        else:
+            # Standard legacy groups when EDT is not active
+            group_select_proxies = []
+            if rules_cfg.get('auto_test', True):
+                group_select_proxies.append('⚡ 自动优选')
+            group_select_proxies.extend(native_names)
+            group_select_proxies.append('DIRECT')
 
-        # Group: 🛑 广告拦截
-        if rules_cfg.get('adblock', True):
             proxy_groups.append({
-                'name': '🛑 广告拦截',
+                'name': '🚀 节点选择',
                 'type': 'select',
-                'proxies': ['REJECT', 'DIRECT']
+                'proxies': group_select_proxies
             })
 
-        # Group: 🎯 全球直连
-        proxy_groups.append({
-            'name': '🎯 全球直连',
-            'type': 'select',
-            'proxies': ['DIRECT']
-        })
+            # Group: ⚡ 自动优选
+            if rules_cfg.get('auto_test', True):
+                proxy_groups.append({
+                    'name': '⚡ 自动优选',
+                    'type': 'url-test',
+                    'url': 'https://www.gstatic.com/generate_204',
+                    'interval': 300,
+                    'tolerance': 50,
+                    'proxies': list(native_names)
+                })
+
+            # Group: 🤖 AI 智能服务
+            if rules_cfg.get('ai_group', True):
+                proxy_groups.append({
+                    'name': '🤖 AI 智能服务',
+                    'type': 'select',
+                    'proxies': ['🚀 节点选择'] + list(native_names)
+                })
+
+            # Group: 🎬 国际流媒体
+            if rules_cfg.get('media_group', True):
+                proxy_groups.append({
+                    'name': '🎬 国际流媒体',
+                    'type': 'select',
+                    'proxies': ['🚀 节点选择'] + list(native_names)
+                })
+
+            # Group: 🛑 广告拦截
+            if rules_cfg.get('adblock', True):
+                proxy_groups.append({
+                    'name': '🛑 广告拦截',
+                    'type': 'select',
+                    'proxies': ['REJECT', 'DIRECT']
+                })
+
+            # Group: 🎯 全球直连
+            proxy_groups.append({
+                'name': '🎯 全球直连',
+                'type': 'select',
+                'proxies': ['DIRECT']
+            })
 
         rules = [
             'IP-CIDR,127.0.0.0/8,🎯 全球直连,no-resolve',
@@ -415,7 +629,7 @@ class SubEngine:
                 'geosite': f'https://{domain}:20540/static/geo/geosite.dat',
                 'mmdb': f'https://{domain}:20540/static/geo/country.mmdb'
             },
-            'proxies': proxies,
+            'proxies': all_proxies,
             'proxy-groups': proxy_groups,
             'rules': rules
         }
@@ -510,6 +724,15 @@ class SubEngine:
         except Exception as e:
             logger.debug(f"Error aggregating mesh nodes for Base64: {e}")
 
+        # 5. EdgeTunnel (EDT) Serverless Clean IP Nodes
+        try:
+            for en in SubEngine.extract_edt_nodes():
+                link = SubEngine.edt_node_to_v2ray_link(en)
+                if link and link not in links:
+                    links.append(link)
+        except Exception as e:
+            logger.debug(f"Error aggregating edt nodes for Base64: {e}")
+
         joined_text = "\n".join(links) + "\n"
         return base64.b64encode(joined_text.encode('utf-8')).decode('utf-8')
 
@@ -520,14 +743,14 @@ class SubEngine:
         raw_nodes = SubEngine.extract_nodes_from_db()
         transits = TransitManager.get_transits()
 
-        outbounds = []
-        node_tags = []
+        native_outbounds = []
+        native_tags = []
 
         # 1. Direct Nodes
         for ntype, n in raw_nodes:
             if ntype == 'reality':
                 tag = 'Oracle-US'
-                outbounds.append({
+                native_outbounds.append({
                     'type': 'vless',
                     'tag': tag,
                     'server': n['server'],
@@ -550,11 +773,11 @@ class SubEngine:
                     },
                     'packet_encoding': 'xudp'
                 })
-                node_tags.append(tag)
+                native_tags.append(tag)
 
             elif ntype == 'hy2':
                 tag = 'Oracle-Hy2'
-                outbounds.append({
+                native_outbounds.append({
                     'type': 'hysteria2',
                     'tag': tag,
                     'server': n['server'],
@@ -567,11 +790,11 @@ class SubEngine:
                         'server_name': n['sni']
                     }
                 })
-                node_tags.append(tag)
+                native_tags.append(tag)
 
             elif ntype == 'trojan':
                 tag = 'Oracle-Trojan'
-                outbounds.append({
+                native_outbounds.append({
                     'type': 'trojan',
                     'tag': tag,
                     'server': n['server'],
@@ -582,21 +805,21 @@ class SubEngine:
                         'server_name': n['sni']
                     }
                 })
-                node_tags.append(tag)
+                native_tags.append(tag)
 
         # 2. Transit Nodes
         for t in transits:
             if not t.get('enabled', True):
                 continue
-            t_name = t.get('name', '中转')
+            t_name = t.get('name', 'Transit')
             t_host = t.get('host', '')
             if not t_host:
                 continue
 
             for ntype, n in raw_nodes:
                 if ntype == 'reality':
-                    tag = f'[{t_name}] Reality专线'
-                    outbounds.append({
+                    tag = f'[{t_name}] Reality Relay'
+                    native_outbounds.append({
                         'type': 'vless',
                         'tag': tag,
                         'server': t_host,
@@ -616,10 +839,10 @@ class SubEngine:
                         },
                         'packet_encoding': 'xudp'
                     })
-                    node_tags.append(tag)
+                    native_tags.append(tag)
                 elif ntype == 'hy2':
-                    tag = f'[{t_name}] Hy2专线'
-                    outbounds.append({
+                    tag = f'[{t_name}] Hy2 Relay'
+                    native_outbounds.append({
                         'type': 'hysteria2',
                         'tag': tag,
                         'server': t_host,
@@ -629,10 +852,10 @@ class SubEngine:
                         'password': n['password'],
                         'tls': {'enabled': True, 'server_name': n['sni']}
                     })
-                    node_tags.append(tag)
+                    native_tags.append(tag)
                 elif ntype == 'trojan':
-                    tag = f'[{t_name}] Trojan专线'
-                    outbounds.append({
+                    tag = f'[{t_name}] Trojan Relay'
+                    native_outbounds.append({
                         'type': 'trojan',
                         'tag': tag,
                         'server': t_host,
@@ -640,7 +863,7 @@ class SubEngine:
                         'password': n['password'],
                         'tls': {'enabled': True, 'server_name': n['sni']}
                     })
-                    node_tags.append(tag)
+                    native_tags.append(tag)
 
         # 3. Custom / External Standalone Nodes
         custom_nodes = CustomNodeManager.get_custom_nodes()
@@ -649,8 +872,8 @@ class SubEngine:
                 continue
             sb_out = CustomNodeManager.to_singbox_outbound(cn)
             if sb_out:
-                outbounds.append(sb_out)
-                node_tags.append(sb_out['tag'])
+                native_outbounds.append(sb_out)
+                native_tags.append(sb_out['tag'])
 
         # 4. Multi-Node Sentinel Mesh Aggregated Proxies
         try:
@@ -660,26 +883,80 @@ class SubEngine:
                     continue
                 for mp in mn.get('proxy_nodes', []):
                     sb_out = CustomNodeManager.to_singbox_outbound(mp)
-                    if sb_out and sb_out['tag'] not in node_tags:
-                        outbounds.append(sb_out)
-                        node_tags.append(sb_out['tag'])
+                    if sb_out and sb_out['tag'] not in native_tags:
+                        native_outbounds.append(sb_out)
+                        native_tags.append(sb_out['tag'])
         except Exception as e:
             logger.debug(f"Error aggregating mesh nodes for Sing-box: {e}")
 
-        if not node_tags:
-            node_tags = ['direct']
+        # 5. EdgeTunnel (EDT) Serverless Clean IP Nodes
+        edt_outbounds = []
+        edt_tags = []
+        try:
+            for en in SubEngine.extract_edt_nodes():
+                sb_out = SubEngine.edt_node_to_singbox(en)
+                if sb_out and sb_out['tag'] not in edt_tags:
+                    edt_outbounds.append(sb_out)
+                    edt_tags.append(sb_out['tag'])
+        except Exception as e:
+            logger.debug(f"Error aggregating edt nodes for Sing-box: {e}")
 
-        # Select & URLTest groups
-        selector_outbounds = ['urltest'] + node_tags + ['direct']
-        head_groups = [
-            {'type': 'selector', 'tag': 'select', 'outbounds': selector_outbounds},
-            {'type': 'urltest', 'tag': 'urltest', 'outbounds': list(node_tags), 'url': 'https://www.gstatic.com/generate_204', 'interval': '5m'},
-            {'type': 'direct', 'tag': 'direct'},
-            {'type': 'block', 'tag': 'block'},
-            {'type': 'dns', 'tag': 'dns-out'}
-        ]
-
-        all_outbounds = head_groups + outbounds
+        if edt_tags:
+            # Segregated Groups for Native VPS and EDT Edge Nodes
+            head_groups = [
+                {
+                    'type': 'selector',
+                    'tag': 'select',
+                    'outbounds': ['native-select', 'edt-select', 'fallback', 'direct']
+                },
+                {
+                    'type': 'selector',
+                    'tag': 'native-select',
+                    'outbounds': (['native-urltest'] if native_tags else []) + list(native_tags) + ['direct']
+                },
+                {
+                    'type': 'urltest',
+                    'tag': 'native-urltest',
+                    'outbounds': list(native_tags) if native_tags else ['direct'],
+                    'url': 'https://www.gstatic.com/generate_204',
+                    'interval': '5m'
+                },
+                {
+                    'type': 'selector',
+                    'tag': 'edt-select',
+                    'outbounds': ['edt-urltest'] + list(edt_tags)
+                },
+                {
+                    'type': 'urltest',
+                    'tag': 'edt-urltest',
+                    'outbounds': list(edt_tags),
+                    'url': 'https://www.gstatic.com/generate_204',
+                    'interval': '5m'
+                },
+                {
+                    'type': 'urltest',
+                    'tag': 'fallback',
+                    'outbounds': (list(native_tags) if native_tags else []) + list(edt_tags),
+                    'url': 'https://www.gstatic.com/generate_204',
+                    'interval': '3m'
+                },
+                {'type': 'direct', 'tag': 'direct'},
+                {'type': 'block', 'tag': 'block'},
+                {'type': 'dns', 'tag': 'dns-out'}
+            ]
+            all_outbounds = head_groups + native_outbounds + edt_outbounds
+        else:
+            if not native_tags:
+                native_tags = ['direct']
+            selector_outbounds = ['urltest'] + list(native_tags) + ['direct']
+            head_groups = [
+                {'type': 'selector', 'tag': 'select', 'outbounds': selector_outbounds},
+                {'type': 'urltest', 'tag': 'urltest', 'outbounds': list(native_tags), 'url': 'https://www.gstatic.com/generate_204', 'interval': '5m'},
+                {'type': 'direct', 'tag': 'direct'},
+                {'type': 'block', 'tag': 'block'},
+                {'type': 'dns', 'tag': 'dns-out'}
+            ]
+            all_outbounds = head_groups + native_outbounds
 
         route_rules = [
             {'ip_is_private': True, 'outbound': 'direct'}

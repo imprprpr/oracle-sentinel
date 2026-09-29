@@ -27,6 +27,7 @@ import auth_mgr
 import traffic_mgr
 import mesh_mgr
 import bot_mgr
+import clean_ip_mgr
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
@@ -701,6 +702,71 @@ async def toggle_custom_node(node_id: str, data: dict, request: Request):
     enabled = data.get('enabled', True)
     custom_node_mgr.CustomNodeManager.toggle_custom_node(node_id, enabled)
     return {'status': 'ok'}
+
+# --- EdgeTunnel (EDT) Integration API ---
+@app.get('/api/edt/config')
+async def get_edt_config(request: Request):
+    check_admin(request)
+    cfg = cfg_mgr.load()
+    edt = cfg.get('edgetunnel', {})
+    clean_ips = clean_ip_mgr.CleanIPManager.get_clean_ips()
+    return {
+        'status': 'ok',
+        'edgetunnel': {
+            'enabled': bool(edt.get('enabled', False)),
+            'pages_domain': edt.get('pages_domain', ''),
+            'worker_domain': edt.get('worker_domain', ''),
+            'uuid': edt.get('uuid', ''),
+            'path': edt.get('path', '/?ed=2048'),
+            'proxy_ip': edt.get('proxy_ip', ''),
+            'clean_ips': clean_ips,
+            'auto_refresh_clean_ips': bool(edt.get('auto_refresh_clean_ips', True)),
+            'enable_fallback_group': bool(edt.get('enable_fallback_group', True))
+        }
+    }
+
+@app.post('/api/edt/config')
+async def save_edt_config(data: dict, request: Request):
+    check_admin(request)
+    cfg = cfg_mgr.load()
+    if 'edgetunnel' not in cfg:
+        cfg['edgetunnel'] = {}
+
+    edt = cfg['edgetunnel']
+    for k in ('enabled', 'pages_domain', 'worker_domain', 'uuid', 'path', 'proxy_ip', 'auto_refresh_clean_ips', 'enable_fallback_group'):
+        if k in data:
+            edt[k] = data[k]
+
+    if 'clean_ips' in data and isinstance(data['clean_ips'], dict):
+        clean_ip_mgr.CleanIPManager.save_clean_ips(data['clean_ips'])
+    else:
+        cfg_mgr.save(cfg)
+
+    await broadcast_log('EdgeTunnel configuration updated.')
+    return {'status': 'ok', 'message': 'EdgeTunnel configuration saved successfully'}
+
+@app.post('/api/edt/refresh-clean-ips')
+async def refresh_edt_clean_ips(request: Request):
+    check_admin(request)
+    try:
+        updated = clean_ip_mgr.CleanIPManager.refresh_clean_ips(active_test=False)
+        await broadcast_log('Refreshed EdgeTunnel Clean IP pools.')
+        return {'status': 'ok', 'clean_ips': updated}
+    except Exception as e:
+        logger.error(f'Failed to refresh clean IPs: {e}')
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get('/api/edt/status')
+async def get_edt_status(request: Request):
+    check_admin(request)
+    endpoints = mesh_mgr.MeshManager.get_serverless_endpoints()
+    results = []
+    for ep in endpoints:
+        probe = mesh_mgr.MeshManager.probe_serverless_endpoint(ep['domain'])
+        ep_res = dict(ep)
+        ep_res['last_status'] = probe
+        results.append(ep_res)
+    return {'status': 'ok', 'endpoints': results}
 
 @app.get('/api/services')
 async def get_services(request: Request):

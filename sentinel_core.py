@@ -14,6 +14,7 @@ import platform
 import subprocess
 import threading
 import tempfile
+import copy
 import requests
 import psutil
 
@@ -91,8 +92,33 @@ DEFAULT_CONFIG = {
         'enable_host_guard': True,
         'allowed_hosts': []
     },
-    'transits': []
+    'transits': [],
+    'edgetunnel': {
+        'enabled': False,
+        'pages_domain': '',
+        'worker_domain': '',
+        'uuid': '',
+        'path': '/?ed=2048',
+        'proxy_ip': '',
+        'clean_ips': {
+            'telecom': ['ct.v6.rocks', '162.159.192.1'],
+            'unicom': ['cu.v6.rocks', '162.159.193.1'],
+            'mobile': ['cm.v6.rocks', '162.159.195.1'],
+            'anycast': ['cloudflare.com', '104.16.80.1']
+        },
+        'auto_refresh_clean_ips': True,
+        'enable_fallback_group': True
+    }
 }
+
+def _deep_merge_dict(base, override):
+    merged = copy.deepcopy(base)
+    for k, v in override.items():
+        if isinstance(v, dict) and k in merged and isinstance(merged[k], dict):
+            merged[k] = _deep_merge_dict(merged[k], v)
+        else:
+            merged[k] = copy.deepcopy(v)
+    return merged
 
 def get_cloud_info():
     """
@@ -142,16 +168,10 @@ class ConfigManager:
                 try:
                     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
                         cfg = json.load(f)
-                        merged = DEFAULT_CONFIG.copy()
-                        for k, v in cfg.items():
-                            if isinstance(v, dict) and k in merged:
-                                merged[k].update(v)
-                            else:
-                                merged[k] = v
-                        return merged
+                        return _deep_merge_dict(DEFAULT_CONFIG, cfg)
                 except Exception as e:
                     logger.error(f'Error reading {CONFIG_PATH}: {e}')
-            return DEFAULT_CONFIG.copy()
+            return copy.deepcopy(DEFAULT_CONFIG)
 
     @classmethod
     def save(cls, cfg):
