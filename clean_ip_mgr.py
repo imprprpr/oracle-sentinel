@@ -15,31 +15,28 @@ logger = logging.getLogger("CleanIPManager")
 
 DEFAULT_CLEAN_IPS = {
     "telecom": [
-        "ct.v6.rocks",
         "162.159.192.1",
         "162.159.192.10",
-        "198.41.214.162",
-        "104.16.80.1"
+        "cf.090227.xyz",
+        "198.41.214.162"
     ],
     "unicom": [
-        "cu.v6.rocks",
         "162.159.193.1",
         "162.159.193.10",
-        "172.67.100.1",
+        "time.is",
         "104.17.80.1"
     ],
     "mobile": [
-        "cm.v6.rocks",
         "162.159.195.1",
         "162.159.195.10",
-        "104.18.80.1",
-        "104.19.80.1"
+        "icook.hk",
+        "104.18.80.1"
     ],
     "anycast": [
-        "cloudflare.com",
-        "dash.cloudflare.com",
-        "104.16.80.1",
-        "104.17.80.1"
+        "162.159.192.1",
+        "cf.090227.xyz",
+        "time.is",
+        "icook.hk"
     ]
 }
 
@@ -90,7 +87,11 @@ class CleanIPManager:
         for isp, default_list in DEFAULT_CLEAN_IPS.items():
             current_list = clean_ips.get(isp)
             if isinstance(current_list, list) and current_list:
-                result[isp] = current_list
+                filtered = [
+                    str(x).strip() for x in current_list
+                    if str(x).strip() and "v6.rocks" not in str(x).lower() and str(x).lower() != "cloudflare.com"
+                ]
+                result[isp] = filtered if filtered else list(default_list)
             else:
                 result[isp] = list(default_list)
         return result
@@ -157,4 +158,4 @@ class CleanIPManager:
         anycast_list = pools.get("anycast", [])
         if anycast_list:
             return anycast_list[0]
-        return DEFAULT_CLEAN_IPS.get(isp, ["cloudflare.com"])[0]
+        return DEFAULT_CLEAN_IPS.get(isp, ["162.159.192.1"])[0]

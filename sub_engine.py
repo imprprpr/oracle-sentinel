@@ -183,18 +183,28 @@ class SubEngine:
             for ep_type, ep_domain, ep_uuid in endpoints:
                 for isp_key, isp_title in isp_map:
                     pool = clean_ips.get(isp_key, [])
-                    server = pool[0] if pool else 'cloudflare.com'
-                    node_name = f'[edt-{ep_type}] {isp_title}'
-                    nodes.append({
-                        'name': node_name,
-                        'server': server,
-                        'port': 443,
-                        'uuid': ep_uuid,
-                        'host': ep_domain,
-                        'path': path,
-                        'isp': isp_key,
-                        'source': ep_type.lower()
-                    })
+                    filtered = [
+                        str(ip).strip() for ip in pool
+                        if str(ip).strip() and 'v6.rocks' not in str(ip).lower() and str(ip).lower() != 'cloudflare.com'
+                    ]
+                    if not filtered:
+                        from clean_ip_mgr import DEFAULT_CLEAN_IPS
+                        filtered = list(DEFAULT_CLEAN_IPS.get(isp_key, ['162.159.192.1']))
+
+                    chosen = filtered[:2] if len(filtered) >= 2 else filtered[:1]
+                    for idx, server in enumerate(chosen):
+                        suffix = f" #{idx+1}" if len(chosen) > 1 else ""
+                        node_name = f'[edt-{ep_type}] {isp_title}{suffix}'
+                        nodes.append({
+                            'name': node_name,
+                            'server': server,
+                            'port': 443,
+                            'uuid': ep_uuid,
+                            'host': ep_domain,
+                            'path': path,
+                            'isp': isp_key,
+                            'source': ep_type.lower()
+                        })
             return nodes
         except Exception as e:
             logger.debug(f"Error extracting edt nodes: {e}")
