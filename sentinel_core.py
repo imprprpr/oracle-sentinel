@@ -15,6 +15,10 @@ import subprocess
 import threading
 import tempfile
 import copy
+import hmac
+import hashlib
+from datetime import datetime, timezone
+from typing import Tuple, Dict, Any, Optional
 import requests
 import psutil
 
@@ -37,8 +41,28 @@ METADATA_VNICS_URL = 'http://169.254.169.254/opc/v2/vnics/'
 
 DEFAULT_CONFIG = {
     'provider': {
-        'type': 'auto',          # 'auto', 'oracle', 'hook', 'generic'
+        'type': 'auto',          # 'auto', 'oracle', 'lightsail', 'hetzner', 'azure', 'hook', 'generic'
         'hook_cmd': ''
+    },
+    'lightsail': {
+        'access_key_id': '',
+        'secret_access_key': '',
+        'region': 'us-east-1',
+        'instance_name': ''
+    },
+    'hetzner': {
+        'api_token': '',
+        'server_id': '',
+        'ip_type': 'primary'     # 'primary' or 'floating'
+    },
+    'azure': {
+        'subscription_id': '',
+        'resource_group': '',
+        'vm_name': '',
+        'nic_name': '',
+        'client_id': '',
+        'client_secret': '',
+        'tenant_id': ''
     },
     'cloudflare': {
         'api_token': '',
@@ -126,7 +150,13 @@ def get_cloud_info():
     """
     arch = platform.machine()
     dmi_str = ""
-    for df in ['/sys/class/dmi/id/product_name', '/sys/class/dmi/id/sys_vendor', '/sys/class/dmi/id/chassis_asset_tag']:
+    for df in [
+        '/sys/class/dmi/id/product_name',
+        '/sys/class/dmi/id/sys_vendor',
+        '/sys/class/dmi/id/chassis_asset_tag',
+        '/sys/class/dmi/id/board_vendor',
+        '/sys/class/dmi/id/bios_vendor'
+    ]:
         if os.path.exists(df):
             try:
                 with open(df, 'r', encoding='utf-8', errors='ignore') as f:
@@ -137,22 +167,50 @@ def get_cloud_info():
     if 'OracleCloud' in dmi_str:
         return {'provider': 'Oracle Cloud', 'region': 'OCI Global', 'arch': arch}
     elif 'Amazon' in dmi_str or 'EC2' in dmi_str:
-        return {'provider': 'AWS (Amazon EC2)', 'region': 'AWS', 'arch': arch}
+        return {'provider': 'AWS (Lightsail / EC2)', 'region': 'AWS', 'arch': arch}
+    elif 'Microsoft' in dmi_str or 'Azure' in dmi_str or '7783-7084-3265-9085-8269-3286-77' in dmi_str:
+        return {'provider': 'Microsoft Azure', 'region': 'Azure Global', 'arch': arch}
+    elif 'Hetzner' in dmi_str:
+        return {'provider': 'Hetzner Cloud', 'region': 'Hetzner', 'arch': arch}
     elif 'Alibaba' in dmi_str or 'Aliyun' in dmi_str:
         return {'provider': 'Alibaba Cloud (阿里云)', 'region': 'Aliyun', 'arch': arch}
     elif 'Tencent' in dmi_str:
         return {'provider': 'Tencent Cloud (腾讯云)', 'region': 'Tencent', 'arch': arch}
-    elif 'Hetzner' in dmi_str:
-        return {'provider': 'Hetzner Cloud', 'region': 'Hetzner', 'arch': arch}
     elif 'DigitalOcean' in dmi_str:
         return {'provider': 'DigitalOcean', 'region': 'DO', 'arch': arch}
 
-    # Metadata service check
+    # Metadata service check (Oracle)
     try:
         r = requests.get(METADATA_INSTANCE_URL, headers={'Authorization': 'Bearer Oracle'}, timeout=1)
         if r.status_code == 200:
             reg = r.json().get('canonicalRegionName', 'Oracle Cloud')
             return {'provider': 'Oracle Cloud', 'region': reg, 'arch': arch}
+    except Exception:
+        pass
+
+    # Metadata service check (Azure)
+    try:
+        r = requests.get('http://169.254.169.254/metadata/instance?api-version=2021-02-01', headers={'Metadata': 'true'}, timeout=1)
+        if r.status_code == 200:
+            data = r.json()
+            reg = data.get('compute', {}).get('location', 'Azure Global')
+            return {'provider': 'Microsoft Azure', 'region': reg, 'arch': arch}
+    except Exception:
+        pass
+
+    # Metadata service check (Hetzner)
+    try:
+        r = requests.get('http://169.254.169.254/hetzner/v1/metadata', timeout=1)
+        if r.status_code == 200:
+            return {'provider': 'Hetzner Cloud', 'region': 'Hetzner Global', 'arch': arch}
+    except Exception:
+        pass
+
+    # Metadata service check (AWS IMDS)
+    try:
+        r = requests.get('http://169.254.169.254/latest/meta-data/placement/availability-zone', timeout=1)
+        if r.status_code == 200:
+            return {'provider': 'AWS (Lightsail / EC2)', 'region': r.text.strip(), 'arch': arch}
     except Exception:
         pass
 
@@ -370,6 +428,9 @@ class BaseCloudProvider:
     def change_public_ip(self) -> str:
         raise NotImplementedError("Subclasses must implement change_public_ip()")
 
+    def test_connection(self) -> Tuple[bool, str]:
+        return True, f"Provider {self.get_name()} does not require credential pre-validation."
+
     def get_name(self) -> str:
         return "BaseProvider"
 
@@ -396,6 +457,21 @@ class OracleCloudProvider(BaseCloudProvider):
 
     def get_name(self) -> str:
         return "Oracle Cloud Infrastructure (OCI)"
+
+    def test_connection(self) -> Tuple[bool, str]:
+        if not HAS_OCI:
+            return False, "OCI Python SDK is not installed on this system."
+        if self.init_error:
+            return False, f"OCI Client init failed: {self.init_error}"
+        if not self.client:
+            return False, "OCI Client is not initialized."
+        try:
+            if self.vnic_id:
+                priv_ips = self.client.list_private_ips(vnic_id=self.vnic_id).data
+                return True, f"OCI API connected successfully. VNIC {self.vnic_id} verified with {len(priv_ips)} private IP(s)."
+            return True, "OCI client initialized with valid configuration."
+        except Exception as e:
+            return False, f"OCI API call failed: {e}"
 
     def _get_metadata(self, url):
         try:
@@ -465,12 +541,462 @@ class OracleCloudProvider(BaseCloudProvider):
         logger.info(f'Successfully assigned NEW Public IP: {new_pub_ip.ip_address}')
         return new_pub_ip.ip_address
 
+class LightsailCloudProvider(BaseCloudProvider):
+    def __init__(self, access_key_id: str = '', secret_access_key: str = '', region: str = 'us-east-1', instance_name: str = ''):
+        self.access_key_id = access_key_id.strip() if access_key_id else ''
+        self.secret_access_key = secret_access_key.strip() if secret_access_key else ''
+        self.region = region.strip() if region else 'us-east-1'
+        self.instance_name = instance_name.strip() if instance_name else ''
+
+    def get_name(self) -> str:
+        return f"AWS Lightsail ({self.region})"
+
+    def _call_api(self, target_action: str, payload_dict: dict) -> dict:
+        if not self.access_key_id or not self.secret_access_key:
+            raise ValueError("AWS Access Key ID and Secret Access Key must be configured.")
+        
+        region = self.region or 'us-east-1'
+        host = f"lightsail.{region}.amazonaws.com"
+        endpoint = f"https://{host}/"
+        
+        now = datetime.now(timezone.utc)
+        amz_date = now.strftime('%Y%m%dT%H%M%SZ')
+        date_stamp = now.strftime('%Y%m%d')
+        
+        body_str = json.dumps(payload_dict)
+        payload_hash = hashlib.sha256(body_str.encode('utf-8')).hexdigest()
+        
+        canonical_uri = '/'
+        canonical_querystring = ''
+        canonical_headers = (
+            f"content-type:application/x-amz-json-1.1\n"
+            f"host:{host}\n"
+            f"x-amz-date:{amz_date}\n"
+            f"x-amz-target:TrentServiceVersion20161128.{target_action}\n"
+        )
+        signed_headers = "content-type;host;x-amz-date;x-amz-target"
+        canonical_request = f"POST\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+        
+        algorithm = 'AWS4-HMAC-SHA256'
+        credential_scope = f"{date_stamp}/{region}/lightsail/aws4_request"
+        string_to_sign = f"{algorithm}\n{amz_date}\n{credential_scope}\n{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
+        
+        k_date = hmac.new(('AWS4' + self.secret_access_key).encode('utf-8'), date_stamp.encode('utf-8'), hashlib.sha256).digest()
+        k_region = hmac.new(k_date, region.encode('utf-8'), hashlib.sha256).digest()
+        k_service = hmac.new(k_region, b'lightsail', hashlib.sha256).digest()
+        k_signing = hmac.new(k_service, b'aws4_request', hashlib.sha256).digest()
+        
+        signature = hmac.new(k_signing, string_to_sign.encode('utf-8'), hashlib.sha256).hexdigest()
+        auth_header = f"{algorithm} Credential={self.access_key_id}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
+        
+        headers = {
+            'Content-Type': 'application/x-amz-json-1.1',
+            'X-Amz-Date': amz_date,
+            'X-Amz-Target': f'TrentServiceVersion20161128.{target_action}',
+            'Authorization': auth_header
+        }
+        
+        resp = requests.post(endpoint, headers=headers, data=body_str, timeout=20)
+        if resp.status_code != 200:
+            err_msg = resp.text
+            try:
+                err_json = resp.json()
+                err_msg = err_json.get('message') or err_json.get('__type', resp.text)
+            except Exception:
+                pass
+            raise RuntimeError(f"AWS Lightsail API error ({resp.status_code}): {err_msg}")
+        return resp.json()
+
+    def test_connection(self) -> Tuple[bool, str]:
+        if not self.access_key_id or not self.secret_access_key:
+            return False, "AWS Access Key ID or Secret Access Key is missing."
+        try:
+            if self.instance_name:
+                res = self._call_api('GetInstance', {'instanceName': self.instance_name})
+                inst = res.get('instance', {})
+                pub_ip = inst.get('publicIpAddress', 'unknown')
+                state = inst.get('state', {}).get('name', 'unknown')
+                return True, f"AWS Lightsail connection successful. Instance '{self.instance_name}' found (Status: {state}, Current IP: {pub_ip})."
+            else:
+                res = self._call_api('GetInstances', {})
+                instances = res.get('instances', [])
+                return True, f"AWS Lightsail connection successful in region {self.region}. Found {len(instances)} instance(s)."
+        except Exception as e:
+            return False, str(e)
+
+    def change_public_ip(self) -> str:
+        if not self.instance_name:
+            raise ValueError("AWS Lightsail instance_name is required to change public IP.")
+        
+        logger.info(f"Initiating AWS Lightsail IP replacement for instance: {self.instance_name}")
+        
+        # 1. Fetch existing static IPs attached to this instance
+        old_static_ip_names = []
+        try:
+            static_ips_res = self._call_api('GetStaticIps', {})
+            for sip in static_ips_res.get('staticIps', []):
+                if sip.get('attachedTo') == self.instance_name:
+                    old_static_ip_names.append(sip.get('name'))
+        except Exception as e:
+            logger.warning(f"Could not list existing static IPs: {e}")
+
+        # 2. Allocate new static IP
+        new_static_name = f"sentinel-{self.instance_name}-{int(time.time())}"
+        logger.info(f"Allocating new Lightsail static IP: {new_static_name}")
+        self._call_api('AllocateStaticIp', {'staticIpName': new_static_name})
+
+        # 3. Attach new static IP to instance
+        logger.info(f"Attaching {new_static_name} to instance {self.instance_name}...")
+        self._call_api('AttachStaticIp', {
+            'staticIpName': new_static_name,
+            'instanceName': self.instance_name
+        })
+
+        # 4. Release old static IP(s) to avoid unattached IP charges
+        for old_name in old_static_ip_names:
+            try:
+                logger.info(f"Releasing old static IP: {old_name}")
+                self._call_api('ReleaseStaticIp', {'staticIpName': old_name})
+            except Exception as e:
+                logger.warning(f"Failed to release old static IP {old_name}: {e}")
+
+        # 5. Query details of newly attached static IP
+        sip_detail = self._call_api('GetStaticIp', {'staticIpName': new_static_name})
+        new_ip = sip_detail.get('staticIp', {}).get('ipAddress')
+        if not new_ip:
+            inst_data = self._call_api('GetInstance', {'instanceName': self.instance_name})
+            new_ip = inst_data.get('instance', {}).get('publicIpAddress')
+            
+        logger.info(f"AWS Lightsail successfully attached NEW Public IP: {new_ip}")
+        return new_ip
+
+class HetznerCloudProvider(BaseCloudProvider):
+    def __init__(self, api_token: str = '', server_id: str = '', ip_type: str = 'primary'):
+        self.api_token = api_token.strip() if api_token else ''
+        self.server_id = str(server_id).strip() if server_id else ''
+        self.ip_type = ip_type.strip().lower() if ip_type else 'primary'
+        self.base_url = 'https://api.hetzner.cloud/v1'
+
+    def get_name(self) -> str:
+        return f"Hetzner Cloud ({self.ip_type.capitalize()} IP)"
+
+    def _headers(self) -> dict:
+        if not self.api_token:
+            raise ValueError("Hetzner API token must be configured.")
+        return {
+            'Authorization': f'Bearer {self.api_token}',
+            'Content-Type': 'application/json'
+        }
+
+    def _wait_action(self, action_id: int, timeout: int = 60):
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            r = requests.get(f"{self.base_url}/actions/{action_id}", headers=self._headers(), timeout=10)
+            if r.status_code == 200:
+                status = r.json().get('action', {}).get('status')
+                if status == 'success':
+                    return True
+                elif status == 'error':
+                    err = r.json().get('action', {}).get('error', {})
+                    raise RuntimeError(f"Hetzner action failed: {err.get('message')}")
+            time.sleep(2)
+        raise TimeoutError(f"Hetzner action {action_id} timed out after {timeout}s")
+
+    def test_connection(self) -> Tuple[bool, str]:
+        if not self.api_token:
+            return False, "Hetzner Cloud API token is missing."
+        try:
+            if self.server_id:
+                r = requests.get(f"{self.base_url}/servers/{self.server_id}", headers=self._headers(), timeout=10)
+                if r.status_code == 200:
+                    srv = r.json().get('server', {})
+                    s_name = srv.get('name', 'unknown')
+                    status = srv.get('status', 'unknown')
+                    ipv4 = srv.get('public_net', {}).get('ipv4', {}).get('ip', 'none')
+                    return True, f"Hetzner Cloud connection successful. Server '{s_name}' (ID: {self.server_id}, Status: {status}, IPv4: {ipv4}) verified."
+                return False, f"Hetzner API error ({r.status_code}): {r.text}"
+            else:
+                r = requests.get(f"{self.base_url}/servers", headers=self._headers(), timeout=10)
+                if r.status_code == 200:
+                    count = len(r.json().get('servers', []))
+                    return True, f"Hetzner Cloud connection successful. Found {count} server(s)."
+                return False, f"Hetzner API error ({r.status_code}): {r.text}"
+        except Exception as e:
+            return False, str(e)
+
+    def change_public_ip(self) -> str:
+        if not self.server_id:
+            raise ValueError("Hetzner server_id is required to change public IP.")
+        
+        logger.info(f"Initiating Hetzner Cloud IP replacement for server: {self.server_id} (mode: {self.ip_type})")
+        
+        # 1. Fetch server information
+        r = requests.get(f"{self.base_url}/servers/{self.server_id}", headers=self._headers(), timeout=15)
+        if r.status_code != 200:
+            raise RuntimeError(f"Failed to fetch Hetzner server {self.server_id}: {r.text}")
+        srv = r.json().get('server', {})
+        datacenter = srv.get('datacenter', {}).get('name')
+        location = srv.get('datacenter', {}).get('location', {}).get('name')
+        is_running = srv.get('status') == 'running'
+        
+        if self.ip_type == 'floating':
+            # Floating IP workflow
+            logger.info(f"Creating Hetzner Floating IP in location {location}...")
+            post_data = {
+                'type': 'ipv4',
+                'home_location': location,
+                'server': int(self.server_id),
+                'description': f"sentinel-{int(time.time())}"
+            }
+            r_flip = requests.post(f"{self.base_url}/floating_ips", headers=self._headers(), json=post_data, timeout=15)
+            if r_flip.status_code not in (200, 201):
+                raise RuntimeError(f"Failed to create Hetzner Floating IP: {r_flip.text}")
+            flip_data = r_flip.json().get('floating_ip', {})
+            new_ip = flip_data.get('ip')
+            logger.info(f"Successfully assigned Hetzner Floating IP: {new_ip}")
+            return new_ip
+        else:
+            # Primary IP workflow
+            old_pip_id = srv.get('public_net', {}).get('primary_ipv4')
+            if not old_pip_id:
+                for pip in srv.get('primary_ips', []):
+                    if pip.get('type') == 'ipv4':
+                        old_pip_id = pip.get('id')
+                        break
+
+            # Create new Primary IP
+            new_pip_name = f"sentinel-pip-{int(time.time())}"
+            logger.info(f"Creating new Hetzner Primary IP '{new_pip_name}' in datacenter {datacenter}...")
+            create_payload = {
+                'type': 'ipv4',
+                'name': new_pip_name,
+                'datacenter': datacenter,
+                'auto_delete': False
+            }
+            r_pip = requests.post(f"{self.base_url}/primary_ips", headers=self._headers(), json=create_payload, timeout=15)
+            if r_pip.status_code not in (200, 201):
+                raise RuntimeError(f"Failed to create Hetzner Primary IP: {r_pip.text}")
+            new_pip_info = r_pip.json().get('primary_ip', {})
+            new_pip_id = new_pip_info.get('id')
+            new_ip_addr = new_pip_info.get('ip')
+
+            # Hetzner requires server to be off to unassign/assign primary IP
+            if is_running:
+                logger.info(f"Shutting down Hetzner server {self.server_id} to perform Primary IP reassignment...")
+                r_off = requests.post(f"{self.base_url}/servers/{self.server_id}/actions/poweroff", headers=self._headers(), timeout=15)
+                if r_off.status_code in (200, 201):
+                    act_id = r_off.json().get('action', {}).get('id')
+                    if act_id:
+                        self._wait_action(act_id, timeout=30)
+                for _ in range(15):
+                    time.sleep(2)
+                    chk = requests.get(f"{self.base_url}/servers/{self.server_id}", headers=self._headers(), timeout=10).json()
+                    if chk.get('server', {}).get('status') == 'off':
+                        break
+
+            # Unassign old primary IP if existed
+            if old_pip_id:
+                try:
+                    logger.info(f"Unassigning old Primary IP {old_pip_id}...")
+                    r_un = requests.post(f"{self.base_url}/primary_ips/{old_pip_id}/actions/unassign", headers=self._headers(), timeout=15)
+                    if r_un.status_code in (200, 201):
+                        act_id = r_un.json().get('action', {}).get('id')
+                        if act_id:
+                            self._wait_action(act_id, timeout=30)
+                except Exception as e:
+                    logger.warning(f"Notice unassigning old Primary IP: {e}")
+
+            # Assign new primary IP
+            logger.info(f"Assigning new Primary IP {new_pip_id} to server {self.server_id}...")
+            r_as = requests.post(f"{self.base_url}/primary_ips/{new_pip_id}/actions/assign", headers=self._headers(), json={'server': int(self.server_id)}, timeout=15)
+            if r_as.status_code in (200, 201):
+                act_id = r_as.json().get('action', {}).get('id')
+                if act_id:
+                    self._wait_action(act_id, timeout=30)
+
+            # Power server back on
+            logger.info(f"Powering server {self.server_id} back on...")
+            try:
+                requests.post(f"{self.base_url}/servers/{self.server_id}/actions/poweron", headers=self._headers(), timeout=15)
+            except Exception as e:
+                logger.warning(f"Notice powering on server: {e}")
+
+            # Delete old primary IP
+            if old_pip_id:
+                try:
+                    logger.info(f"Deleting old Primary IP {old_pip_id}...")
+                    requests.delete(f"{self.base_url}/primary_ips/{old_pip_id}", headers=self._headers(), timeout=10)
+                except Exception as e:
+                    logger.warning(f"Notice deleting old Primary IP {old_pip_id}: {e}")
+
+            logger.info(f"Hetzner Cloud successfully assigned NEW Primary IP: {new_ip_addr}")
+            return new_ip_addr
+
+class AzureCloudProvider(BaseCloudProvider):
+    def __init__(
+        self,
+        subscription_id: str = '',
+        resource_group: str = '',
+        vm_name: str = '',
+        nic_name: str = '',
+        client_id: str = '',
+        client_secret: str = '',
+        tenant_id: str = ''
+    ):
+        self.subscription_id = subscription_id.strip() if subscription_id else ''
+        self.resource_group = resource_group.strip() if resource_group else ''
+        self.vm_name = vm_name.strip() if vm_name else ''
+        self.nic_name = nic_name.strip() if nic_name else ''
+        self.client_id = client_id.strip() if client_id else ''
+        self.client_secret = client_secret.strip() if client_secret else ''
+        self.tenant_id = tenant_id.strip() if tenant_id else ''
+        self.api_version = '2023-09-01'
+
+    def get_name(self) -> str:
+        return "Microsoft Azure"
+
+    def _get_access_token(self) -> str:
+        if not self.tenant_id or not self.client_id or not self.client_secret:
+            raise ValueError("Azure tenant_id, client_id, and client_secret are required.")
+        token_url = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
+        data = {
+            'grant_type': 'client_credentials',
+            'client_id': self.client_id,
+            'client_secret': self.client_secret,
+            'scope': 'https://management.azure.com/.default'
+        }
+        r = requests.post(token_url, data=data, timeout=15)
+        if r.status_code != 200:
+            raise RuntimeError(f"Azure token acquisition failed ({r.status_code}): {r.text}")
+        return r.json().get('access_token', '')
+
+    def _headers(self, token: str) -> dict:
+        return {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+
+    def _discover_nic_if_needed(self, token: str):
+        if self.nic_name:
+            return self.nic_name
+        if not self.vm_name:
+            raise ValueError("Either Azure nic_name or vm_name must be specified.")
+        url = f"https://management.azure.com/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}/providers/Microsoft.Compute/virtualMachines/{self.vm_name}?api-version=2023-09-01"
+        r = requests.get(url, headers=self._headers(token), timeout=15)
+        if r.status_code != 200:
+            raise RuntimeError(f"Failed to query Azure VM {self.vm_name}: {r.text}")
+        nics = r.json().get('properties', {}).get('networkProfile', {}).get('networkInterfaces', [])
+        if not nics:
+            raise ValueError(f"No network interfaces found on Azure VM {self.vm_name}")
+        nic_id = nics[0].get('id', '')
+        self.nic_name = nic_id.split('/')[-1]
+        return self.nic_name
+
+    def test_connection(self) -> Tuple[bool, str]:
+        if not self.subscription_id or not self.resource_group:
+            return False, "Azure subscription_id and resource_group are required."
+        try:
+            token = self._get_access_token()
+            nic = self._discover_nic_if_needed(token)
+            url = f"https://management.azure.com/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}/providers/Microsoft.Network/networkInterfaces/{nic}?api-version={self.api_version}"
+            r = requests.get(url, headers=self._headers(token), timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                loc = data.get('location', 'unknown')
+                ip_configs = data.get('properties', {}).get('ipConfigurations', [])
+                current_pip = 'None'
+                if ip_configs:
+                    current_pip = ip_configs[0].get('properties', {}).get('publicIPAddress', {}).get('id', 'None').split('/')[-1]
+                return True, f"Azure connection successful. NIC '{nic}' found in {loc} (RG: {self.resource_group}, PublicIP: {current_pip})."
+            return False, f"Azure API error ({r.status_code}): {r.text}"
+        except Exception as e:
+            return False, str(e)
+
+    def change_public_ip(self) -> str:
+        if not self.subscription_id or not self.resource_group:
+            raise ValueError("Azure subscription_id and resource_group are required.")
+
+        token = self._get_access_token()
+        nic = self._discover_nic_if_needed(token)
+        headers = self._headers(token)
+
+        logger.info(f"Initiating Azure Public IP replacement for NIC: {nic} in RG: {self.resource_group}")
+
+        # 1. Fetch current NIC configuration
+        nic_url = f"https://management.azure.com/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}/providers/Microsoft.Network/networkInterfaces/{nic}?api-version={self.api_version}"
+        r = requests.get(nic_url, headers=headers, timeout=15)
+        if r.status_code != 200:
+            raise RuntimeError(f"Failed to fetch Azure NIC {nic}: {r.text}")
+        nic_data = r.json()
+        location = nic_data.get('location')
+        ip_configs = nic_data.get('properties', {}).get('ipConfigurations', [])
+        if not ip_configs:
+            raise ValueError(f"NIC {nic} has no IP configurations.")
+
+        primary_ip_config = ip_configs[0]
+        old_pip = primary_ip_config.get('properties', {}).get('publicIPAddress', {})
+        old_pip_id = old_pip.get('id') if old_pip else None
+
+        # 2. Create new Public IP resource
+        new_pip_name = f"sentinel-pip-{int(time.time())}"
+        new_pip_url = f"https://management.azure.com/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}/providers/Microsoft.Network/publicIPAddresses/{new_pip_name}?api-version={self.api_version}"
+        pip_body = {
+            'location': location,
+            'sku': {'name': 'Standard'},
+            'properties': {
+                'publicIPAllocationMethod': 'Static'
+            }
+        }
+        logger.info(f"Creating new Azure Public IP: {new_pip_name} in {location}...")
+        r_pip = requests.put(new_pip_url, headers=headers, json=pip_body, timeout=30)
+        if r_pip.status_code not in (200, 201):
+            raise RuntimeError(f"Failed to create Azure Public IP: {r_pip.text}")
+        new_pip_data = r_pip.json()
+        new_pip_id = new_pip_data.get('id')
+
+        # 3. Attach new Public IP to NIC
+        primary_ip_config['properties']['publicIPAddress'] = {'id': new_pip_id}
+        logger.info(f"Updating Azure NIC {nic} to attach new Public IP {new_pip_name}...")
+        r_nic_up = requests.put(nic_url, headers=headers, json=nic_data, timeout=30)
+        if r_nic_up.status_code not in (200, 201, 202):
+            raise RuntimeError(f"Failed to update Azure NIC: {r_nic_up.text}")
+
+        # Poll until new IP is available
+        new_ip = None
+        for _ in range(15):
+            time.sleep(2)
+            chk_pip = requests.get(new_pip_url, headers=headers, timeout=10)
+            if chk_pip.status_code == 200:
+                new_ip = chk_pip.json().get('properties', {}).get('ipAddress')
+                if new_ip:
+                    break
+
+        if not new_ip:
+            new_ip = SystemMonitor().get_public_ip()
+
+        # 4. Clean up old Public IP if existed
+        if old_pip_id:
+            try:
+                logger.info(f"Deleting old Azure Public IP: {old_pip_id}")
+                del_url = f"https://management.azure.com{old_pip_id}?api-version={self.api_version}"
+                requests.delete(del_url, headers=headers, timeout=15)
+            except Exception as e:
+                logger.warning(f"Notice deleting old Azure Public IP: {e}")
+
+        logger.info(f"Azure successfully assigned NEW Public IP: {new_ip}")
+        return new_ip
+
 class CustomHookProvider(BaseCloudProvider):
     def __init__(self, hook_cmd):
         self.hook_cmd = hook_cmd
 
     def get_name(self) -> str:
         return "Custom Script / Hook"
+
+    def test_connection(self) -> Tuple[bool, str]:
+        if not self.hook_cmd:
+            return False, "Hook command is not configured"
+        return True, f"Custom hook script configured: {self.hook_cmd}"
 
     def change_public_ip(self) -> str:
         if not self.hook_cmd:
@@ -485,6 +1011,9 @@ class CustomHookProvider(BaseCloudProvider):
 class GenericProvider(BaseCloudProvider):
     def get_name(self) -> str:
         return "Generic VPS (Monitoring & Alert Only)"
+
+    def test_connection(self) -> Tuple[bool, str]:
+        return True, "Generic VPS mode (WARP renewal only, automatic cloud re-IP not supported)"
 
     def change_public_ip(self) -> str:
         logger.info("Generic VPS detected: Automatic IP swap not supported by cloud provider.")
@@ -501,9 +1030,36 @@ def get_cloud_provider(cfg):
     """
     p_type = cfg.get('provider', {}).get('type', 'auto')
     cloud_info = get_cloud_info()
+    provider_name = cloud_info.get('provider', '')
 
-    if p_type == 'oracle' or (p_type == 'auto' and 'Oracle' in cloud_info['provider']):
+    if p_type == 'oracle' or (p_type == 'auto' and 'Oracle' in provider_name):
         return OracleCloudProvider(cfg.get('oci', {}).get('config_path'))
+    elif p_type == 'lightsail' or (p_type == 'auto' and 'AWS' in provider_name):
+        ls_cfg = cfg.get('lightsail', {})
+        return LightsailCloudProvider(
+            access_key_id=ls_cfg.get('access_key_id', ''),
+            secret_access_key=ls_cfg.get('secret_access_key', ''),
+            region=ls_cfg.get('region', 'us-east-1'),
+            instance_name=ls_cfg.get('instance_name', '')
+        )
+    elif p_type == 'hetzner' or (p_type == 'auto' and 'Hetzner' in provider_name):
+        hz_cfg = cfg.get('hetzner', {})
+        return HetznerCloudProvider(
+            api_token=hz_cfg.get('api_token', ''),
+            server_id=hz_cfg.get('server_id', ''),
+            ip_type=hz_cfg.get('ip_type', 'primary')
+        )
+    elif p_type == 'azure' or (p_type == 'auto' and 'Azure' in provider_name):
+        az_cfg = cfg.get('azure', {})
+        return AzureCloudProvider(
+            subscription_id=az_cfg.get('subscription_id', ''),
+            resource_group=az_cfg.get('resource_group', ''),
+            vm_name=az_cfg.get('vm_name', ''),
+            nic_name=az_cfg.get('nic_name', ''),
+            client_id=az_cfg.get('client_id', ''),
+            client_secret=az_cfg.get('client_secret', ''),
+            tenant_id=az_cfg.get('tenant_id', '')
+        )
     elif p_type == 'hook':
         return CustomHookProvider(cfg.get('provider', {}).get('hook_cmd', ''))
     else:

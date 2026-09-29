@@ -1393,12 +1393,108 @@
           <select id="cfg-provider-type" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200" onchange="onProviderTypeChange()">
             <option value="auto">智能自动探测 (Auto)</option>
             <option value="oracle">Oracle Cloud (OCI API 换 IP)</option>
+            <option value="lightsail">AWS Lightsail (静态 IP 轮换)</option>
+            <option value="hetzner">Hetzner Cloud (Primary / Floating IP)</option>
+            <option value="azure">Microsoft Azure (公网 IP 动态重建)</option>
             <option value="hook">自定义脚本 / Hook 命令</option>
             <option value="generic">通用 VPS (监控告警与多协议订阅)</option>
           </select>
-          <div id="hook-cmd-container" class="mt-2 hidden">
-            <label class="block text-zinc-400 mb-1">自定义 Hook 换 IP 命令</label>
+          <div id="hook-cmd-container" class="mt-2 hidden space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="block text-zinc-400">自定义 Hook 换 IP 命令</label>
+              <button class="btn-neutral text-[10px] py-0.5" id="cfg-hook-test-btn" onclick="testProviderApi('cfg-hook')">测试脚本</button>
+            </div>
             <input type="text" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono" id="cfg-provider-hook" placeholder="/usr/local/bin/change_ip.sh">
+            <div id="cfg-hook-test-msg" class="hidden"></div>
+          </div>
+          <!-- Settings Modal Lightsail Container -->
+          <div id="cfg-lightsail-container" class="mt-2.5 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800 space-y-2.5 hidden">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-zinc-300">AWS Lightsail API 凭据</span>
+              <button class="btn-neutral text-[10px] py-0.5" id="cfg-lightsail-test-btn" onclick="testProviderApi('cfg-lightsail')">测试 API 联通性</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">AWS 区域</label>
+                <input type="text" id="cfg-ls-region" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="us-east-1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">实例名称</label>
+                <input type="text" id="cfg-ls-instance" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="Ubuntu-1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">Access Key ID</label>
+                <input type="password" id="cfg-ls-ak" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="留空保持不变">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">Secret Access Key</label>
+                <input type="password" id="cfg-ls-sk" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="留空保持不变">
+              </div>
+            </div>
+            <div id="cfg-lightsail-test-msg" class="hidden"></div>
+          </div>
+          <!-- Settings Modal Hetzner Container -->
+          <div id="cfg-hetzner-container" class="mt-2.5 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800 space-y-2.5 hidden">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-zinc-300">Hetzner Cloud API 凭据</span>
+              <button class="btn-neutral text-[10px] py-0.5" id="cfg-hetzner-test-btn" onclick="testProviderApi('cfg-hetzner')">测试 API 联通性</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="col-span-2">
+                <label class="block text-[11px] text-zinc-400 mb-1">API Token</label>
+                <input type="password" id="cfg-hz-token" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="留空保持不变">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">服务器 ID</label>
+                <input type="text" id="cfg-hz-server-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="12345678">
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] text-zinc-400 mb-1">IP 模式</label>
+              <select id="cfg-hz-ip-type" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 text-xs">
+                <option value="primary">Primary IP (主网卡 IP，关机置换后重新开机)</option>
+                <option value="floating">Floating IP (弹性浮动 IP，零停机解绑挂载)</option>
+              </select>
+            </div>
+            <div id="cfg-hetzner-test-msg" class="hidden"></div>
+          </div>
+          <!-- Settings Modal Azure Container -->
+          <div id="cfg-azure-container" class="mt-2.5 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800 space-y-2.5 hidden">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-zinc-300">Microsoft Azure ARM 凭据</span>
+              <button class="btn-neutral text-[10px] py-0.5" id="cfg-azure-test-btn" onclick="testProviderApi('cfg-azure')">测试 API 联通性</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">订阅 ID</label>
+                <input type="text" id="cfg-az-sub-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="Subscription ID">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">资源组</label>
+                <input type="text" id="cfg-az-rg" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="Resource Group">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">虚拟机名称</label>
+                <input type="text" id="cfg-az-vm" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="VM Name">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">网卡名称 (可选)</label>
+                <input type="text" id="cfg-az-nic" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="留空自动探测">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">租户 ID (Tenant ID)</label>
+                <input type="text" id="cfg-az-tenant-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="Tenant ID">
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">客户端 ID (Client ID)</label>
+                <input type="text" id="cfg-az-client-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="留空保持不变">
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] text-zinc-400 mb-1">客户端密钥 (Client Secret)</label>
+              <input type="password" id="cfg-az-client-secret" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1 text-zinc-200 font-mono text-xs" placeholder="留空保持不变">
+            </div>
+            <div id="cfg-azure-test-msg" class="hidden"></div>
           </div>
         </div>
 
@@ -1740,13 +1836,46 @@
               </label>
 
               <label class="flex items-start gap-3 p-3.5 rounded-lg bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all">
+                <input type="radio" name="wiz-mode" value="lightsail" class="mt-0.5 text-blue-600 bg-zinc-900 border-zinc-700" onchange="onWizModeChange()">
+                <div class="space-y-1">
+                  <div class="font-medium text-white flex items-center gap-2">
+                    <span>AWS Lightsail 涅槃自愈</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">Lightsail 静态 IP 轮换</span>
+                  </div>
+                  <p class="text-zinc-400 text-[11px] leading-relaxed">遭遇阻断后，通过 Lightsail API 自动分配新静态 IP 并挂载至实例，平滑释放旧 IP 并同步更新 Cloudflare。</p>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-3 p-3.5 rounded-lg bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all">
+                <input type="radio" name="wiz-mode" value="hetzner" class="mt-0.5 text-blue-600 bg-zinc-900 border-zinc-700" onchange="onWizModeChange()">
+                <div class="space-y-1">
+                  <div class="font-medium text-white flex items-center gap-2">
+                    <span>Hetzner Cloud 涅槃自愈</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-red-500/10 text-red-400 border border-red-500/20">Primary / Floating IP</span>
+                  </div>
+                  <p class="text-zinc-400 text-[11px] leading-relaxed">支持 Hetzner 官方 Primary IPv4 自动优雅置换或 Floating 弹性 IP 动态解绑绑定，快速逃逸封锁。</p>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-3 p-3.5 rounded-lg bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all">
+                <input type="radio" name="wiz-mode" value="azure" class="mt-0.5 text-blue-600 bg-zinc-900 border-zinc-700" onchange="onWizModeChange()">
+                <div class="space-y-1">
+                  <div class="font-medium text-white flex items-center gap-2">
+                    <span>Microsoft Azure 动态自愈</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">Azure ARM 网卡重绑</span>
+                  </div>
+                  <p class="text-zinc-400 text-[11px] leading-relaxed">通过 Azure Resource Manager API 动态生成新 Public IP 并挂载至网卡，彻底解决 Azure IP 被阻断难题。</p>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-3 p-3.5 rounded-lg bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all">
                 <input type="radio" name="wiz-mode" value="generic" checked class="mt-0.5 text-blue-600 bg-zinc-900 border-zinc-700" onchange="onWizModeChange()">
                 <div class="space-y-1">
                   <div class="font-medium text-white flex items-center gap-2">
                     <span>通用 VPS 模式 (Generic VPS)</span>
                     <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">推荐广大普通 VPS</span>
                   </div>
-                  <p class="text-zinc-400 text-[11px] leading-relaxed">适用于搬瓦工、RackNerd、Hetzner、AWS、阿里云、腾讯云等。免去任何 API 凭据，开启国内高频探针巡检、多渠道阻断告警与多协议订阅聚合。</p>
+                  <p class="text-zinc-400 text-[11px] leading-relaxed">适用于搬瓦工、RackNerd、阿里云、腾讯云等。免去任何 API 凭据，开启国内高频探针巡检、多渠道阻断告警与多协议订阅聚合。</p>
                 </div>
               </label>
 
@@ -1778,10 +1907,106 @@
               </div>
             </div>
 
+            <!-- AWS Lightsail Extra Section -->
+            <div id="wiz-lightsail-fields" class="p-3.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-3 hidden text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-zinc-300">AWS Lightsail API 凭据配置</span>
+                <button class="btn-neutral text-[11px] py-1" id="wiz-lightsail-test-btn" onclick="testProviderApi('wiz-lightsail')">测试 API 联通性</button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">AWS 区域 (Region)</label>
+                  <input type="text" id="wiz-ls-region" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="us-east-1" value="us-east-1">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">Lightsail 实例名称 (Instance Name)</label>
+                  <input type="text" id="wiz-ls-instance" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="Ubuntu-1">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">AWS Access Key ID</label>
+                  <input type="password" id="wiz-ls-ak" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="AKIA...">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">AWS Secret Access Key</label>
+                  <input type="password" id="wiz-ls-sk" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="Secret Key">
+                </div>
+              </div>
+              <div id="wiz-lightsail-test-msg" class="hidden"></div>
+            </div>
+
+            <!-- Hetzner Cloud Extra Section -->
+            <div id="wiz-hetzner-fields" class="p-3.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-3 hidden text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-zinc-300">Hetzner Cloud API 凭据配置</span>
+                <button class="btn-neutral text-[11px] py-1" id="wiz-hetzner-test-btn" onclick="testProviderApi('wiz-hetzner')">测试 API 联通性</button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div class="sm:col-span-2">
+                  <label class="block text-[11px] text-zinc-400 mb-1">Hetzner API Token (具备 Read & Write 权限)</label>
+                  <input type="password" id="wiz-hz-token" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="输入 Hetzner API Token">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">服务器 ID (Server ID)</label>
+                  <input type="text" id="wiz-hz-server-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="例如: 12345678">
+                </div>
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">IP 模式</label>
+                <select id="wiz-hz-ip-type" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200">
+                  <option value="primary">Primary IP (主网卡 IP，自动优雅关机换 IP 后重新开机)</option>
+                  <option value="floating">Floating IP (弹性浮动 IP，零停机动态解挂重绑)</option>
+                </select>
+              </div>
+              <div id="wiz-hetzner-test-msg" class="hidden"></div>
+            </div>
+
+            <!-- Microsoft Azure Extra Section -->
+            <div id="wiz-azure-fields" class="p-3.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-3 hidden text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-zinc-300">Microsoft Azure ARM 凭据配置</span>
+                <button class="btn-neutral text-[11px] py-1" id="wiz-azure-test-btn" onclick="testProviderApi('wiz-azure')">测试 API 联通性</button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">订阅 ID (Subscription ID)</label>
+                  <input type="text" id="wiz-az-sub-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">资源组 (Resource Group)</label>
+                  <input type="text" id="wiz-az-rg" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="myResourceGroup">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">虚拟机名称 (VM Name)</label>
+                  <input type="text" id="wiz-az-vm" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="myVM">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">网卡名称 (NIC Name, 可选自动探测)</label>
+                  <input type="text" id="wiz-az-nic" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="myVMVMNic">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">目录 / 租户 ID (Tenant ID)</label>
+                  <input type="text" id="wiz-az-tenant-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-zinc-400 mb-1">应用 / 客户端 ID (Client ID)</label>
+                  <input type="text" id="wiz-az-client-id" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                </div>
+              </div>
+              <div>
+                <label class="block text-[11px] text-zinc-400 mb-1">客户端密钥 (Client Secret)</label>
+                <input type="password" id="wiz-az-client-secret" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 font-mono" placeholder="输入 Azure App Registration Client Secret">
+              </div>
+              <div id="wiz-azure-test-msg" class="hidden"></div>
+            </div>
+
             <!-- Hook Extra Section -->
             <div id="wiz-hook-fields" class="p-3.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-2 hidden text-xs">
-              <label class="block text-zinc-300 font-medium">触发换 IP 的脚本路径或 Shell 命令</label>
+              <div class="flex items-center justify-between">
+                <label class="block text-zinc-300 font-medium">触发换 IP 的脚本路径或 Shell 命令</label>
+                <button class="btn-neutral text-[11px] py-1" id="wiz-hook-test-btn" onclick="testProviderApi('wiz-hook')">测试配置有效性</button>
+              </div>
               <input type="text" id="wiz-hook-cmd" class="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-zinc-200 font-mono text-xs" placeholder="/usr/local/bin/change_ip.sh">
+              <div id="wiz-hook-test-msg" class="hidden"></div>
             </div>
           </div>
 
@@ -2638,7 +2863,7 @@
         if (res.ok) {
           closeAddCustomNodeModal();
           loadCustomNodes();
-          alert('🎉 独立节点添加成功！所有订阅链接已自动聚合该节点。');
+          alert('独立节点添加成功！所有订阅链接已自动聚合该节点。');
         } else {
           alert('添加失败: ' + (data.detail || '格式错误'));
         }
@@ -2666,10 +2891,77 @@
     function onProviderTypeChange() {
       const type = document.getElementById('cfg-provider-type').value;
       const hookContainer = document.getElementById('hook-cmd-container');
-      if (type === 'hook') {
-        hookContainer.classList.remove('hidden');
-      } else {
-        hookContainer.classList.add('hidden');
+      const lsContainer = document.getElementById('cfg-lightsail-container');
+      const hzContainer = document.getElementById('cfg-hetzner-container');
+      const azContainer = document.getElementById('cfg-azure-container');
+      
+      if (hookContainer) hookContainer.classList.toggle('hidden', type !== 'hook');
+      if (lsContainer) lsContainer.classList.toggle('hidden', type !== 'lightsail');
+      if (hzContainer) hzContainer.classList.toggle('hidden', type !== 'hetzner');
+      if (azContainer) azContainer.classList.toggle('hidden', type !== 'azure');
+    }
+
+    async function testProviderApi(context) {
+      const isWiz = context.startsWith('wiz-');
+      const prefix = isWiz ? 'wiz-' : 'cfg-';
+      const provider = context.replace('wiz-', '').replace('cfg-', '');
+      const msgEl = document.getElementById(`${context}-test-msg`);
+      const btnEl = document.getElementById(`${context}-test-btn`);
+      
+      if (btnEl) { btnEl.disabled = true; btnEl.innerText = '正在测试...'; }
+      if (msgEl) { msgEl.className = 'text-[11px] text-zinc-400 mt-1.5 break-all'; msgEl.classList.remove('hidden'); msgEl.innerText = '正在向云厂商发起 API 联通性测试...'; }
+
+      let payload = { provider_type: provider };
+      if (provider === 'lightsail') {
+        payload.lightsail = {
+          region: document.getElementById(`${prefix}ls-region`)?.value?.trim() || 'us-east-1',
+          instance_name: document.getElementById(`${prefix}ls-instance`)?.value?.trim() || '',
+          access_key_id: document.getElementById(`${prefix}ls-ak`)?.value?.trim() || '',
+          secret_access_key: document.getElementById(`${prefix}ls-sk`)?.value?.trim() || ''
+        };
+      } else if (provider === 'hetzner') {
+        payload.hetzner = {
+          api_token: document.getElementById(`${prefix}hz-token`)?.value?.trim() || '',
+          server_id: document.getElementById(`${prefix}hz-server-id`)?.value?.trim() || '',
+          ip_type: document.getElementById(`${prefix}hz-ip-type`)?.value || 'primary'
+        };
+      } else if (provider === 'azure') {
+        payload.azure = {
+          subscription_id: document.getElementById(`${prefix}az-sub-id`)?.value?.trim() || '',
+          resource_group: document.getElementById(`${prefix}az-rg`)?.value?.trim() || '',
+          vm_name: document.getElementById(`${prefix}az-vm`)?.value?.trim() || '',
+          nic_name: document.getElementById(`${prefix}az-nic`)?.value?.trim() || '',
+          tenant_id: document.getElementById(`${prefix}az-tenant-id`)?.value?.trim() || '',
+          client_id: document.getElementById(`${prefix}az-client-id`)?.value?.trim() || '',
+          client_secret: document.getElementById(`${prefix}az-client-secret`)?.value?.trim() || ''
+        };
+      } else if (provider === 'hook') {
+        payload.provider_hook = document.getElementById(`${prefix}hook-cmd`)?.value?.trim() || '';
+      }
+
+      try {
+        const res = await fetch('/api/provider/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (msgEl) {
+          if (data.success) {
+            msgEl.className = 'text-[11px] text-emerald-400 mt-1.5 break-all';
+            msgEl.innerText = '[成功] ' + data.message;
+          } else {
+            msgEl.className = 'text-[11px] text-rose-400 mt-1.5 break-all';
+            msgEl.innerText = '[失败] ' + data.message;
+          }
+        }
+      } catch (err) {
+        if (msgEl) {
+          msgEl.className = 'text-[11px] text-rose-400 mt-1.5 break-all';
+          msgEl.innerText = '[异常] 请求失败: ' + err.message;
+        }
+      } finally {
+        if (btnEl) { btnEl.disabled = false; btnEl.innerText = '测试 API 联通性'; }
       }
     }
 
@@ -2708,7 +3000,7 @@
         let summary = '测试结果汇总：\n';
         if (data.results && data.results.length > 0) {
           data.results.forEach(([channel, ok, msg]) => {
-            summary += `• ${channel}: ${ok ? '发送成功 ✅' : '发送失败 ❌ (' + msg + ')'}\n`;
+            summary += `• ${channel}: ${ok ? '发送成功 [OK]' : '发送失败 [FAIL] (' + msg + ')'}\n`;
           });
         } else {
           summary += '未勾选任何已启用且填写凭据的通知渠道。';
@@ -2734,13 +3026,51 @@
           const p = data.provider || { type: 'auto', hook_cmd: '' };
           document.getElementById('cfg-provider-type').value = p.type || 'auto';
           document.getElementById('cfg-provider-hook').value = p.hook_cmd || '';
+
+          // Lightsail
+          const ls = data.lightsail || {};
+          const lsRegEl = document.getElementById('cfg-ls-region');
+          if (lsRegEl) lsRegEl.value = ls.region || 'us-east-1';
+          const lsInstEl = document.getElementById('cfg-ls-instance');
+          if (lsInstEl) lsInstEl.value = ls.instance_name || '';
+          const lsAkEl = document.getElementById('cfg-ls-ak');
+          if (lsAkEl) lsAkEl.value = ls.access_key_id || '';
+          const lsSkEl = document.getElementById('cfg-ls-sk');
+          if (lsSkEl) lsSkEl.value = ls.has_secret ? '******' : '';
+
+          // Hetzner
+          const hz = data.hetzner || {};
+          const hzTokEl = document.getElementById('cfg-hz-token');
+          if (hzTokEl) hzTokEl.value = hz.has_token ? '******' : '';
+          const hzSidEl = document.getElementById('cfg-hz-server-id');
+          if (hzSidEl) hzSidEl.value = hz.server_id || '';
+          const hzIpTypeEl = document.getElementById('cfg-hz-ip-type');
+          if (hzIpTypeEl) hzIpTypeEl.value = hz.ip_type || 'primary';
+
+          // Azure
+          const az = data.azure || {};
+          const azSubEl = document.getElementById('cfg-az-sub-id');
+          if (azSubEl) azSubEl.value = az.subscription_id || '';
+          const azRgEl = document.getElementById('cfg-az-rg');
+          if (azRgEl) azRgEl.value = az.resource_group || '';
+          const azVmEl = document.getElementById('cfg-az-vm');
+          if (azVmEl) azVmEl.value = az.vm_name || '';
+          const azNicEl = document.getElementById('cfg-az-nic');
+          if (azNicEl) azNicEl.value = az.nic_name || '';
+          const azTidEl = document.getElementById('cfg-az-tenant-id');
+          if (azTidEl) azTidEl.value = az.tenant_id || '';
+          const azCidEl = document.getElementById('cfg-az-client-id');
+          if (azCidEl) azCidEl.value = az.client_id || '';
+          const azCsecEl = document.getElementById('cfg-az-client-secret');
+          if (azCsecEl) azCsecEl.value = az.has_secret ? '******' : '';
+
           onProviderTypeChange();
 
           // Cloudflare
           document.getElementById('cfg-cf-token').value = '';
-          document.getElementById('cfg-cf-zone').value = data.cloudflare.zone_name;
-          document.getElementById('cfg-cf-record').value = data.cloudflare.record_name;
-          document.getElementById('cfg-auto-heal').checked = data.monitor.auto_heal_enabled;
+          document.getElementById('cfg-cf-zone').value = data.cloudflare?.zone_name || '';
+          document.getElementById('cfg-cf-record').value = data.cloudflare?.record_name || '';
+          document.getElementById('cfg-auto-heal').checked = !!data.monitor?.auto_heal_enabled;
 
           // Notifications
           const n = data.notifications || {};
@@ -2790,6 +3120,27 @@
       const provider_type = document.getElementById('cfg-provider-type').value;
       const provider_hook = document.getElementById('cfg-provider-hook').value.trim();
 
+      const lightsail = {
+        region: document.getElementById('cfg-ls-region')?.value?.trim() || 'us-east-1',
+        instance_name: document.getElementById('cfg-ls-instance')?.value?.trim() || '',
+        access_key_id: document.getElementById('cfg-ls-ak')?.value?.trim() || '',
+        secret_access_key: document.getElementById('cfg-ls-sk')?.value?.trim() || ''
+      };
+      const hetzner = {
+        api_token: document.getElementById('cfg-hz-token')?.value?.trim() || '',
+        server_id: document.getElementById('cfg-hz-server-id')?.value?.trim() || '',
+        ip_type: document.getElementById('cfg-hz-ip-type')?.value || 'primary'
+      };
+      const azure = {
+        subscription_id: document.getElementById('cfg-az-sub-id')?.value?.trim() || '',
+        resource_group: document.getElementById('cfg-az-rg')?.value?.trim() || '',
+        vm_name: document.getElementById('cfg-az-vm')?.value?.trim() || '',
+        nic_name: document.getElementById('cfg-az-nic')?.value?.trim() || '',
+        tenant_id: document.getElementById('cfg-az-tenant-id')?.value?.trim() || '',
+        client_id: document.getElementById('cfg-az-client-id')?.value?.trim() || '',
+        client_secret: document.getElementById('cfg-az-client-secret')?.value?.trim() || ''
+      };
+
       const notifications_enabled = document.getElementById('cfg-notify-enabled').checked;
       const tg_enabled = document.getElementById('cfg-tg-enabled').checked;
       const tg_token = document.getElementById('cfg-tg-token').value.trim();
@@ -2809,6 +3160,7 @@
       const payload = {
         cf_token, cf_zone, cf_record, auto_heal,
         provider_type, provider_hook,
+        lightsail, hetzner, azure,
         notifications_enabled,
         tg_enabled, tg_token, tg_chat_id,
         discord_enabled, discord_webhook,
@@ -3395,14 +3747,52 @@
           const ipEl = document.getElementById('wiz-detected-ip');
           if (ipEl) ipEl.innerText = ip;
 
-          if (prov.toLowerCase().includes('oracle')) {
+          const pLower = prov.toLowerCase();
+          if (pLower.includes('oracle')) {
             const rOracle = document.querySelector('input[name="wiz-mode"][value="oracle"]');
             if (rOracle) rOracle.checked = true;
+          } else if (pLower.includes('aws') || pLower.includes('amazon') || pLower.includes('lightsail')) {
+            const rLs = document.querySelector('input[name="wiz-mode"][value="lightsail"]');
+            if (rLs) rLs.checked = true;
+          } else if (pLower.includes('hetzner')) {
+            const rHz = document.querySelector('input[name="wiz-mode"][value="hetzner"]');
+            if (rHz) rHz.checked = true;
+          } else if (pLower.includes('azure') || pLower.includes('microsoft')) {
+            const rAz = document.querySelector('input[name="wiz-mode"][value="azure"]');
+            if (rAz) rAz.checked = true;
           } else {
             const rGen = document.querySelector('input[name="wiz-mode"][value="generic"]');
             if (rGen) rGen.checked = true;
           }
           onWizModeChange();
+
+          if (data.config?.lightsail) {
+            const ls = data.config.lightsail;
+            const regEl = document.getElementById('wiz-ls-region');
+            if (regEl) regEl.value = ls.region || 'us-east-1';
+            const instEl = document.getElementById('wiz-ls-instance');
+            if (instEl) instEl.value = ls.instance_name || '';
+          }
+          if (data.config?.hetzner) {
+            const hz = data.config.hetzner;
+            const sidEl = document.getElementById('wiz-hz-server-id');
+            if (sidEl) sidEl.value = hz.server_id || '';
+            const iptEl = document.getElementById('wiz-hz-ip-type');
+            if (iptEl) iptEl.value = hz.ip_type || 'primary';
+          }
+          if (data.config?.azure) {
+            const az = data.config.azure;
+            const subEl = document.getElementById('wiz-az-sub-id');
+            if (subEl) subEl.value = az.subscription_id || '';
+            const rgEl = document.getElementById('wiz-az-rg');
+            if (rgEl) rgEl.value = az.resource_group || '';
+            const vmEl = document.getElementById('wiz-az-vm');
+            if (vmEl) vmEl.value = az.vm_name || '';
+            const nicEl = document.getElementById('wiz-az-nic');
+            if (nicEl) nicEl.value = az.nic_name || '';
+            const tidEl = document.getElementById('wiz-az-tenant-id');
+            if (tidEl) tidEl.value = az.tenant_id || '';
+          }
 
           if (data.config?.cloudflare?.zone_name) {
             const zSel = document.getElementById('wiz-cf-zone-select');
@@ -3444,15 +3834,16 @@
     function onWizModeChange() {
       const selected = document.querySelector('input[name="wiz-mode"]:checked')?.value || 'generic';
       const ociFields = document.getElementById('wiz-oci-fields');
+      const lsFields = document.getElementById('wiz-lightsail-fields');
+      const hzFields = document.getElementById('wiz-hetzner-fields');
+      const azFields = document.getElementById('wiz-azure-fields');
       const hookFields = document.getElementById('wiz-hook-fields');
-      if (ociFields) {
-        if (selected === 'oracle') ociFields.classList.remove('hidden');
-        else ociFields.classList.add('hidden');
-      }
-      if (hookFields) {
-        if (selected === 'hook') hookFields.classList.remove('hidden');
-        else hookFields.classList.add('hidden');
-      }
+
+      if (ociFields) ociFields.classList.toggle('hidden', selected !== 'oracle');
+      if (lsFields) lsFields.classList.toggle('hidden', selected !== 'lightsail');
+      if (hzFields) hzFields.classList.toggle('hidden', selected !== 'hetzner');
+      if (azFields) azFields.classList.toggle('hidden', selected !== 'azure');
+      if (hookFields) hookFields.classList.toggle('hidden', selected !== 'hook');
     }
 
     async function wizGenerateRSA() {
@@ -3632,6 +4023,28 @@
       const mode = document.querySelector('input[name="wiz-mode"]:checked')?.value || 'generic';
       const ociConfigText = document.getElementById('wiz-oci-config-text')?.value || '';
       const hookCmd = document.getElementById('wiz-hook-cmd')?.value.trim() || '';
+
+      const lightsail = {
+        region: (document.getElementById('wiz-ls-region')?.value || 'us-east-1').trim(),
+        instance_name: (document.getElementById('wiz-ls-instance')?.value || '').trim(),
+        access_key_id: (document.getElementById('wiz-ls-ak')?.value || '').trim(),
+        secret_access_key: (document.getElementById('wiz-ls-sk')?.value || '').trim()
+      };
+      const hetzner = {
+        api_token: (document.getElementById('wiz-hz-token')?.value || '').trim(),
+        server_id: (document.getElementById('wiz-hz-server-id')?.value || '').trim(),
+        ip_type: document.getElementById('wiz-hz-ip-type')?.value || 'primary'
+      };
+      const azure = {
+        subscription_id: (document.getElementById('wiz-az-sub-id')?.value || '').trim(),
+        resource_group: (document.getElementById('wiz-az-rg')?.value || '').trim(),
+        vm_name: (document.getElementById('wiz-az-vm')?.value || '').trim(),
+        nic_name: (document.getElementById('wiz-az-nic')?.value || '').trim(),
+        tenant_id: (document.getElementById('wiz-az-tenant-id')?.value || '').trim(),
+        client_id: (document.getElementById('wiz-az-client-id')?.value || '').trim(),
+        client_secret: (document.getElementById('wiz-az-client-secret')?.value || '').trim()
+      };
+
       const cfToken = document.getElementById('wiz-cf-token')?.value.trim() || '';
       const zSel = document.getElementById('wiz-cf-zone-select')?.value || '';
       const zMan = (document.getElementById('wiz-cf-zone-manual')?.value || '').trim();
@@ -3646,6 +4059,9 @@
         provider_hook: hookCmd,
         oci_config_text: ociConfigText,
         oci_key_path: wizGeneratedKeyPath,
+        lightsail: mode === 'lightsail' ? lightsail : undefined,
+        hetzner: mode === 'hetzner' ? hetzner : undefined,
+        azure: mode === 'azure' ? azure : undefined,
         cf_token: cfToken,
         cf_zone: cfZone,
         cf_record: cfRecord,

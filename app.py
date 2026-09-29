@@ -208,6 +208,9 @@ class SettingsModel(BaseModel):
     auto_heal: Optional[bool] = False
     provider_type: Optional[str] = 'auto'
     provider_hook: Optional[str] = ''
+    lightsail: Optional[dict] = None
+    hetzner: Optional[dict] = None
+    azure: Optional[dict] = None
     notifications_enabled: Optional[bool] = False
     tg_enabled: Optional[bool] = False
     tg_token: Optional[str] = ''
@@ -263,8 +266,32 @@ async def get_settings(request: Request):
     custom = notify_cfg.get('custom_webhook', {})
     sec_cfg = auth.get_security_config()
 
+    ls_cfg = cfg.get('lightsail', {})
+    hz_cfg = cfg.get('hetzner', {})
+    az_cfg = cfg.get('azure', {})
+
     return {
         'provider': cfg.get('provider', {'type': 'auto', 'hook_cmd': ''}),
+        'lightsail': {
+            'region': ls_cfg.get('region', 'us-east-1'),
+            'instance_name': ls_cfg.get('instance_name', ''),
+            'access_key_id': f"{ls_cfg.get('access_key_id', '')[:4]}****" if ls_cfg.get('access_key_id') else '',
+            'has_secret': bool(ls_cfg.get('secret_access_key'))
+        },
+        'hetzner': {
+            'server_id': hz_cfg.get('server_id', ''),
+            'ip_type': hz_cfg.get('ip_type', 'primary'),
+            'has_token': bool(hz_cfg.get('api_token'))
+        },
+        'azure': {
+            'subscription_id': az_cfg.get('subscription_id', ''),
+            'resource_group': az_cfg.get('resource_group', ''),
+            'vm_name': az_cfg.get('vm_name', ''),
+            'nic_name': az_cfg.get('nic_name', ''),
+            'tenant_id': az_cfg.get('tenant_id', ''),
+            'client_id': f"{az_cfg.get('client_id', '')[:4]}****" if az_cfg.get('client_id') else '',
+            'has_secret': bool(az_cfg.get('client_secret'))
+        },
         'cloudflare': {
             'token_set': bool(token),
             'masked_token': masked_token,
@@ -293,7 +320,7 @@ async def get_settings(request: Request):
             },
             'bark': {
                 'enabled': bark.get('enabled', False),
-                'bark_key': f"{bark.get('bark_key', '')[:4]}****" if bark.get('bark_key') else ''
+                'bark_key': f"{bark.get('bark_key', '')[:4]}****" if bark.get('bark_key') else '',
             },
             'custom_webhook': {
                 'enabled': custom.get('enabled', False),
@@ -321,6 +348,50 @@ async def update_settings(data: SettingsModel, request: Request):
         cfg['provider']['type'] = data.provider_type
     if data.provider_hook is not None:
         cfg['provider']['hook_cmd'] = data.provider_hook
+
+    if data.lightsail is not None:
+        cur_ls = cfg.setdefault('lightsail', {})
+        sec_k = data.lightsail.get('secret_access_key', '')
+        if not sec_k or '****' in sec_k:
+            sec_k = cur_ls.get('secret_access_key', '')
+        ak_id = data.lightsail.get('access_key_id', '')
+        if not ak_id or '****' in ak_id:
+            ak_id = cur_ls.get('access_key_id', '')
+        cfg['lightsail'] = {
+            'access_key_id': ak_id,
+            'secret_access_key': sec_k,
+            'region': data.lightsail.get('region') or cur_ls.get('region', 'us-east-1'),
+            'instance_name': data.lightsail.get('instance_name') or cur_ls.get('instance_name', '')
+        }
+
+    if data.hetzner is not None:
+        cur_hz = cfg.setdefault('hetzner', {})
+        tok = data.hetzner.get('api_token', '')
+        if not tok or '****' in tok:
+            tok = cur_hz.get('api_token', '')
+        cfg['hetzner'] = {
+            'api_token': tok,
+            'server_id': data.hetzner.get('server_id') or cur_hz.get('server_id', ''),
+            'ip_type': data.hetzner.get('ip_type') or cur_hz.get('ip_type', 'primary')
+        }
+
+    if data.azure is not None:
+        cur_az = cfg.setdefault('azure', {})
+        csec = data.azure.get('client_secret', '')
+        if not csec or '****' in csec:
+            csec = cur_az.get('client_secret', '')
+        cid = data.azure.get('client_id', '')
+        if not cid or '****' in cid:
+            cid = cur_az.get('client_id', '')
+        cfg['azure'] = {
+            'subscription_id': data.azure.get('subscription_id') or cur_az.get('subscription_id', ''),
+            'resource_group': data.azure.get('resource_group') or cur_az.get('resource_group', ''),
+            'vm_name': data.azure.get('vm_name') or cur_az.get('vm_name', ''),
+            'nic_name': data.azure.get('nic_name') or cur_az.get('nic_name', ''),
+            'client_id': cid,
+            'client_secret': csec,
+            'tenant_id': data.azure.get('tenant_id') or cur_az.get('tenant_id', '')
+        }
 
     sec = cfg.setdefault('security', {})
     if data.secret_path is not None:
@@ -474,6 +545,9 @@ class SetupSaveModel(BaseModel):
     provider_hook: Optional[str] = ''
     oci_config_text: Optional[str] = ''
     oci_key_path: Optional[str] = ''
+    lightsail: Optional[dict] = None
+    hetzner: Optional[dict] = None
+    azure: Optional[dict] = None
     cf_token: Optional[str] = ''
     cf_zone: Optional[str] = ''
     cf_record: Optional[str] = ''
@@ -481,18 +555,50 @@ class SetupSaveModel(BaseModel):
     provision_nodes: bool = True
     notifications: Optional[dict] = None
 
+class ProviderTestModel(BaseModel):
+    provider_type: str
+    provider_hook: Optional[str] = ''
+    oci_config_text: Optional[str] = ''
+    oci_key_path: Optional[str] = ''
+    lightsail: Optional[dict] = None
+    hetzner: Optional[dict] = None
+    azure: Optional[dict] = None
+
 @app.get('/api/setup/status')
 async def setup_status():
     cfg = cfg_mgr.load()
     is_init = cfg.get('initialized', False) or bool(cfg.get('cloudflare', {}).get('api_token'))
     cloud_info = sentinel_core.get_cloud_info()
     pub_ip = monitor.get_public_ip()
+    ls_cfg = cfg.get('lightsail', {})
+    hz_cfg = cfg.get('hetzner', {})
+    az_cfg = cfg.get('azure', {})
     return {
         'initialized': is_init,
         'cloud_info': cloud_info,
         'public_ip': pub_ip,
         'config': {
             'provider': cfg.get('provider', {}),
+            'lightsail': {
+                'region': ls_cfg.get('region', 'us-east-1'),
+                'instance_name': ls_cfg.get('instance_name', ''),
+                'access_key_id': f"{ls_cfg.get('access_key_id', '')[:4]}****" if ls_cfg.get('access_key_id') else '',
+                'has_secret': bool(ls_cfg.get('secret_access_key'))
+            },
+            'hetzner': {
+                'server_id': hz_cfg.get('server_id', ''),
+                'ip_type': hz_cfg.get('ip_type', 'primary'),
+                'has_token': bool(hz_cfg.get('api_token'))
+            },
+            'azure': {
+                'subscription_id': az_cfg.get('subscription_id', ''),
+                'resource_group': az_cfg.get('resource_group', ''),
+                'vm_name': az_cfg.get('vm_name', ''),
+                'nic_name': az_cfg.get('nic_name', ''),
+                'tenant_id': az_cfg.get('tenant_id', ''),
+                'client_id': f"{az_cfg.get('client_id', '')[:4]}****" if az_cfg.get('client_id') else '',
+                'has_secret': bool(az_cfg.get('client_secret'))
+            },
             'cloudflare': {
                 'zone_name': cfg.get('cloudflare', {}).get('zone_name', ''),
                 'record_name': cfg.get('cloudflare', {}).get('record_name', '')
@@ -500,6 +606,81 @@ async def setup_status():
             'notifications': cfg.get('notifications', {})
         }
     }
+
+@app.post('/api/provider/test')
+async def test_provider_endpoint(data: ProviderTestModel, request: Request):
+    check_setup_allowed(request)
+    ptype = data.provider_type
+    try:
+        if ptype == 'oracle':
+            prov = sentinel_core.OracleCloudProvider(config_path=data.oci_key_path)
+            ok, msg = prov.test_connection()
+            return {'success': ok, 'message': msg}
+        elif ptype == 'lightsail':
+            ls = data.lightsail or {}
+            cfg = cfg_mgr.load().get('lightsail', {})
+            ak = ls.get('access_key_id') or cfg.get('access_key_id', '')
+            sk = ls.get('secret_access_key') or cfg.get('secret_access_key', '')
+            reg = ls.get('region') or cfg.get('region', 'us-east-1')
+            inst = ls.get('instance_name') or cfg.get('instance_name', '')
+            prov = sentinel_core.LightsailCloudProvider(
+                access_key_id=ak,
+                secret_access_key=sk,
+                region=reg,
+                instance_name=inst
+            )
+            ok, msg = prov.test_connection()
+            return {'success': ok, 'message': msg}
+        elif ptype == 'hetzner':
+            hz = data.hetzner or {}
+            cfg = cfg_mgr.load().get('hetzner', {})
+            tok = hz.get('api_token') or cfg.get('api_token', '')
+            sid = hz.get('server_id') or cfg.get('server_id', '')
+            ipt = hz.get('ip_type') or cfg.get('ip_type', 'primary')
+            prov = sentinel_core.HetznerCloudProvider(
+                api_token=tok,
+                server_id=sid,
+                ip_type=ipt
+            )
+            ok, msg = prov.test_connection()
+            return {'success': ok, 'message': msg}
+        elif ptype == 'azure':
+            az = data.azure or {}
+            cfg = cfg_mgr.load().get('azure', {})
+            sub = az.get('subscription_id') or cfg.get('subscription_id', '')
+            rg = az.get('resource_group') or cfg.get('resource_group', '')
+            vm = az.get('vm_name') or cfg.get('vm_name', '')
+            nic = az.get('nic_name') or cfg.get('nic_name', '')
+            cid = az.get('client_id') or cfg.get('client_id', '')
+            csec = az.get('client_secret') or cfg.get('client_secret', '')
+            tid = az.get('tenant_id') or cfg.get('tenant_id', '')
+            prov = sentinel_core.AzureCloudProvider(
+                subscription_id=sub,
+                resource_group=rg,
+                vm_name=vm,
+                nic_name=nic,
+                client_id=cid,
+                client_secret=csec,
+                tenant_id=tid
+            )
+            ok, msg = prov.test_connection()
+            return {'success': ok, 'message': msg}
+        elif ptype == 'hook':
+            cmd = data.provider_hook or cfg_mgr.load().get('provider', {}).get('hook_cmd', '')
+            prov = sentinel_core.CustomHookProvider(hook_cmd=cmd)
+            ok, msg = prov.test_connection()
+            return {'success': ok, 'message': msg}
+        elif ptype == 'auto':
+            cfg = cfg_mgr.load()
+            prov = sentinel_core.get_cloud_provider(cfg)
+            ok, msg = prov.test_connection()
+            return {'success': ok, 'message': f'Auto-detected ({prov.get_name()}): {msg}'}
+        else:
+            prov = sentinel_core.GenericProvider()
+            ok, msg = prov.test_connection()
+            return {'success': ok, 'message': msg}
+    except Exception as e:
+        return {'success': False, 'message': str(e)}
 
 @app.post('/api/setup/verify-cf')
 async def verify_cf(data: dict, request: Request):
@@ -547,6 +728,50 @@ async def complete_setup(data: SetupSaveModel, request: Request):
             cfg['oci']['auth_method'] = 'config_file'
         except Exception as e:
             logger.warning(f"Error saving OCI config: {e}")
+
+    if data.lightsail:
+        cur_ls = cfg.setdefault('lightsail', {})
+        sec_k = data.lightsail.get('secret_access_key', '')
+        if not sec_k or '****' in sec_k:
+            sec_k = cur_ls.get('secret_access_key', '')
+        ak_id = data.lightsail.get('access_key_id', '')
+        if not ak_id or '****' in ak_id:
+            ak_id = cur_ls.get('access_key_id', '')
+        cfg['lightsail'] = {
+            'access_key_id': ak_id,
+            'secret_access_key': sec_k,
+            'region': data.lightsail.get('region') or cur_ls.get('region', 'us-east-1'),
+            'instance_name': data.lightsail.get('instance_name') or cur_ls.get('instance_name', '')
+        }
+
+    if data.hetzner:
+        cur_hz = cfg.setdefault('hetzner', {})
+        tok = data.hetzner.get('api_token', '')
+        if not tok or '****' in tok:
+            tok = cur_hz.get('api_token', '')
+        cfg['hetzner'] = {
+            'api_token': tok,
+            'server_id': data.hetzner.get('server_id') or cur_hz.get('server_id', ''),
+            'ip_type': data.hetzner.get('ip_type') or cur_hz.get('ip_type', 'primary')
+        }
+
+    if data.azure:
+        cur_az = cfg.setdefault('azure', {})
+        csec = data.azure.get('client_secret', '')
+        if not csec or '****' in csec:
+            csec = cur_az.get('client_secret', '')
+        cid = data.azure.get('client_id', '')
+        if not cid or '****' in cid:
+            cid = cur_az.get('client_id', '')
+        cfg['azure'] = {
+            'subscription_id': data.azure.get('subscription_id') or cur_az.get('subscription_id', ''),
+            'resource_group': data.azure.get('resource_group') or cur_az.get('resource_group', ''),
+            'vm_name': data.azure.get('vm_name') or cur_az.get('vm_name', ''),
+            'nic_name': data.azure.get('nic_name') or cur_az.get('nic_name', ''),
+            'client_id': cid,
+            'client_secret': csec,
+            'tenant_id': data.azure.get('tenant_id') or cur_az.get('tenant_id', '')
+        }
 
     if data.notifications:
         cfg['notifications'] = data.notifications
