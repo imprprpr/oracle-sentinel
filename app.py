@@ -737,7 +737,10 @@ async def save_edt_config(data: dict, request: Request):
     edt = cfg['edgetunnel']
     for k in ('enabled', 'pages_domain', 'worker_domain', 'uuid', 'pages_uuid', 'worker_uuid', 'path', 'proxy_ip', 'auto_refresh_clean_ips', 'enable_fallback_group'):
         if k in data:
-            edt[k] = data[k]
+            val = data[k]
+            if k in ('pages_domain', 'worker_domain') and isinstance(val, str):
+                val = clean_ip_mgr.sanitize_domain(val)
+            edt[k] = val
 
     if 'clean_ips' in data and isinstance(data['clean_ips'], dict):
         clean_ip_mgr.CleanIPManager.save_clean_ips(data['clean_ips'])

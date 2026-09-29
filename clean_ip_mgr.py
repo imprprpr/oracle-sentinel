@@ -44,7 +44,27 @@ DEFAULT_CLEAN_IPS = {
 }
 
 
+def sanitize_domain(domain_str: str) -> str:
+    """
+    Sanitize user input into a clean FQDN domain string.
+    Strips protocol (http://, https://), port, trailing slashes, and paths.
+    """
+    if not domain_str or not isinstance(domain_str, str):
+        return ""
+    d = domain_str.strip()
+    if "://" in d:
+        d = d.split("://", 1)[1]
+    d = d.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    if ":" in d:
+        d = d.split(":", 1)[0]
+    return d.strip().lower()
+
+
 class CleanIPManager:
+    @staticmethod
+    def sanitize_domain(domain_str: str) -> str:
+        return sanitize_domain(domain_str)
+
     @classmethod
     def get_edt_config(cls):
         cfg = ConfigManager.load()
@@ -56,8 +76,8 @@ class CleanIPManager:
         if not edt.get("enabled", False):
             return False
         uuid = edt.get("uuid", "").strip()
-        pages = edt.get("pages_domain", "").strip()
-        worker = edt.get("worker_domain", "").strip()
+        pages = cls.sanitize_domain(edt.get("pages_domain", ""))
+        worker = cls.sanitize_domain(edt.get("worker_domain", ""))
         pages_uuid = edt.get("pages_uuid", "").strip() or uuid
         worker_uuid = edt.get("worker_uuid", "").strip() or uuid
         return bool((pages and pages_uuid) or (worker and worker_uuid))

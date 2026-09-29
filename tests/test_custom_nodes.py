@@ -54,8 +54,8 @@ class TestCustomNodes(unittest.TestCase):
         cfg = yaml.safe_load(clash_yaml)
         names = [p['name'] for p in cfg['proxies']]
         self.assertIn('🇯🇵 日本原生大口子', names)
-        select_group = [g for g in cfg['proxy-groups'] if g['name'] == '🚀 节点选择'][0]
-        self.assertIn('🇯🇵 日本原生大口子', select_group['proxies'])
+        native_group = [g for g in cfg['proxy-groups'] if g['name'] == '原生节点 (VPS)'][0]
+        self.assertIn('🇯🇵 日本原生大口子', native_group['proxies'])
 
         # v2ray Base64 test
         b64 = sub_engine.SubEngine.generate_v2ray_base64()

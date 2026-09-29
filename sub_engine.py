@@ -158,9 +158,12 @@ class SubEngine:
             uuid = edt.get('uuid', '').strip()
             pages_uuid = edt.get('pages_uuid', '').strip() or uuid
             worker_uuid = edt.get('worker_uuid', '').strip() or uuid
-            pages = edt.get('pages_domain', '').strip()
-            worker = edt.get('worker_domain', '').strip()
+            pages = CleanIPManager.sanitize_domain(edt.get('pages_domain', ''))
+            worker = CleanIPManager.sanitize_domain(edt.get('worker_domain', ''))
             path = edt.get('path', '/?ed=2048').strip() or '/?ed=2048'
+            proxy_ip = edt.get('proxy_ip', '').strip()
+            if proxy_ip and 'proxyip=' not in path:
+                path = f"/proxyip={proxy_ip}"
             clean_ips = CleanIPManager.get_clean_ips()
 
             nodes = []
@@ -250,7 +253,7 @@ class SubEngine:
         encoded_path = urllib.parse.quote(n['path'])
         encoded_host = urllib.parse.quote(n['host'])
         encoded_name = urllib.parse.quote(n['name'])
-        return f"vless://{n['uuid']}@{n['server']}:{n['port']}?type=ws&security=tls&path={encoded_path}&host={encoded_host}&sni={encoded_host}#{encoded_name}"
+        return f"vless://{n['uuid']}@{n['server']}:{n['port']}?type=ws&security=tls&fp=chrome&path={encoded_path}&host={encoded_host}&sni={encoded_host}#{encoded_name}"
 
     # --- 1. Clash / Mihomo YAML Generator ---
     @staticmethod

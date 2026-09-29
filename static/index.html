@@ -677,17 +677,20 @@
 
           <div>
             <label class="block text-zinc-400 mb-1 font-mono">Pages 域名 (pages_domain)</label>
-            <input type="text" id="edt-pages-domain" placeholder="例如: your-project.pages.dev" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+            <input type="text" id="edt-pages-domain" placeholder="例如: imprprpr001.ccwu.cc" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+            <p class="text-[11px] text-zinc-500 mt-1">仅填域名，无需包含 https:// 或 /admin 等路径</p>
           </div>
 
           <div>
             <label class="block text-zinc-400 mb-1 font-mono">Worker 域名 (worker_domain)</label>
-            <input type="text" id="edt-worker-domain" placeholder="例如: your-worker.yourname.workers.dev" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+            <input type="text" id="edt-worker-domain" placeholder="例如: imprprpr.dpdns.org" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+            <p class="text-[11px] text-zinc-500 mt-1">仅填域名，无需包含 https:// 或 /admin 等路径</p>
           </div>
 
           <div>
             <label class="block text-zinc-400 mb-1 font-mono">通用 UUID (两站相同或默认使用)</label>
-            <input type="text" id="edt-uuid" placeholder="例如: d342d11e-d424-4583-b36e-524ab1f0afa4" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+            <input type="text" id="edt-uuid" placeholder="例如: 59d46a08-2ca9-4c6b-8d44-4e066d12f471" class="w-full bg-[#161619] border border-zinc-800 rounded px-3 py-2 text-zinc-200 font-mono focus:border-blue-500 focus:outline-none">
+            <p class="text-[11px] text-zinc-500 mt-1">需填写 36 位 VLESS UUID（非后台管理登录密码）</p>
           </div>
 
           <div>
@@ -2273,10 +2276,23 @@
     }
 
     async function saveEdtConfig() {
+      const cleanDomain = (val) => {
+        if (!val) return '';
+        let d = val.trim();
+        if (d.includes('://')) d = d.split('://')[1];
+        d = d.split('/')[0].split('?')[0].split('#')[0];
+        if (d.includes(':')) d = d.split(':')[0];
+        return d.trim().toLowerCase();
+      };
+      const pagesInput = document.getElementById('edt-pages-domain');
+      const workerInput = document.getElementById('edt-worker-domain');
+      if (pagesInput) pagesInput.value = cleanDomain(pagesInput.value);
+      if (workerInput) workerInput.value = cleanDomain(workerInput.value);
+
       const payload = {
         enabled: document.getElementById('edt-enabled').checked,
-        pages_domain: document.getElementById('edt-pages-domain').value.trim(),
-        worker_domain: document.getElementById('edt-worker-domain').value.trim(),
+        pages_domain: pagesInput ? pagesInput.value : '',
+        worker_domain: workerInput ? workerInput.value : '',
         uuid: document.getElementById('edt-uuid').value.trim(),
         pages_uuid: document.getElementById('edt-pages-uuid') ? document.getElementById('edt-pages-uuid').value.trim() : '',
         worker_uuid: document.getElementById('edt-worker-uuid') ? document.getElementById('edt-worker-uuid').value.trim() : '',

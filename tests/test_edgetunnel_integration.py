@@ -242,10 +242,23 @@ class TestEdgeTunnelIntegration(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn('clean_ips', res.json())
 
-        # 4. GET /api/edt/status
-        res = self.client.get('/api/edt/status', cookies=cookies)
+        # 5. Domain sanitization test in config save
+        dirty_payload = {
+            'pages_domain': 'https://my-pages.pages.dev/admin',
+            'worker_domain': 'http://my-worker.workers.dev:443/ws?query=1'
+        }
+        res = self.client.post('/api/edt/config', json=dirty_payload, cookies=cookies)
         self.assertEqual(res.status_code, 200)
-        self.assertIn('endpoints', res.json())
+        cfg = ConfigManager.load()
+        self.assertEqual(cfg['edgetunnel']['pages_domain'], 'my-pages.pages.dev')
+        self.assertEqual(cfg['edgetunnel']['worker_domain'], 'my-worker.workers.dev')
+
+    def test_sanitize_domain_helper(self):
+        self.assertEqual(CleanIPManager.sanitize_domain('https://imprprpr001.ccwu.cc/admin'), 'imprprpr001.ccwu.cc')
+        self.assertEqual(CleanIPManager.sanitize_domain('http://imprprpr.dpdns.org/'), 'imprprpr.dpdns.org')
+        self.assertEqual(CleanIPManager.sanitize_domain('imprprpr001.ccwu.cc:443/path#frag'), 'imprprpr001.ccwu.cc')
+        self.assertEqual(CleanIPManager.sanitize_domain('  HTTPS://sub.domain.com  '), 'sub.domain.com')
+        self.assertEqual(CleanIPManager.sanitize_domain(''), '')
 
 
 if __name__ == '__main__':

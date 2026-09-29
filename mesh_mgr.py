@@ -14,6 +14,7 @@ import ssl
 import threading
 import base64
 from sentinel_core import ConfigManager
+from clean_ip_mgr import sanitize_domain
 
 logger = logging.getLogger('MeshManager')
 
@@ -199,8 +200,8 @@ class MeshManager:
         if not edt.get('enabled', False):
             return []
         endpoints = []
-        pages = edt.get('pages_domain', '').strip()
-        worker = edt.get('worker_domain', '').strip()
+        pages = sanitize_domain(edt.get('pages_domain', ''))
+        worker = sanitize_domain(edt.get('worker_domain', ''))
         if pages:
             endpoints.append({
                 'id': 'edt_pages',
