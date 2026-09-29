@@ -79,16 +79,16 @@ def detect_cloud_info():
     return "Generic Linux VPS / Dedicated Server"
 
 def log_info(msg):
-    print(f" {C_CYAN}ℹ{C_RESET}  {msg}")
+    print(f" {C_CYAN}[*]{C_RESET}  {msg}")
 
 def log_success(msg):
-    print(f" {C_GREEN}✔{C_RESET}  {C_BOLD}{msg}{C_RESET}")
+    print(f" {C_GREEN}[+]{C_RESET}  {C_BOLD}{msg}{C_RESET}")
 
 def log_warn(msg):
-    print(f" {C_YELLOW}⚠{C_RESET}  {C_YELLOW}{msg}{C_RESET}")
+    print(f" {C_YELLOW}[!]{C_RESET}  {C_YELLOW}{msg}{C_RESET}")
 
 def log_err(msg):
-    print(f" {C_RED}✖{C_RESET}  {C_RED}{msg}{C_RESET}")
+    print(f" {C_RED}[-]{C_RESET}  {C_RED}{msg}{C_RESET}")
 
 def prompt(text, default=None, is_secret=False):
     suffix = f" [{C_YELLOW}{default}{C_RESET}]" if default is not None else ""
@@ -128,7 +128,7 @@ def get_public_ip():
 
 # --- STEP 1: Cloud Provider Mode ---
 def step_cloud_provider_mode(detected_cloud):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 1/7] 🌐 云平台适配与运行模式选择{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 1/7] 云平台适配与运行模式选择{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     log_info(f"系统智能探测到当前宿主机环境: {C_BOLD}{C_GREEN}{detected_cloud}{C_RESET}")
     
@@ -149,7 +149,7 @@ def step_cloud_provider_mode(detected_cloud):
 
 # --- STEP 2: Firewall & BBR ---
 def step_firewall_and_bbr():
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 2/7] 🚀 底层防火墙放通、端口跳跃与 BBR 拥塞控制调优{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 2/7] 底层防火墙放通、端口跳跃与 BBR 拥塞控制调优{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" 许多云服务商（特别是甲骨文云）默认启用了严苛的 iptables DROP 规则，会导致外部端口无法连通。")
     ans = prompt("是否自动清理原生 iptables 阻断并开启 BBR？(y/n)", "y").lower()
@@ -182,7 +182,7 @@ def step_firewall_and_bbr():
 
 # --- STEP 3: Provider Re-IP Configuration ---
 def step_provider_config(provider_mode, hook_cmd):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 3/7] 🛡️ 节点公网 IP 自愈变动凭据配置{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 3/7] 节点公网 IP 自愈变动凭据配置{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     if provider_mode == "oracle":
         return step_oci_config()
@@ -218,7 +218,7 @@ def step_oci_config():
         print(f"{C_CYAN}{pub_content}{C_RESET}")
         print(f"{C_GREEN}{C_BOLD}└──────────────────────────────────────────────────────────────────────────────────┘{C_RESET}\n")
 
-        print(" 📌 【甲骨文网页后台操作步骤】:")
+        print(" [*] 【甲骨文网页后台操作步骤】:")
         print(" 1. 登录 Oracle Cloud 控制台: https://cloud.oracle.com/")
         print(" 2. 点击右上角个人头像 -> 【用户设置 (User Settings)】 -> 左下方点击【API 密钥 (API Keys)】")
         print(" 3. 点击【添加 API 密钥 (Add API Key)】 -> 选择【粘贴公钥】 -> 粘贴上方公钥内容 -> 点击【添加】")
@@ -273,7 +273,7 @@ def step_oci_config():
 
 # --- STEP 4: Cloudflare API & Domain Verification ---
 def step_cloudflare_config(current_ip):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 4/7] ☁️ Cloudflare 自动化 DNS 解析联动{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 4/7] Cloudflare 自动化 DNS 解析联动{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" 当节点换 IP 后，Sentinel 将调用此 Token 自动将您的域名 A 记录秒级刷新至新 IP。")
     print(" Token 申请路径: Cloudflare Dash -> 个人资料 -> API 令牌 -> 创建令牌 -> 编辑区域 DNS 模板\n")
@@ -298,7 +298,7 @@ def step_cloudflare_config(current_ip):
                         log_warn("Token 验证有效，但在该账号下未找到任何处于 Active 状态的域名。")
                         zone_name = prompt("请手动输入 Zone 顶级域名 (如 example.com)")
                     else:
-                        print(f"\n {C_GREEN}✔ Token 验证成功！检测到以下托管域名：{C_RESET}")
+                        print(f"\n {C_GREEN}[+] Token 验证成功！检测到以下托管域名：{C_RESET}")
                         for idx, z in enumerate(zones, 1):
                             print(f"   [{C_CYAN}{idx}{C_RESET}] {z.get('name')}")
                         z_idx = prompt("请选择要绑定的域名序号", "1")
@@ -324,7 +324,7 @@ def step_cloudflare_config(current_ip):
 
 # --- STEP 5: SSL/TLS Certificate Provisioning ---
 def step_ssl_cert(cf_token, domain):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 5/7] 🔒 SSL / TLS 证书自动签发 (DNS-01 零端口依赖){C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 5/7] SSL / TLS 证书自动签发 (DNS-01 零端口依赖){C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     os.makedirs(CERT_DIR, exist_ok=True)
     priv_file = os.path.join(CERT_DIR, "privkey.pem")
@@ -365,7 +365,7 @@ def step_ssl_cert(cf_token, domain):
 
 # --- STEP 6: 3x-ui Golden Inbounds Auto-Provisioning ---
 def step_3x_ui_nodes(domain):
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 6/7] 🚀 3x-ui 节点全家桶自动入库与初始化{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 6/7] 3x-ui 节点全家桶自动入库与初始化{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" 自动向 3x-ui 写入经过生产调优的『黄金三剑客』出海节点，装完免去任何面板手动配置：")
     print(f"  1. {C_GREEN}Oracle-US{C_RESET}     : VLESS-Reality (TCP :8443) 自动生成 X25519 密钥对")
@@ -399,7 +399,7 @@ def step_3x_ui_nodes(domain):
 
 # --- STEP 7: Multi-Channel Alert Notifications ---
 def step_notifications():
-    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 7/7] 📢 多渠道阻断告警通知中枢配置{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}[步骤 7/7] 多渠道阻断告警通知中枢配置{C_RESET}")
     print(f"{C_BLUE}────────────────────────────────────────────────────────────────────────────────────────{C_RESET}")
     print(" 当节点遭受 GFW 阻断、触发自愈或换 IP 成功时，Sentinel 将向管理员即时发送推送卡片。")
     print(" 支持渠道：Telegram Bot、Discord Webhook、Bark (iOS)、自定义 Webhook。")
@@ -527,24 +527,24 @@ def main():
     print(f"""
 {C_GREEN}{C_BOLD}
 ════════════════════════════════════════════════════════════════════════════════════════
- 🎉 恭喜！Universal Cloud Sentinel 全能云端自愈守卫已部署并成功运行！
+ [SUCCESS] Universal Cloud Sentinel 全能云端自愈守卫已部署并成功运行！
 ════════════════════════════════════════════════════════════════════════════════════════
 {C_RESET}
- 🌐 {C_BOLD}控制中心 Web 访问地址{C_RESET}:
-    👉 {C_CYAN}{C_BOLD}https://{access_host}:20540/{C_RESET}
+  {C_BOLD}控制中心 Web 访问地址{C_RESET}:
+    [+] {C_CYAN}{C_BOLD}https://{access_host}:20540/{C_RESET}
 
- 📡 {C_BOLD}多协议订阅直连端点{C_RESET}:
+  {C_BOLD}多协议订阅直连端点{C_RESET}:
     • Clash / OpenClash: {C_YELLOW}https://{access_host}:20540/sub/clash{C_RESET}
     • v2rayN / v2rayNG:  {C_YELLOW}https://{access_host}:20540/sub/v2ray{C_RESET}
     • Sing-box (1.8+):   {C_YELLOW}https://{access_host}:20540/sub/singbox{C_RESET}
     • Shadowrocket:      {C_YELLOW}https://{access_host}:20540/sub/shadowrocket{C_RESET}
 
- 🛡️ {C_BOLD}核心自愈与监控状态{C_RESET}:
+  {C_BOLD}核心自愈与监控状态{C_RESET}:
     • 当前宿主环境: {C_CYAN}{detected_cloud}{C_RESET}
     • 连续阻断阈值: {C_BOLD}丢包率 > 75% 且 连续 3 次探测失败{C_RESET}
     • 自动自愈联动: {C_GREEN}{'已启用' if (cf_token and (oci_path or hook_cmd)) else '已开启巡检与告警'}{C_RESET}
 
- 🛠️ {C_BOLD}常用运维指令{C_RESET}:
+  {C_BOLD}常用运维指令{C_RESET}:
     • 守护进程实时日志: {C_CYAN}journalctl -u {SERVICE_NAME} -f{C_RESET}
     • 重启守护进程:     {C_CYAN}systemctl restart {SERVICE_NAME}{C_RESET}
     • 重新运行此向导:   {C_CYAN}python3 {SENTINEL_DIR}/scripts/wizard.py{C_RESET}

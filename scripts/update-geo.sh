@@ -22,5 +22,5 @@ curl -fsSL "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest
 echo "3. Downloading country.mmdb..."
 curl -fsSL "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb" -o "$GEO_DIR/country.mmdb"
 
-echo "✅ Geo databases updated successfully!"
+echo "[OK] Geo databases updated successfully!"
 ls -lh "$GEO_DIR"

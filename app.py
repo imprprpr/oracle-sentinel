@@ -1239,6 +1239,8 @@ async def trigger_healing(request: Request):
 
 @app.get('/api/ip/audit')
 async def get_ip_audit(request: Request, force: bool = False):
+    if not auth.verify_subscription_access(request):
+        raise HTTPException(status_code=401, detail="Authentication required")
     if force:
         check_admin(request)
     loop = asyncio.get_running_loop()

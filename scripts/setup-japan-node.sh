@@ -7,7 +7,7 @@
 set -euo pipefail
 
 echo "===================================================================="
-echo "    🚀 Deploying Ultra-Lightweight Japan Native Node (sing-box)      "
+echo "    Deploying Ultra-Lightweight Japan Native Node (sing-box)        "
 echo "===================================================================="
 
 # Check root
@@ -170,22 +170,22 @@ else
 fi
 
 EXT_IP="${3:-$(curl -s4 https://api.ipify.org 2>/dev/null || curl -s4 https://ifconfig.me 2>/dev/null || echo '85.113.70.183')}"
-NODE_NAME="${4:-🇯🇵 绿云-IIJ (原生超低延迟)}"
+NODE_NAME="${4:-[JP] 绿云-IIJ (原生超低延迟)}"
 NAME_ENCODED=$(echo -n "$NODE_NAME" | od -An -tx1 | tr ' ' '%' | tr -d '\n')
 
 VLESS_LINK="vless://${UUID}@${EXT_IP}:${EXT_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${SNI}&fp=chrome&pbk=${PUB_KEY}&sid=${SHORT_ID}&type=tcp#${NAME_ENCODED}"
 
 echo ""
 echo "===================================================================="
-echo "🎉 日本原生节点 (VLESS-Reality) 部署启动成功！"
+echo "[SUCCESS] 日本原生节点 (VLESS-Reality) 部署启动成功！"
 echo "===================================================================="
 echo ""
-echo "📱 【通用节点链接】 (复制整行链接，支持 v2rayN / 小火箭 / Sing-box / Karing):"
+echo "[*] 【通用节点链接】 (复制整行链接，支持 v2rayN / 小火箭 / Sing-box / Karing):"
 echo "--------------------------------------------------------------------"
 echo "${VLESS_LINK}"
 echo "--------------------------------------------------------------------"
 echo ""
-echo "⚙️ 【Clash Verge / Mihomo 配置片段】 (可追加到 proxies 列表):"
+echo "[*] 【Clash Verge / Mihomo 配置片段】 (可追加到 proxies 列表):"
 echo "--------------------------------------------------------------------"
 cat << CLASH_EOF
 - name: "${NODE_NAME}"

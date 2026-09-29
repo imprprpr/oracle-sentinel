@@ -54,7 +54,7 @@ class TestCustomNodes(unittest.TestCase):
         cfg = yaml.safe_load(clash_yaml)
         names = [p['name'] for p in cfg['proxies']]
         self.assertIn('🇯🇵 日本原生大口子', names)
-        native_group = next((g for g in cfg['proxy-groups'] if g['name'] in ('原生节点 (VPS)', '🚀 节点选择')), None)
+        native_group = next((g for g in cfg['proxy-groups'] if g['name'] in ('原生节点 (VPS)', '节点选择', '🚀 节点选择')), None)
         self.assertIsNotNone(native_group)
         self.assertIn('🇯🇵 日本原生大口子', native_group['proxies'])
 

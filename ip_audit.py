@@ -19,8 +19,8 @@ logger = logging.getLogger("IPAuditor")
 
 def country_code_to_emoji(country_code: str) -> str:
     if not country_code or len(country_code) != 2:
-        return "🌐"
-    return "".join(chr(ord(c.upper()) + 127397) for c in country_code)
+        return "[GLOBAL]"
+    return f"[{country_code.upper()}]"
 
 class IPAuditor:
     def __init__(self, cache_ttl: int = 1800):
@@ -123,7 +123,7 @@ class IPAuditor:
                 "type": base_info.get("type", "IPv4"),
                 "country": base_info.get("country", "Unknown"),
                 "country_code": base_info.get("country_code", "UN"),
-                "flag_emoji": base_info.get("flag_emoji", "🌐"),
+                "flag_emoji": base_info.get("flag_emoji", "[GLOBAL]"),
                 "region": base_info.get("region", ""),
                 "city": base_info.get("city", ""),
                 "asn": base_info.get("asn", ""),
@@ -166,7 +166,7 @@ class IPAuditor:
             "type": "IPv4",
             "country": "Unknown",
             "country_code": "US",
-            "flag_emoji": "🇺🇸",
+            "flag_emoji": "[US]",
             "region": "",
             "city": "",
             "asn": "",
@@ -219,7 +219,7 @@ class IPAuditor:
                         "ip": data.get("ip", ""),
                         "country": data.get("country", ""),
                         "country_code": cc,
-                        "flag_emoji": data.get("flag", {}).get("emoji", country_code_to_emoji(cc)),
+                        "flag_emoji": country_code_to_emoji(cc),
                         "region": data.get("region", ""),
                         "city": data.get("city", ""),
                         "asn": f"AS{conn.get('asn', '')}",

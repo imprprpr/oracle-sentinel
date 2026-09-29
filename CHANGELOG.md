@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.3.0] - 2026-09-27
 
-### 🛡️ IP Purity & Streaming/AI Unlock Audit (IP 纯净度与流媒体/AI 解锁体检中心)
+### ️ IP Purity & Streaming/AI Unlock Audit (IP 纯净度与流媒体/AI 解锁体检中心)
 - **Base IP Profile & Risk Intelligence (`ip_audit.py`)**:
   - Automatically queries IPv4 ASN, ISP, organization, country flag, and detects DataCenter / Hosting vs. Residential ISP profiles.
   - Integrates Scamalytics fraud scoring engine (0~100 rating) and risk rating breakdown (Low / Medium / High / Very High).
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cloudflare WARP dual-stack verification via local Wireproxy SOCKS5 with out-of-band proxy status.
   - In-memory 30-minute caching with on-demand force refresh.
 
-### ⚡ Multi-Node Network Performance & Speedtest Benchmark (多节点网络性能与基准测速中心)
+### Multi-Node Network Performance & Speedtest Benchmark (多节点网络性能与基准测速中心)
 - **Native Speedtest Engine (`speedtest_mgr.py`)**:
   - Integrates host `speedtest-cli` with full bandwidth extraction (Download, Upload, Ping, Server sponsor/location, data transferred).
   - Background asynchronous execution worker with live status updates over WebSocket and REST endpoints.
@@ -76,12 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.1] - 2026-09-26
 
-### 🩹 Reliability & OpenClash Router Integration Fixes (订阅兼容性与软路由深度加固)
+### Reliability & OpenClash Router Integration Fixes (订阅兼容性与软路由深度加固)
 - **Subscription IP Direct Injection (`sub_engine.py`)**:
   - Fixed `get_server_ip()` fallback to properly query `sentinel_core.SystemMonitor().get_public_ip()` and external IP probes, avoiding unintended `127.0.0.1` loopback fallback.
   - Automatically writes direct public IP into node `server` configurations, bypassing domestic GFW DNS pollution (`127.0.0.1` poisoning) and eliminating OpenClash `hosts` stripping dependencies.
 - **Fake-IP Routing Blackhole Bugfix (`sub_engine.py`)**:
-  - Removed erroneous `IP-CIDR, 198.18.0.0/15, 🎯 全球直连, no-resolve` rule that was intercepting Clash's Fake-IP pool (`198.18.0.1/16`) and dumping LAN web traffic to WAN gateways.
+  - Removed erroneous `IP-CIDR, 198.18.0.0/15,  全球直连, no-resolve` rule that was intercepting Clash's Fake-IP pool (`198.18.0.1/16`) and dumping LAN web traffic to WAN gateways.
   - Added secure overseas DoH fallback resolvers (`1.1.1.1` and `8.8.8.8`) with CN GeoIP filters.
 - **64MB Container Protection for Remote Nodes (`scripts/setup-japan-node.sh`)**:
   - Replaced piping tar extractions with sequential disk downloading to eliminate memory tmpfs spikes.
@@ -94,13 +94,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.0] - 2026-09-26
 
-### 🌐 Custom Standalone Nodes Hub (外部独立与原生节点统一聚合)
+### Custom Standalone Nodes Hub (外部独立与原生节点统一聚合)
 - **Multi-Protocol Custom Nodes Hub (`custom_node_mgr.py`)**:
   - Full support for parsing standard share links (`vless://` Reality, `hysteria2://` / `hy2://`, `trojan://`, `ss://`) and custom dictionary objects into structured proxies.
   - Seamless dual-direction conversion for Clash/Mihomo YAML, Sing-box JSON, and v2ray Base64 / Shadowrocket formats.
   - Persistent storage in `config.json` with dynamic enable/disable toggling and deletion.
 - **Subscription Engine Integration (`sub_engine.py`)**:
-  - Automatically merges enabled custom standalone nodes into Clash proxies, `🚀 节点选择`, `⚡ 自动优选`, `🤖 AI 智能服务`, and `🎬 国际流媒体` policy groups.
+  - Automatically merges enabled custom standalone nodes into Clash proxies, ` 节点选择`, ` 自动优选`, ` AI 智能服务`, and ` 国际流媒体` policy groups.
   - Injects outbounds into Sing-box JSON with selector and urltest group bindings.
 - **Web UI & REST APIs (`app.py` & `static/index.html`)**:
   - Added "自定义独立原生节点库 (Custom Standalone Nodes)" card and modal in the control dashboard.
@@ -112,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.0] - 2026-09-26
 
-### 🧙‍♂️ Web First-Time Setup Wizard (Web 可视化开箱向导)
+### ‍️ Web First-Time Setup Wizard (Web 可视化开箱向导)
 - **Zero-CLI Web Onboarding Stepper (`static/index.html`)**:
   - Implements a responsive 6-step dark-mode setup wizard dialog triggered automatically on unconfigured instances.
   - Step 1: **Host Diagnostics** - Real-time inspection of hypervisor, provider, architecture, and IPv4.
@@ -126,13 +126,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `POST /api/setup/verify-cf`: Calls Cloudflare API `/client/v4/zones` to validate tokens and dynamically list active domains.
   - `POST /api/setup/generate-key`: Generates standard 2048-bit RSA key pairs with pure standard library / cryptography.
   - `POST /api/setup/save`: Atomic persistent update of `config.json`, OCI credentials, and optional node provisioning.
-- **Re-run Wizard Entry**: Added "重新运行 Web 部署向导 🚀" button in the Settings modal for effortless reconfiguration anytime.
+- **Re-run Wizard Entry**: Added "重新运行 Web 部署向导 " button in the Settings modal for effortless reconfiguration anytime.
 
 ---
 
 ## [2.0.0] - 2026-09-26
 
-### 🌐 Universal Multi-Cloud & Cross-Distro Expansion (泛用性多云与通用 VPS 演进)
+### Universal Multi-Cloud & Cross-Distro Expansion (泛用性多云与通用 VPS 演进)
 - **Multi-Cloud Provider Abstraction (`sentinel_core.py`)**:
   - Introduces extensible `BaseCloudProvider` architecture supporting `OracleCloudProvider`, `GenericProvider`, and `CustomHookProvider`.
   - Deferred OCI SDK import: non-Oracle servers run smoothly without requiring OCI dependencies.
@@ -155,7 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.2.0] - 2026-09-26
 
-### 🚀 3x-ui Golden Inbounds Auto-Provisioning (出海全家桶预置注入)
+### 3x-ui Golden Inbounds Auto-Provisioning (出海全家桶预置注入)
 - **Node Provisioner Engine (`scripts/node_provisioner.py`)**: Direct SQLite database injector for `/etc/x-ui/x-ui.db`.
 - **Pure Python X25519 Key Generation**: Native Curve25519 public/private keypair and shortId generator for Reality without external xray binaries.
 - **Three Golden Production Inbounds**:
@@ -169,7 +169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0] - 2026-09-26
 
-### ✨ Interactive CLI Deployment Wizard (极简部署套件)
+### Interactive CLI Deployment Wizard (极简部署套件)
 - **Zero-Dependency CLI Wizard (`scripts/wizard.py`)**: Built entirely with standard library Python, requiring no external packages.
 - **Oracle Cloud Firewall & BBR Automation**: Unlocks Oracle Ubuntu default iptables DROP rules and activates Linux native BBR congestion control.
 - **Kernel-Level Port Hopping**: Configures Hysteria 2 PREROUTING redirect rule (`UDP 20000:40000 -> 443`) via iptables.
@@ -182,27 +182,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2026-09-26
 
-### 🚀 Initial Production Release
+### Initial Production Release
 
-#### 🛡️ Autonomous Self-Healing & Auto-Re-IP
+#### ️ Autonomous Self-Healing & Auto-Re-IP
 - **OCI SDK Re-IP Automation**: Integrated Oracle Cloud Infrastructure (OCI) Python SDK to automatically detach blocked VNIC public IPs and allocate fresh, clean ephemeral IPs.
 - **GFW Multi-Probe Telemetry**: Implemented multi-point cross-border probe monitoring (packet loss calculation, consecutive failure tripwires, latency tracking).
 - **Cloudflare DNS Auto-Sync**: Seamlessly updates Cloudflare DNS A-records in real-time when the VPS changes public IP.
 - **WebSocket Telemetry Stream**: Real-time broadcast of CPU, RAM, Disk, Network IO, WARP egress status, and rebirth countdowns.
 
-#### 📡 Visual Multi-Protocol Subscription Engine
+#### Visual Multi-Protocol Subscription Engine
 - **Cross-Client Protocol Support**: Unified subscription endpoints for **Clash (Mihomo Meta)**, **v2rayN**, **Sing-box**, and **Shadowrocket**.
 - **X-UI / 3x-ui Database Extraction**: Automatically pulls configured inbounds (Hysteria 2, Trojan, VLESS-Reality) from `/etc/x-ui/x-ui.db`.
 - **OpenClash Anti-Deadlock Injection**: Injects `hosts` resolution mappings and `default-nameserver` to eliminate the classic recursive DNS deadlock loop in OpenWrt OpenClash.
 - **Sniffer Bypass & Port Exclusions**: Configured management port bypass (`20530`, `20540`) to prevent proxy loops into the control panel.
 - **Hysteria 2 Port Hopping**: Full support for UDP multi-port ranges to bypass domestic ISP QoS port throttling.
 
-#### ⚡ Chain Transit Relay Dispatcher
+#### Chain Transit Relay Dispatcher
 - **Realm L4 High-Performance Forwarding**: Generates configuration and 1-click installation script (`setup-relay.sh`) for domestic/overseas transit machines.
 - **Dynamic Node Rewriting**: Rewrites subscription nodes to route through domestic transit relays while retaining upstream TLS sni/reality keys.
 - **Soft Router Compatibility**: Plug-and-play compatibility with OpenWrt soft routers (native firewall DNAT or Realm binary).
 
-#### 🎨 Control Center Web UI
+#### Control Center Web UI
 - **Industrial Linear/Shadcn Dark Theme**: Designed with pure CSS variables, dark neutral aesthetic, and native Lucide SVG icons.
 - **Interactive 3D Telemetry**: Integrated Three.js globe visualizer with ping and latency status.
 - **Privacy Obfuscation**: Added `.privacy-blur` interactive CSS blur effect to safeguard public IP segments, domain names, and WARP values during screenshots or screen sharing.

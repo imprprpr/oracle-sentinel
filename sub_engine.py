@@ -99,7 +99,7 @@ class SubEngine:
                 rs = ss.get('realitySettings', {})
                 rs_st = rs.get('settings', {})
                 node = {
-                    'name': '🇺🇸 Oracle-美西-Reality',
+                    'name': '[US] Oracle-美西-Reality',
                     'type': 'vless',
                     'server': server_ip,
                     'port': port,
@@ -119,7 +119,7 @@ class SubEngine:
 
             elif proto == 'hysteria':
                 node = {
-                    'name': '🇺🇸 Oracle-美西-Hy2',
+                    'name': '[US] Oracle-美西-Hy2',
                     'type': 'hysteria2',
                     'server': server_ip,
                     'port': port,
@@ -131,7 +131,7 @@ class SubEngine:
 
             elif proto == 'trojan':
                 node = {
-                    'name': '🇺🇸 Oracle-美西-Trojan',
+                    'name': '[US] Oracle-美西-Trojan',
                     'type': 'trojan',
                     'server': server_ip,
                     'port': port,
@@ -417,7 +417,7 @@ class SubEngine:
 
             # 6. Global Selector Group (switches between segregated groups or DIRECT)
             proxy_groups.append({
-                'name': '🚀 节点选择',
+                'name': '节点选择',
                 'type': 'select',
                 'proxies': ['原生节点 (VPS)', '边缘节点 (EDT)', '容灾自愈 (Fallback)', 'DIRECT']
             })
@@ -425,30 +425,30 @@ class SubEngine:
             # 7. AI Service Group
             if rules_cfg.get('ai_group', True):
                 proxy_groups.append({
-                    'name': '🤖 AI 智能服务',
+                    'name': 'AI 智能服务',
                     'type': 'select',
-                    'proxies': ['🚀 节点选择', '原生节点 (VPS)', '边缘节点 (EDT)', 'DIRECT']
+                    'proxies': ['节点选择', '原生节点 (VPS)', '边缘节点 (EDT)', 'DIRECT']
                 })
 
             # 8. Media Streaming Group
             if rules_cfg.get('media_group', True):
                 proxy_groups.append({
-                    'name': '🎬 国际流媒体',
+                    'name': '国际流媒体',
                     'type': 'select',
-                    'proxies': ['🚀 节点选择', '边缘节点 (EDT)', '原生节点 (VPS)', 'DIRECT']
+                    'proxies': ['节点选择', '边缘节点 (EDT)', '原生节点 (VPS)', 'DIRECT']
                 })
 
             # 9. Ad Block Group
             if rules_cfg.get('adblock', True):
                 proxy_groups.append({
-                    'name': '🛑 广告拦截',
+                    'name': '广告拦截',
                     'type': 'select',
                     'proxies': ['REJECT', 'DIRECT']
                 })
 
             # 10. Direct
             proxy_groups.append({
-                'name': '🎯 全球直连',
+                'name': '全球直连',
                 'type': 'select',
                 'proxies': ['DIRECT']
             })
@@ -456,20 +456,20 @@ class SubEngine:
             # Standard legacy groups when EDT is not active
             group_select_proxies = []
             if rules_cfg.get('auto_test', True):
-                group_select_proxies.append('⚡ 自动优选')
+                group_select_proxies.append('自动优选')
             group_select_proxies.extend(native_names)
             group_select_proxies.append('DIRECT')
 
             proxy_groups.append({
-                'name': '🚀 节点选择',
+                'name': '节点选择',
                 'type': 'select',
                 'proxies': group_select_proxies
             })
 
-            # Group: ⚡ 自动优选
+            # Group: 自动优选
             if rules_cfg.get('auto_test', True):
                 proxy_groups.append({
-                    'name': '⚡ 自动优选',
+                    'name': '自动优选',
                     'type': 'url-test',
                     'url': 'https://www.gstatic.com/generate_204',
                     'interval': 300,
@@ -477,116 +477,116 @@ class SubEngine:
                     'proxies': list(native_names)
                 })
 
-            # Group: 🤖 AI 智能服务
+            # Group: AI 智能服务
             if rules_cfg.get('ai_group', True):
                 proxy_groups.append({
-                    'name': '🤖 AI 智能服务',
+                    'name': 'AI 智能服务',
                     'type': 'select',
-                    'proxies': ['🚀 节点选择'] + list(native_names)
+                    'proxies': ['节点选择'] + list(native_names)
                 })
 
-            # Group: 🎬 国际流媒体
+            # Group: 国际流媒体
             if rules_cfg.get('media_group', True):
                 proxy_groups.append({
-                    'name': '🎬 国际流媒体',
+                    'name': '国际流媒体',
                     'type': 'select',
-                    'proxies': ['🚀 节点选择'] + list(native_names)
+                    'proxies': ['节点选择'] + list(native_names)
                 })
 
-            # Group: 🛑 广告拦截
+            # Group: 广告拦截
             if rules_cfg.get('adblock', True):
                 proxy_groups.append({
-                    'name': '🛑 广告拦截',
+                    'name': '广告拦截',
                     'type': 'select',
                     'proxies': ['REJECT', 'DIRECT']
                 })
 
-            # Group: 🎯 全球直连
+            # Group: 全球直连
             proxy_groups.append({
-                'name': '🎯 全球直连',
+                'name': '全球直连',
                 'type': 'select',
                 'proxies': ['DIRECT']
             })
 
         rules = [
-            'IP-CIDR,127.0.0.0/8,🎯 全球直连,no-resolve',
-            'IP-CIDR,172.16.0.0/12,🎯 全球直连,no-resolve',
-            'IP-CIDR,192.168.0.0/16,🎯 全球直连,no-resolve',
-            'IP-CIDR,10.0.0.0/8,🎯 全球直连,no-resolve',
-            'IP-CIDR,100.64.0.0/10,🎯 全球直连,no-resolve',
-            'IP-CIDR6,fc00::/7,🎯 全球直连,no-resolve',
-            'IP-CIDR6,fe80::/10,🎯 全球直连,no-resolve',
-            'IP-CIDR6,::1/128,🎯 全球直连,no-resolve'
+            'IP-CIDR,127.0.0.0/8,全球直连,no-resolve',
+            'IP-CIDR,172.16.0.0/12,全球直连,no-resolve',
+            'IP-CIDR,192.168.0.0/16,全球直连,no-resolve',
+            'IP-CIDR,10.0.0.0/8,全球直连,no-resolve',
+            'IP-CIDR,100.64.0.0/10,全球直连,no-resolve',
+            'IP-CIDR6,fc00::/7,全球直连,no-resolve',
+            'IP-CIDR6,fe80::/10,全球直连,no-resolve',
+            'IP-CIDR6,::1/128,全球直连,no-resolve'
         ]
 
         if rules_cfg.get('oracle_bypass', True):
             rules.extend([
-                'DOMAIN-SUFFIX,oracle.com,🎯 全球直连',
-                'DOMAIN-SUFFIX,oraclecloud.com,🎯 全球直连',
-                'DOMAIN-SUFFIX,oracleiaas.com,🎯 全球直连'
+                'DOMAIN-SUFFIX,oracle.com,全球直连',
+                'DOMAIN-SUFFIX,oraclecloud.com,全球直连',
+                'DOMAIN-SUFFIX,oracleiaas.com,全球直连'
             ])
         else:
             rules.extend([
-                'DOMAIN-SUFFIX,oracle.com,🚀 节点选择',
-                'DOMAIN-SUFFIX,oraclecloud.com,🚀 节点选择',
-                'DOMAIN-SUFFIX,oracleiaas.com,🚀 节点选择'
+                'DOMAIN-SUFFIX,oracle.com,节点选择',
+                'DOMAIN-SUFFIX,oraclecloud.com,节点选择',
+                'DOMAIN-SUFFIX,oracleiaas.com,节点选择'
             ])
 
         if rules_cfg.get('adblock', True):
             rules.extend([
-                'GEOSITE,category-ads-all,🛑 广告拦截',
-                'DOMAIN-KEYWORD,adservice,🛑 广告拦截'
+                'GEOSITE,category-ads-all,广告拦截',
+                'DOMAIN-KEYWORD,adservice,广告拦截'
             ])
 
         if rules_cfg.get('ai_group', True):
             rules.extend([
-                'GEOSITE,openai,🤖 AI 智能服务',
-                'GEOSITE,anthropic,🤖 AI 智能服务',
-                'DOMAIN-SUFFIX,openai.com,🤖 AI 智能服务',
-                'DOMAIN-SUFFIX,chatgpt.com,🤖 AI 智能服务',
-                'DOMAIN-SUFFIX,oaistatic.com,🤖 AI 智能服务',
-                'DOMAIN-SUFFIX,oaiusercontent.com,🤖 AI 智能服务',
-                'DOMAIN-SUFFIX,anthropic.com,🤖 AI 智能服务',
-                'DOMAIN-SUFFIX,claude.ai,🤖 AI 智能服务',
-                'DOMAIN-SUFFIX,claudecontent.com,🤖 AI 智能服务',
-                'DOMAIN-KEYWORD,openai,🤖 AI 智能服务',
-                'DOMAIN-KEYWORD,anthropic,🤖 AI 智能服务',
-                'DOMAIN-KEYWORD,claude,🤖 AI 智能服务'
+                'GEOSITE,openai,AI 智能服务',
+                'GEOSITE,anthropic,AI 智能服务',
+                'DOMAIN-SUFFIX,openai.com,AI 智能服务',
+                'DOMAIN-SUFFIX,chatgpt.com,AI 智能服务',
+                'DOMAIN-SUFFIX,oaistatic.com,AI 智能服务',
+                'DOMAIN-SUFFIX,oaiusercontent.com,AI 智能服务',
+                'DOMAIN-SUFFIX,anthropic.com,AI 智能服务',
+                'DOMAIN-SUFFIX,claude.ai,AI 智能服务',
+                'DOMAIN-SUFFIX,claudecontent.com,AI 智能服务',
+                'DOMAIN-KEYWORD,openai,AI 智能服务',
+                'DOMAIN-KEYWORD,anthropic,AI 智能服务',
+                'DOMAIN-KEYWORD,claude,AI 智能服务'
             ])
 
         if rules_cfg.get('media_group', True):
             rules.extend([
-                'GEOSITE,netflix,🎬 国际流媒体',
-                'GEOSITE,youtube,🎬 国际流媒体',
-                'GEOSITE,disney,🎬 国际流媒体',
-                'GEOSITE,spotify,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,netflix.com,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,nflxext.com,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,nflximg.net,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,nflxvideo.net,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,youtube.com,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,googlevideo.com,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,disneyplus.com,🎬 国际流媒体',
-                'DOMAIN-SUFFIX,spotify.com,🎬 国际流媒体'
+                'GEOSITE,netflix,国际流媒体',
+                'GEOSITE,youtube,国际流媒体',
+                'GEOSITE,disney,国际流媒体',
+                'GEOSITE,spotify,国际流媒体',
+                'DOMAIN-SUFFIX,netflix.com,国际流媒体',
+                'DOMAIN-SUFFIX,nflxext.com,国际流媒体',
+                'DOMAIN-SUFFIX,nflximg.net,国际流媒体',
+                'DOMAIN-SUFFIX,nflxvideo.net,国际流媒体',
+                'DOMAIN-SUFFIX,youtube.com,国际流媒体',
+                'DOMAIN-SUFFIX,googlevideo.com,国际流媒体',
+                'DOMAIN-SUFFIX,disneyplus.com,国际流媒体',
+                'DOMAIN-SUFFIX,spotify.com,国际流媒体'
             ])
 
         rules.extend([
-            'GEOSITE,github,🚀 节点选择',
-            'GEOSITE,telegram,🚀 节点选择',
-            'GEOSITE,twitter,🚀 节点选择',
-            'DOMAIN-SUFFIX,github.com,🚀 节点选择',
-            'DOMAIN-SUFFIX,telegram.org,🚀 节点选择',
-            'DOMAIN-SUFFIX,twitter.com,🚀 节点选择',
-            'DOMAIN-SUFFIX,x.com,🚀 节点选择'
+            'GEOSITE,github,节点选择',
+            'GEOSITE,telegram,节点选择',
+            'GEOSITE,twitter,节点选择',
+            'DOMAIN-SUFFIX,github.com,节点选择',
+            'DOMAIN-SUFFIX,telegram.org,节点选择',
+            'DOMAIN-SUFFIX,twitter.com,节点选择',
+            'DOMAIN-SUFFIX,x.com,节点选择'
         ])
 
         if rules_cfg.get('direct_cn', True):
             rules.extend([
-                'GEOSITE,cn,🎯 全球直连',
-                'GEOIP,CN,🎯 全球直连'
+                'GEOSITE,cn,全球直连',
+                'GEOIP,CN,全球直连'
             ])
 
-        rules.append('MATCH,🚀 节点选择')
+        rules.append('MATCH,节点选择')
 
         server_ip = SubEngine.get_server_ip()
         domain = SubEngine.get_server_domain()

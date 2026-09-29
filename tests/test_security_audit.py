@@ -52,7 +52,8 @@ class TestSecurityAudit(unittest.TestCase):
             '/api/transits',
             '/api/traffic/stats',
             '/api/speedtest/status',
-            '/api/status'
+            '/api/status',
+            '/api/ip/audit'
         ]
         for ep in endpoints:
             res = self.client.get(ep)
