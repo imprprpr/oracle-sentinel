@@ -58,7 +58,9 @@ class CleanIPManager:
         uuid = edt.get("uuid", "").strip()
         pages = edt.get("pages_domain", "").strip()
         worker = edt.get("worker_domain", "").strip()
-        return bool(uuid and (pages or worker))
+        pages_uuid = edt.get("pages_uuid", "").strip() or uuid
+        worker_uuid = edt.get("worker_uuid", "").strip() or uuid
+        return bool((pages and pages_uuid) or (worker and worker_uuid))
 
     @classmethod
     def get_clean_ips(cls):

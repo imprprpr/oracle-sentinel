@@ -717,6 +717,8 @@ async def get_edt_config(request: Request):
             'pages_domain': edt.get('pages_domain', ''),
             'worker_domain': edt.get('worker_domain', ''),
             'uuid': edt.get('uuid', ''),
+            'pages_uuid': edt.get('pages_uuid', ''),
+            'worker_uuid': edt.get('worker_uuid', ''),
             'path': edt.get('path', '/?ed=2048'),
             'proxy_ip': edt.get('proxy_ip', ''),
             'clean_ips': clean_ips,
@@ -733,7 +735,7 @@ async def save_edt_config(data: dict, request: Request):
         cfg['edgetunnel'] = {}
 
     edt = cfg['edgetunnel']
-    for k in ('enabled', 'pages_domain', 'worker_domain', 'uuid', 'path', 'proxy_ip', 'auto_refresh_clean_ips', 'enable_fallback_group'):
+    for k in ('enabled', 'pages_domain', 'worker_domain', 'uuid', 'pages_uuid', 'worker_uuid', 'path', 'proxy_ip', 'auto_refresh_clean_ips', 'enable_fallback_group'):
         if k in data:
             edt[k] = data[k]
 

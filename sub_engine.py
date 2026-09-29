@@ -156,6 +156,8 @@ class SubEngine:
                 return []
             edt = CleanIPManager.get_edt_config()
             uuid = edt.get('uuid', '').strip()
+            pages_uuid = edt.get('pages_uuid', '').strip() or uuid
+            worker_uuid = edt.get('worker_uuid', '').strip() or uuid
             pages = edt.get('pages_domain', '').strip()
             worker = edt.get('worker_domain', '').strip()
             path = edt.get('path', '/?ed=2048').strip() or '/?ed=2048'
@@ -170,12 +172,12 @@ class SubEngine:
             ]
 
             endpoints = []
-            if pages:
-                endpoints.append(('Pages', pages))
-            if worker:
-                endpoints.append(('Worker', worker))
+            if pages and pages_uuid:
+                endpoints.append(('Pages', pages, pages_uuid))
+            if worker and worker_uuid:
+                endpoints.append(('Worker', worker, worker_uuid))
 
-            for ep_type, ep_domain in endpoints:
+            for ep_type, ep_domain, ep_uuid in endpoints:
                 for isp_key, isp_title in isp_map:
                     pool = clean_ips.get(isp_key, [])
                     server = pool[0] if pool else 'cloudflare.com'
@@ -184,7 +186,7 @@ class SubEngine:
                         'name': node_name,
                         'server': server,
                         'port': 443,
-                        'uuid': uuid,
+                        'uuid': ep_uuid,
                         'host': ep_domain,
                         'path': path,
                         'isp': isp_key,
