@@ -14,15 +14,32 @@ import mesh_mgr
 class TestSecurityAudit(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.orig_config = sentinel_core.ConfigManager.load()
+        test_cfg = json.loads(json.dumps(cls.orig_config))
+        test_cfg["security"] = {
+            "auth_enabled": True,
+            "admin_username": "admin",
+            "admin_password_hash": app.auth.hash_password(auth_mgr.DEFAULT_ADMIN_PASS),
+            "session_secret": "test_security_session_secret_12345",
+            "secret_path": "/sentinel",
+            "sub_token": "test_security_sub_token_123",
+            "enable_host_guard": True,
+            "allowed_hosts": ["vps.example.com"]
+        }
+        test_cfg["cloudflare"] = {
+            "api_token": "",
+            "zone_name": "",
+            "record_name": "vps.example.com"
+        }
+        sentinel_core.ConfigManager.save(test_cfg)
+        cls.sec_cfg = test_cfg["security"]
+        cls.sub_token = "test_security_sub_token_123"
+        cls.admin_token = app.auth.create_session_token("admin")
         cls.client = TestClient(app.app, base_url='https://vps.example.com')
-        cls.sec_cfg = app.auth.get_security_config()
-        cls.sub_token = cls.sec_cfg.get("sub_token", "")
-        # Obtain admin session token
-        ok, token = app.auth.authenticate_admin(
-            cls.sec_cfg.get("admin_username", "admin"),
-            auth_mgr.DEFAULT_ADMIN_PASS
-        )
-        cls.admin_token = token if ok else ""
+
+    @classmethod
+    def tearDownClass(cls):
+        sentinel_core.ConfigManager.save(cls.orig_config)
 
     def test_unauthenticated_sensitive_endpoints_return_401(self):
         endpoints = [
