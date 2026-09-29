@@ -5,6 +5,46 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-09-30
+
+### Core Architecture & Probe Remediation (核心架构治理与探针修复)
+- **UDP Port Listening Tautology Fix (`sentinel_core.py`)**:
+  - Resolved `conn.status == conn.status` tautology in `check_port_listening`. Sockets are now inspected by protocol: TCP requires `SOCK_STREAM` and `CONN_LISTEN`, while UDP checks `SOCK_DGRAM` and port binding.
+- **Probe Direction Specification (`sentinel_core.py`)**:
+  - Telemetry explicitly flags outbound probes to domestic endpoints as `direction: 'outbound'`, distinguishing VPS egress latency/jitter from inbound GFW blocking.
+- **Unified Health Thresholds (`sentinel_core.py`, `app.py`)**:
+  - Replaced hardcoded loss thresholds with configurable `monitor.loss_threshold` across telemetry and background monitoring loops.
+
+### Safe Re-IP & Cooldown Circuit Breaker (换 IP 熔断机制与容灾闭环)
+- **24-Hour Cooldown Protection (`app.py`, `sentinel_core.py`)**:
+  - Introduced `reip_cooldown_hours: 24` cooldown circuit breaker preventing high-frequency API invocations on network jitter.
+  - Defaulted `auto_heal_mode` to `notify_only` (`auto_heal_enabled: false`) to prioritize alerts over unassisted automated IP recycling.
+- **OCI Failsafe Emergency Recovery (`sentinel_core.py`)**:
+  - Added multi-tier retry and fallback allocation in `OracleCloudProvider.change_public_ip` to guarantee instances never remain orphaned without a public IP.
+- **Real Closed-Loop Step 5/5 Verification (`app.py`)**:
+  - Post-reip routine actively validates Cloudflare DNS record synchronization and public internet egress reachability before clearing warning states.
+
+### Authentication & Credential Hardening (工业级鉴权与凭证安全)
+- **PBKDF2-HMAC-SHA256 Password Hashing (`auth_mgr.py`)**:
+  - Upgraded password hashing from single-round SHA256 to PBKDF2-HMAC-SHA256 (100,000 iterations).
+  - Legacy `salt:key` hashes are automatically upgraded to PBKDF2 upon successful administrator login.
+- **Dynamic Secret & Token Hygiene (`auth_mgr.py`)**:
+  - Eliminated static fallback secret strings; high-entropy secrets are generated and persisted on first boot.
+  - Disallowed query parameter session token (`?session_token=`) authentication to prevent leakage in server access logs and browser history.
+- **Brute-Force Rate Limiting (`auth_mgr.py`)**:
+  - Implemented client IP-based rate limiting (5 consecutive failures triggers a 15-minute temporary lockout).
+- **Zero Hardcoded Credentials & Initial Setup Prompt (`scripts/install.sh`, `auth_mgr.py`)**:
+  - Purged hardcoded default passwords (`mNq7gQGr`) and personal test domains (`vpsoracle.ccwu.cc`).
+  - Added dynamic initial admin password generation on first boot with `must_change_password` mandatory update enforcement.
+
+### Transport Hygiene & System Hardening (传输规范与系统沙箱)
+- **Hysteria 2 Port Hopping Default (`sub_engine.py`, `sentinel_core.py`, `config.example.json`)**:
+  - Defaulted `hy2_hop` to `False` to maintain a standard single-port (:443) baseline and eliminate wide UDP port firewall surface.
+- **Systemd Sandbox Hardening (`systemd/vpsentinel.service`, `systemd/oracle-sentinel.service`)**:
+  - Added `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=full`, `ProtectHome=read-only`, and capability bounding sets to restrict execution privileges.
+
+---
+
 ## [2.4.0] - 2026-09-27
 
 ### Traffic Auditing & Billing Quota Hub (智能流量多维度审计与账单预警中心)
