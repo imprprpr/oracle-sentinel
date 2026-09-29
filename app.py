@@ -13,7 +13,7 @@ import hmac
 from typing import List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
 import sentinel_core
@@ -951,7 +951,10 @@ async def get_ip_audit(request: Request, force: bool = False):
         check_admin(request)
     loop = asyncio.get_running_loop()
     report = await loop.run_in_executor(None, ip_audit.auditor.audit, force)
-    return report
+    return JSONResponse(
+        content=report,
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 class SpeedtestRequest(BaseModel):
     mode: Optional[str] = 'full'

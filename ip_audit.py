@@ -183,6 +183,12 @@ class IPAuditor:
                 data = r.json()
                 if data.get("status") == "success":
                     cc = data.get("countryCode", "US")
+                    reverse_val = (data.get("reverse") or "").strip()
+                    if not reverse_val and data.get("query"):
+                        try:
+                            reverse_val = socket.gethostbyaddr(data.get("query"))[0]
+                        except Exception:
+                            reverse_val = "无反向 PTR 记录 (None)"
                     info.update({
                         "ip": data.get("query", ""),
                         "country": data.get("country", ""),
@@ -195,7 +201,7 @@ class IPAuditor:
                         "isp": data.get("isp", ""),
                         "org": data.get("org", ""),
                         "is_datacenter": bool(data.get("hosting", True)),
-                        "reverse_dns": data.get("reverse", "")
+                        "reverse_dns": reverse_val or "无反向 PTR 记录 (None)"
                     })
                     return info
         except Exception as e:
@@ -225,11 +231,13 @@ class IPAuditor:
         except Exception as e:
             logger.warning(f"ipwho.is lookup error: {e}")
 
-        if info["ip"] and info["ip"] != "Unknown" and not info["reverse_dns"]:
+        if info["ip"] and info["ip"] != "Unknown" and not info.get("reverse_dns"):
             try:
                 info["reverse_dns"] = socket.gethostbyaddr(info["ip"])[0]
             except Exception:
-                info["reverse_dns"] = "无反向 PTR 解析"
+                info["reverse_dns"] = "无反向 PTR 记录 (None)"
+        if not info.get("reverse_dns"):
+            info["reverse_dns"] = "无反向 PTR 记录 (None)"
 
         return info
 
