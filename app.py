@@ -29,6 +29,7 @@ import traffic_mgr
 import mesh_mgr
 import bot_mgr
 import clean_ip_mgr
+import cert_sync_mgr
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelAPI')
@@ -144,6 +145,7 @@ async def startup_event():
     asyncio.create_task(background_monitor_loop())
     traffic_mgr.TrafficManager.start_background_collector(cfg_mgr.load, interval_sec=60)
     mesh_mgr.MeshManager.start_background_poller(interval_sec=60)
+    cert_sync_mgr.CertSyncManager.start_background_poller(cfg_mgr.load)
     bot = bot_mgr.get_bot_instance(get_state_func=monitor.get_full_state, get_config_func=cfg_mgr.load)
     bot.start()
 
@@ -1166,7 +1168,7 @@ async def run_healing_routine(trigger_source='MANUAL'):
     runtime_state['status'] = 'healing'
     t_start = time.time()
     
-    await broadcast_log(f'⚡ [HEAL STEP 1/5] Initiated {trigger_source} Re-IP rebirth routine...', 'WARN')
+    await broadcast_log(f'[HEAL STEP 1/5] Initiated {trigger_source} Re-IP rebirth routine...', 'WARN')
     await asyncio.sleep(1)
 
     cfg = cfg_mgr.load()
@@ -1221,7 +1223,7 @@ async def run_healing_routine(trigger_source='MANUAL'):
         notification.NotificationManager.broadcast(
             cfg,
             title="Healing Routine Failed / 自动修复失败",
-            message=f"❌ Rebirth routine failed for provider {prov_name}: {str(e)}",
+            message=f"[FAILED] Rebirth routine failed for provider {prov_name}: {str(e)}",
             level="ERROR"
         )
     finally:
@@ -1387,6 +1389,153 @@ async def refresh_mesh(request: Request):
     check_admin(request)
     mesh_mgr.MeshManager.refresh_all_nodes()
     return mesh_mgr.MeshManager.get_mesh_overview(local_state_func=monitor.get_full_state)
+
+# --- Distributed Certificate Sync Endpoints ---
+
+class CertConfigModel(BaseModel):
+    enabled: Optional[bool] = None
+    role: Optional[str] = None  # 'disabled', 'master', 'edge'
+    master_url: Optional[str] = None
+    sync_token: Optional[str] = None
+    cert_dir: Optional[str] = None
+    poll_interval_hours: Optional[int] = None
+    auto_reload_services: Optional[List[str]] = None
+    post_sync_hook: Optional[str] = None
+    verify_ssl: Optional[bool] = None
+
+class CertSyncNowModel(BaseModel):
+    force: Optional[bool] = False
+
+def verify_cert_access(request: Request) -> bool:
+    """Verifies that the request has permission to access certificate endpoints."""
+    # 1. Admin authenticated session
+    if auth.is_request_authenticated(request):
+        return True
+
+    # 2. Check sync_token or sub_token
+    cfg = cfg_mgr.load()
+    sync_cfg = cert_sync_mgr.CertSyncManager.get_sync_config(cfg)
+    valid_tokens = []
+    if sync_cfg.get('sync_token'):
+        valid_tokens.append(sync_cfg['sync_token'])
+    sec = cfg.get('security', {})
+    if sec.get('sub_token'):
+        valid_tokens.append(sec['sub_token'])
+
+    if not valid_tokens:
+        return False
+
+    req_token = ''
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        req_token = auth_header[7:].strip()
+    elif "token" in request.query_params:
+        req_token = request.query_params.get("token", "").strip()
+
+    if not req_token:
+        return False
+
+    for vt in valid_tokens:
+        if hmac.compare_digest(req_token, vt):
+            return True
+    return False
+
+@app.get('/api/cert/info')
+async def get_cert_info(request: Request):
+    check_admin(request)
+    cfg = cfg_mgr.load()
+    sync_cfg = cert_sync_mgr.CertSyncManager.get_sync_config(cfg)
+    cert_dir = sync_cfg.get('cert_dir')
+    local_info = cert_sync_mgr.CertManager.get_local_cert_info(cert_dir)
+    return {
+        'status': 'ok',
+        'config': sync_cfg,
+        'certificate': local_info
+    }
+
+@app.get('/api/cert/status')
+async def get_cert_status(request: Request):
+    if not verify_cert_access(request):
+        raise HTTPException(status_code=401, detail="Invalid certificate sync authorization")
+    cfg = cfg_mgr.load()
+    sync_cfg = cert_sync_mgr.CertSyncManager.get_sync_config(cfg)
+    cert_dir = sync_cfg.get('cert_dir')
+    info = cert_sync_mgr.CertManager.get_local_cert_info(cert_dir)
+    if not info.get('exists'):
+        return {
+            'status': 'no_cert',
+            'fingerprint': '',
+            'domains': [],
+            'issuer': 'N/A',
+            'valid_to': '',
+            'days_left': 0,
+            'bundle_updated_at': 0
+        }
+    return {
+        'status': 'ok',
+        'fingerprint': info.get('fingerprint', ''),
+        'domains': info.get('domains', []),
+        'issuer': info.get('issuer', 'Unknown'),
+        'valid_to': info.get('valid_to', ''),
+        'days_left': info.get('days_left', 0),
+        'bundle_updated_at': int(os.path.getmtime(info['fullchain_path'])) if os.path.exists(info.get('fullchain_path', '')) else 0
+    }
+
+@app.get('/api/cert/bundle')
+async def get_cert_bundle(request: Request):
+    if not verify_cert_access(request):
+        raise HTTPException(status_code=401, detail="Invalid certificate sync authorization")
+    cfg = cfg_mgr.load()
+    sync_cfg = cert_sync_mgr.CertSyncManager.get_sync_config(cfg)
+    cert_dir = sync_cfg.get('cert_dir')
+    try:
+        bundle = cert_sync_mgr.CertManager.read_cert_bundle(cert_dir)
+        return {
+            'status': 'ok',
+            **bundle
+        }
+    except Exception as e:
+        logger.error(f"Failed to read certificate bundle: {e}")
+        raise HTTPException(status_code=404, detail=f"Certificate bundle not available: {e}")
+
+@app.post('/api/cert/config')
+async def save_cert_config(model: CertConfigModel, request: Request):
+    check_admin(request)
+    data = model.model_dump(exclude_unset=True) if hasattr(model, 'model_dump') else model.dict(exclude_unset=True)
+    updated = cert_sync_mgr.CertSyncManager.update_sync_config(data)
+    await broadcast_log(f"Updated certificate sync configuration (role: {updated.get('role')})")
+    return {'status': 'ok', 'config': updated}
+
+@app.post('/api/cert/sync-now')
+async def trigger_cert_sync_now(model: CertSyncNowModel, request: Request):
+    check_admin(request)
+    cfg = cfg_mgr.load()
+    sync_cfg = cert_sync_mgr.CertSyncManager.get_sync_config(cfg)
+    role = sync_cfg.get('role', 'disabled')
+
+    if role == 'edge':
+        res = cert_sync_mgr.CertSyncManager.perform_edge_sync(force=bool(model.force))
+        await broadcast_log(f"Edge certificate sync: {res.get('status')} - {res.get('message')}")
+        return res
+    elif role == 'master':
+        # Master node local reload
+        services = sync_cfg.get('auto_reload_services', ['x-ui', 'vpsentinel', 'nginx'])
+        hook = sync_cfg.get('post_sync_hook', '')
+        reload_results = cert_sync_mgr.CertSyncAgent.reload_downstream_services(services=services, hook_path=hook)
+        await broadcast_log(f"Master certificate reloaded downstream services: {len(reload_results)} services")
+        return {
+            'success': True,
+            'status': 'reloaded',
+            'role': 'master',
+            'message': 'Master node reloaded downstream services successfully',
+            'reloaded': reload_results
+        }
+    else:
+        return {
+            'success': False,
+            'status': 'disabled',
+            'message': 'Certificate sync is disabled on this node. Please set role to Master or Edge.'
+        }
 
 # --- Interactive Bot Endpoints ---
 

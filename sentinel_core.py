@@ -132,6 +132,21 @@ DEFAULT_CONFIG = {
         },
         'auto_refresh_clean_ips': True,
         'enable_fallback_group': True
+    },
+    'cert_sync': {
+        'enabled': False,
+        'role': 'disabled',
+        'master_url': '',
+        'sync_token': '',
+        'cert_dir': '/etc/vpsentinel/cert',
+        'poll_interval_hours': 12,
+        'auto_reload_services': ['x-ui', 'vpsentinel', 'nginx'],
+        'post_sync_hook': '',
+        'verify_ssl': True,
+        'last_sync_time': 0,
+        'last_fingerprint': '',
+        'last_sync_status': 'never',
+        'last_sync_message': ''
     }
 }
 
