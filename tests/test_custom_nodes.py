@@ -1,7 +1,14 @@
+import os
+import sys
 import unittest
 import base64
 import json
 import yaml
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 import custom_node_mgr
 import sub_engine
 

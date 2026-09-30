@@ -1,8 +1,14 @@
 import os
+import sys
 import json
 import time
 import threading
 import unittest
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from starlette.testclient import TestClient
 
 import app
@@ -289,6 +295,7 @@ class TestSecurityAudit(unittest.TestCase):
         orig_cfg = sentinel_core.ConfigManager.load()
         try:
             cfg = json.loads(json.dumps(orig_cfg))
+            cfg['initialized'] = True
             cfg['notifications'] = {
                 'custom_webhook': {
                     'enabled': True,
@@ -336,15 +343,19 @@ class TestSecurityAudit(unittest.TestCase):
 
         # 3. sync_token bearer must be accepted (proceeds past auth check: 200 or 404, never 401)
         sync_token = 'valid_sync_token_for_audit_test_99'
-        cfg = sentinel_core.ConfigManager.load()
-        cfg.setdefault('cert_sync', {})['sync_token'] = sync_token
-        sentinel_core.ConfigManager.save(cfg)
+        orig_cfg = sentinel_core.ConfigManager.load()
+        try:
+            cfg = json.loads(json.dumps(orig_cfg))
+            cfg.setdefault('cert_sync', {})['sync_token'] = sync_token
+            sentinel_core.ConfigManager.save(cfg)
 
-        res_sync = self.client.get(
-            '/api/cert/bundle',
-            headers={'Authorization': f'Bearer {sync_token}'}
-        )
-        self.assertIn(res_sync.status_code, [200, 404])
+            res_sync = self.client.get(
+                '/api/cert/bundle',
+                headers={'Authorization': f'Bearer {sync_token}'}
+            )
+            self.assertIn(res_sync.status_code, [200, 404])
+        finally:
+            sentinel_core.ConfigManager.save(orig_cfg)
 
         # 4. Admin session cookie must be accepted
         res_admin = self.client.get(

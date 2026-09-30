@@ -1,4 +1,11 @@
+import os
+import sys
 import unittest
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 import traffic_mgr
 import mesh_mgr
 import bot_mgr

@@ -5,8 +5,15 @@ Tests for Web Setup Quick Start endpoint and Host Guard uninitialized state.
 Strictly Zero Emojis.
 """
 
+import os
+import sys
 import json
 import unittest
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from starlette.testclient import TestClient
 
 import sentinel_core
