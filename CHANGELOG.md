@@ -5,6 +5,57 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-09-30
+
+### Comprehensive Security Audit Remediation (代码安全与架构审计全面落地)
+- **P0-1: `/api/setup/status` Information Disclosure Fix (`app.py`)**:
+  - Implemented `mask_token()` and `redact_notifications()` to strictly mask notification secrets (Telegram Bot Token, Discord/Bark Webhooks).
+  - Unauthenticated requests when initialized now only receive `{"initialized": true}`, preventing configuration, public IP, and notification leakage.
+  - Added smart merging in `/api/settings` to prevent masked secrets from overwriting original configuration values.
+- **P0-2: Strict Certificate Private Key Access Isolation (`app.py`)**:
+  - Implemented `verify_cert_key_access()` barrier for `/api/cert/bundle`.
+  - Disallowed `sub_token` from accessing certificate private keys (returns 401 Unauthorized), ensuring subscription users cannot extract TLS certificates. Access is restricted to authenticated administrators and cluster sync tokens.
+- **P0-3: Anti-Spoofing Login Rate Limiter & Loopback Enforcement (`app.py`, `auth_mgr.py`)**:
+  - Defined trusted proxy networks (loopback and official Cloudflare CIDRs) with custom `trusted_proxy_cidrs` support.
+  - Proxy IP headers (`CF-Connecting-IP`, `X-Forwarded-For`) are only evaluated if the underlying peer is a verified trusted proxy.
+  - Removed loopback IP exemption from `is_client_locked` to prevent brute-force attacks via local proxies.
+- **P0-4: Strict `0o600` Permissions & Zero Plaintext Credential Logging (`sentinel_core.py`, `auth_mgr.py`, `scripts/install.sh`)**:
+  - Enforced `0o600` file permissions on `config.json` before and after atomic write/replace operations.
+  - Eliminated `initial_password` storage in plaintext on disk.
+- **P1-5: TLS Self-Signed Certificate Pre-generation (`scripts/install.sh`)**:
+  - Added automatic fallback self-signed certificate generation during installation to eliminate systemd uvicorn crash loops when custom certificates are absent.
+- **P1-6: Dead Reference Elimination & Consolidated Healing (`bot_mgr.py`, `tests/test_no_dead_references.py`)**:
+  - Purged obsolete `IPManager` references in `bot_mgr.py`, consolidating all healing routines into `sentinel_core.run_healing_routine`.
+  - Added AST-based static regression test `test_no_dead_references.py` to continuously verify zero unresolved imports/calls.
+- **P1-7: Rolling 24h Re-IP Quota Enforcement (`app.py`, `sentinel_core.py`)**:
+  - Implemented 24-hour rolling window quota enforcement (`max_daily_reip: 2`) preventing excessive cloud API IP rebirth triggers, with manual override support (`force: true`).
+- **P1-8: Inbound Deduplication & Sing-box Tag Sanitization (`sub_engine.py`)**:
+  - Deduplicated inbound proxy nodes sharing identical server and port configurations.
+  - Sanitized Sing-box outbound tags to guarantee uniqueness and prevent core configuration parse errors.
+- **P1-9: Uplink Liveness Pre-flight Detection (`sentinel_core.py`, `app.py`)**:
+  - Integrated public gateway and domestic uplink ping verification prior to triggering automated healing, preventing accidental IP replacement during uplink network interruptions.
+- **P1-10: Cloud Provider Pre-flight Validation & Rollback Tracking (`app.py`)**:
+  - Added pre-flight API credential validation and post-reip IP verification with state rollback tracking.
+- **P2-11: Async State Offloading & 5-Second Snapshot Caching (`app.py`, `sentinel_core.py`)**:
+  - Offloaded blocking `get_full_state()` calls to thread pool with a 5-second in-memory snapshot cache to eliminate API event loop latency.
+- **P2-12: Atomic Configuration Read-Modify-Write Transactions (`sentinel_core.py`, `auth_mgr.py`)**:
+  - Introduced `ConfigManager.update(mutator)` enabling thread-safe, conflict-free atomic configuration mutations.
+- **P2-13: Dependency Version Pinning & Installer Ref Support (`requirements.txt`, `scripts/install.sh`)**:
+  - Pinned all dependencies in `requirements.txt` and supported `VPSENTINEL_REF` environment variable in `install.sh` for deterministic deployments.
+- **P2-14: Host Guard Local Peer Verification & Server Header Cloaking (`app.py`, `auth_mgr.py`)**:
+  - Strengthened `check_host_guard()` by validating peer IP for loopback host headers.
+  - Injected `Server: nginx/1.22.1` decoy header across all HTTP responses.
+- **P2-15: Deprecated Asset Removal & Script Sanitization (`static/`, `scripts/setup-uptime-kuma.py`, `README.md`)**:
+  - Removed unused `static/three.min.js`, localized Tailwind CSS, sanitized external IPs in scripts, and updated documentation.
+
+### Continuous Integration & Test Suite Stability (持续集成与测试套件加固)
+- **CI TestClient Cross-Version Compatibility (`tests/test_cloud_providers.py`, `tests/test_security_audit.py`)**:
+  - Resolved `TypeError: TestClient.__init__() got an unexpected keyword argument 'client'` under Starlette 0.36.3.
+- **Full Matrix Verification**:
+  - Verified 100% green test matrix across Python 3.10, 3.11, and 3.12 (80/80 passed, 0 errors, 0 failures).
+
+---
+
 ## [2.5.0] - 2026-09-30
 
 ### Core Architecture & Probe Remediation (核心架构治理与探针修复)
