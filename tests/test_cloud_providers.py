@@ -359,8 +359,7 @@ class TestProviderRestEndpoints(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(
             app.app,
-            base_url='https://vps.example.com',
-            client=('127.0.0.1', 54321)
+            base_url='https://vps.example.com'
         )
         self.admin_token = app.auth.create_session_token("admin")
         self.client.cookies = {'sentinel_session': self.admin_token}

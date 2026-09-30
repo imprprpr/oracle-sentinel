@@ -92,11 +92,10 @@ class TestSecurityAudit(unittest.TestCase):
         self.assertEqual(res_traffic.status_code, 200)
 
     def test_setup_endpoints_require_auth_for_external_clients(self):
-        # Simulate an external client IP
+        # Simulate an unauthenticated external client
         client_external = TestClient(
             app.app,
-            base_url='https://vps.example.com',
-            client=('203.0.113.10', 54321)
+            base_url='https://vps.example.com'
         )
         res_cf = client_external.post('/api/setup/verify-cf', json={'token': 'test'})
         self.assertEqual(res_cf.status_code, 401)
