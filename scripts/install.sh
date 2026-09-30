@@ -14,6 +14,7 @@ fi
 
 INSTALL_DIR="/opt/vpsentinel"
 REPO_URL="https://github.com/imprprpr/vpsentinel.git"
+VPSENTINEL_REF="${VPSENTINEL_REF:-main}"
 
 echo "===================================================================="
 echo "          Installing VPSentinel Control Center & Daemon             "
@@ -54,8 +55,8 @@ if [ -f "$SCRIPT_DIR/app.py" ]; then
     cp -ru "$SCRIPT_DIR"/* "$INSTALL_DIR/"
 else
     if [ ! -f "$INSTALL_DIR/app.py" ]; then
-        echo ">>> Cloning repository from GitHub: $REPO_URL ..."
-        git clone "$REPO_URL" "$INSTALL_DIR"
+        echo ">>> Cloning repository from GitHub: $REPO_URL (ref: $VPSENTINEL_REF) ..."
+        git clone --branch "$VPSENTINEL_REF" "$REPO_URL" "$INSTALL_DIR" 2>/dev/null || git clone "$REPO_URL" "$INSTALL_DIR"
     fi
 fi
 
@@ -114,6 +115,23 @@ if command -v iptables >/dev/null 2>&1; then
     fi
 fi
 
+# Ensure initial TLS certificate exists to prevent uvicorn crash loops (P1-5)
+echo ">>> Checking TLS certificates..."
+mkdir -p /etc/vpsentinel/cert /etc/oracle-sentinel
+ln -sfn /etc/vpsentinel/cert /etc/oracle-sentinel/cert
+
+if [ ! -f /etc/vpsentinel/cert/privkey.pem ] || [ ! -f /etc/vpsentinel/cert/fullchain.pem ]; then
+    echo ">>> Generating initial self-signed TLS certificates..."
+    openssl req -x509 -newkey rsa:2048 -nodes \
+        -keyout /etc/vpsentinel/cert/privkey.pem \
+        -out /etc/vpsentinel/cert/fullchain.pem \
+        -days 3650 \
+        -subj '/CN=vpsentinel' >/dev/null 2>&1 || true
+    chmod 600 /etc/vpsentinel/cert/privkey.pem 2>/dev/null || true
+    chmod 644 /etc/vpsentinel/cert/fullchain.pem 2>/dev/null || true
+    cp -n /etc/vpsentinel/cert/fullchain.pem /etc/vpsentinel/cert/cert.pem 2>/dev/null || true
+fi
+
 # Start or restart background service
 echo ">>> Starting VPSentinel service..."
 if systemctl is-enabled --quiet vpsentinel 2>/dev/null; then
@@ -128,24 +146,9 @@ echo "===================================================================="
 echo "[OK] VPSentinel 核心服务已成功安装并启动就绪！"
 echo "===================================================================="
 
-# Retrieve or generate random initial admin password
+# Retrieve or generate random initial admin password (P0-4: No plaintext initial_password on disk)
 INITIAL_PASS=$(python3 -c "
-import sys
-sys.path.insert(0, '$INSTALL_DIR')
-try:
-    from auth_mgr import AuthManager
-    from sentinel_core import ConfigManager
-    mgr = AuthManager(ConfigManager)
-    sec = mgr.get_security_config()
-    print(sec.get('initial_password', ''))
-except Exception:
-    pass
-" 2>/dev/null || true)
-
-if [ -z "$INITIAL_PASS" ]; then
-    INITIAL_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))" 2>/dev/null || echo "Sentinel$(date +%s)")
-    python3 -c "
-import sys
+import sys, secrets
 sys.path.insert(0, '$INSTALL_DIR')
 try:
     from auth_mgr import AuthManager
@@ -153,20 +156,31 @@ try:
     mgr = AuthManager(ConfigManager)
     cfg = ConfigManager.load()
     sec = cfg.setdefault('security', {})
-    sec['admin_password_hash'] = mgr.hash_password('$INITIAL_PASS')
-    sec['must_change_password'] = True
-    sec['initial_password'] = '$INITIAL_PASS'
-    ConfigManager.save(cfg)
+    sec.pop('initial_password', None)
+    if not sec.get('admin_password_hash'):
+        raw_pass = secrets.token_urlsafe(16)
+        sec['admin_password_hash'] = mgr.hash_password(raw_pass)
+        sec['must_change_password'] = True
+        ConfigManager.save(cfg)
+        print(raw_pass)
+    else:
+        ConfigManager.save(cfg)
+        print('[EXISTING]')
 except Exception:
-    pass
-" 2>/dev/null || true
-fi
+    print('[ERROR]')
+" 2>/dev/null || echo "[ERROR]")
 
 echo "控制台访问信息："
 echo "  访问地址: https://${SERVER_IP}:20540/sentinel"
 echo "  初始账号: admin"
-echo "  初始随机密码: ${INITIAL_PASS}"
-echo "  (请妥善保存此密码，首次登入后请立即在控制台中修改)"
+if [ "$INITIAL_PASS" = "[EXISTING]" ]; then
+    echo "  管理员密码: [已设置，沿用现有密码]"
+elif [ "$INITIAL_PASS" = "[ERROR]" ] || [ -z "$INITIAL_PASS" ]; then
+    echo "  管理员密码: [生成异常，请进入向导设置或检查 config.json]"
+else
+    echo "  初始随机密码: ${INITIAL_PASS}"
+    echo "  (请妥善保存此密码，首次登入后请立即在控制台中修改；为确保安全，明文密码不会写入配置文件)"
+fi
 echo "新手极简上手指南："
 echo "  1. 复制上方链接在浏览器打开；"
 echo "  2. 若 Chrome/Edge 提示'您的连接不是私密连接'，直接键盘盲打这几个字母即可跳过：thisisunsafe"

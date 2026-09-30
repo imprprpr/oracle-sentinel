@@ -11,6 +11,7 @@ import logging
 import threading
 import hmac
 import secrets
+import ipaddress
 from typing import List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
@@ -48,6 +49,105 @@ monitor = sentinel_core.SystemMonitor()
 cfg_mgr = sentinel_core.ConfigManager()
 auth = auth_mgr.AuthManager(cfg_mgr)
 
+# Default trusted proxy networks: loopback and Cloudflare official edge ranges
+DEFAULT_TRUSTED_PROXY_NETWORKS = [
+    ipaddress.ip_network('127.0.0.0/8', strict=False),
+    ipaddress.ip_network('::1/128', strict=False),
+    ipaddress.ip_network('173.245.48.0/20', strict=False),
+    ipaddress.ip_network('103.21.244.0/22', strict=False),
+    ipaddress.ip_network('103.22.200.0/22', strict=False),
+    ipaddress.ip_network('103.31.4.0/22', strict=False),
+    ipaddress.ip_network('141.101.64.0/18', strict=False),
+    ipaddress.ip_network('108.162.192.0/18', strict=False),
+    ipaddress.ip_network('190.93.240.0/20', strict=False),
+    ipaddress.ip_network('188.114.96.0/20', strict=False),
+    ipaddress.ip_network('197.234.240.0/22', strict=False),
+    ipaddress.ip_network('198.41.128.0/17', strict=False),
+    ipaddress.ip_network('162.158.0.0/15', strict=False),
+    ipaddress.ip_network('104.16.0.0/13', strict=False),
+    ipaddress.ip_network('104.24.0.0/14', strict=False),
+    ipaddress.ip_network('172.64.0.0/13', strict=False),
+    ipaddress.ip_network('131.0.72.0/22', strict=False),
+    ipaddress.ip_network('2400:cb00::/32', strict=False),
+    ipaddress.ip_network('2606:4700::/32', strict=False),
+    ipaddress.ip_network('2803:f800::/32', strict=False),
+    ipaddress.ip_network('2405:b500::/32', strict=False),
+    ipaddress.ip_network('2405:8100::/32', strict=False),
+    ipaddress.ip_network('2a06:98c0::/29', strict=False),
+    ipaddress.ip_network('2c0f:f248::/32', strict=False)
+]
+
+def is_trusted_peer(peer_ip: str, custom_cidrs: Optional[List[str]] = None) -> bool:
+    if not peer_ip:
+        return False
+    try:
+        ip_obj = ipaddress.ip_address(peer_ip)
+    except ValueError:
+        return False
+
+    networks = list(DEFAULT_TRUSTED_PROXY_NETWORKS)
+    if custom_cidrs:
+        for cidr in custom_cidrs:
+            try:
+                networks.append(ipaddress.ip_network(cidr, strict=False))
+            except ValueError:
+                pass
+
+    for net in networks:
+        if ip_obj in net:
+            return True
+    return False
+
+def resolve_client_ip(request: Request, custom_cidrs: Optional[List[str]] = None) -> str:
+    peer_ip = request.client.host if request.client else ""
+    if not is_trusted_peer(peer_ip, custom_cidrs):
+        return peer_ip
+
+    headers = getattr(request, 'headers', {})
+    cf_ip = None
+    xfwd = None
+    if hasattr(headers, 'items'):
+        for k, v in headers.items():
+            kl = k.lower()
+            if kl == 'cf-connecting-ip' and not cf_ip:
+                cf_ip = v
+            elif kl == 'x-forwarded-for' and not xfwd:
+                xfwd = v
+    elif hasattr(headers, 'get'):
+        cf_ip = headers.get('cf-connecting-ip') or headers.get('CF-Connecting-IP')
+        xfwd = headers.get('x-forwarded-for') or headers.get('X-Forwarded-For')
+
+    if cf_ip:
+        return cf_ip.strip()
+    if xfwd:
+        return xfwd.split(',')[0].strip()
+    return peer_ip
+
+def mask_token(token: str, head: int = 4, tail: int = 4) -> str:
+    if not token:
+        return ""
+    if len(token) <= head + tail:
+        return "****"
+    return f"{token[:head]}****{token[-tail:]}"
+
+def redact_notifications(notifications: dict) -> dict:
+    if not isinstance(notifications, dict):
+        return {}
+    redacted = json.loads(json.dumps(notifications))
+    tg = redacted.get('telegram', {})
+    if isinstance(tg, dict) and tg.get('bot_token'):
+        tg['bot_token'] = mask_token(tg['bot_token'])
+    dc = redacted.get('discord', {})
+    if isinstance(dc, dict) and dc.get('webhook_url'):
+        dc['webhook_url'] = mask_token(dc['webhook_url'], head=8, tail=4)
+    bark = redacted.get('bark', {})
+    if isinstance(bark, dict) and bark.get('bark_key'):
+        bark['bark_key'] = mask_token(bark['bark_key'])
+    cw = redacted.get('custom_webhook', {})
+    if isinstance(cw, dict) and cw.get('url'):
+        cw['url'] = mask_token(cw['url'], head=8, tail=4)
+    return redacted
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -66,20 +166,14 @@ class SecuritySettingsRequest(BaseModel):
 async def security_middleware(request: Request, call_next):
     # Host Guard: Reject raw IP scans on public interface
     if not auth.check_host_guard(request):
-        return Response(status_code=404, content=b"")
+        return Response(status_code=404, content=b"", headers={"Server": "nginx/1.22.1"})
 
-    # Cloudflare / Proxy client IP extraction
-    cf_ip = request.headers.get("cf-connecting-ip")
-    if cf_ip:
-        request.state.client_ip = cf_ip.strip()
-    else:
-        xfwd = request.headers.get("x-forwarded-for")
-        if xfwd:
-            request.state.client_ip = xfwd.split(",")[0].strip()
-        else:
-            request.state.client_ip = request.client.host if request.client else ""
+    cfg = cfg_mgr.load()
+    trusted_cidrs = cfg.get("security", {}).get("trusted_proxy_cidrs", [])
+    request.state.client_ip = resolve_client_ip(request, trusted_cidrs)
 
     response = await call_next(request)
+    response.headers["Server"] = "nginx/1.22.1"
     return response
 
 def check_admin(request: Request):
@@ -147,15 +241,20 @@ async def startup_event():
     traffic_mgr.TrafficManager.start_background_collector(cfg_mgr.load, interval_sec=60)
     mesh_mgr.MeshManager.start_background_poller(interval_sec=60)
     cert_sync_mgr.CertSyncManager.start_background_poller(cfg_mgr.load)
-    bot = bot_mgr.get_bot_instance(get_state_func=monitor.get_full_state, get_config_func=cfg_mgr.load)
+    bot = bot_mgr.get_bot_instance(
+        get_state_func=monitor.get_full_state,
+        get_config_func=cfg_mgr.load,
+        run_healing_func=run_healing_routine
+    )
     bot.start()
 
 async def background_monitor_loop():
     logger.info('Starting background probe & monitor task...')
+    loop = asyncio.get_running_loop()
     while True:
         try:
             cfg = cfg_mgr.load()
-            state = monitor.get_full_state()
+            state = await loop.run_in_executor(None, monitor.get_full_state)
             
             if not runtime_state['heal_in_progress']:
                 runtime_state['status'] = state['health']
@@ -179,7 +278,11 @@ async def background_monitor_loop():
                 consec_limit = int(cfg.get('monitor', {}).get('consecutive_failures', 3))
                 auto_heal_mode = cfg.get('monitor', {}).get('auto_heal_mode', 'notify_only')
                 
-                if state['probes']['loss_pct'] >= loss_thresh:
+                # P1-9: If local uplink network is down, do not trigger false positive Re-IP
+                if state['probes'].get('network_down'):
+                    monitor.consecutive_failures = 0
+                    await broadcast_log('Local uplink network is unreachable (network_down). Skipping Re-IP evaluation.', 'WARN')
+                elif state['probes']['loss_pct'] >= loss_thresh:
                     monitor.consecutive_failures += 1
                     await broadcast_log(
                         f'GFW Block threshold exceeded: {state["probes"]["loss_pct"]}% loss '
@@ -249,7 +352,8 @@ async def get_status(request: Request):
     if not auth.verify_subscription_access(request):
         raise HTTPException(status_code=401, detail="Authentication required")
     cfg = cfg_mgr.load()
-    state = monitor.get_full_state()
+    loop = asyncio.get_running_loop()
+    state = await loop.run_in_executor(None, monitor.get_full_state)
     return {
         'state': state,
         'sentinel': {
@@ -344,7 +448,7 @@ async def get_settings(request: Request):
             },
             'custom_webhook': {
                 'enabled': custom.get('enabled', False),
-                'url': custom.get('url', '')
+                'url': mask_token(custom.get('url', ''), head=8, tail=4) if custom.get('url') else ''
             }
         }
     }
@@ -456,9 +560,14 @@ async def update_settings(data: SettingsModel, request: Request):
         'enabled': bool(data.bark_enabled),
         'bark_key': new_bark_key or ''
     }
+    existing_custom = cfg.get('notifications', {}).get('custom_webhook', {})
+    new_custom_url = data.custom_webhook_url
+    if not new_custom_url or '****' in new_custom_url:
+        new_custom_url = existing_custom.get('url', '')
+
     cfg['notifications']['custom_webhook'] = {
         'enabled': bool(data.custom_webhook_enabled),
-        'url': data.custom_webhook_url or ''
+        'url': new_custom_url or ''
     }
 
     cfg_mgr.save(cfg)
@@ -593,14 +702,23 @@ class ProviderTestModel(BaseModel):
     azure: Optional[dict] = None
 
 @app.get('/api/setup/status')
-async def setup_status():
+async def setup_status(request: Request):
     cfg = cfg_mgr.load()
     is_init = cfg.get('initialized', False) or bool(cfg.get('cloudflare', {}).get('api_token'))
+    is_authed = auth.is_request_authenticated(request)
+
+    # P0-1: If already initialized and unauthenticated, restrict access to configuration
+    if is_init and not is_authed:
+        return {
+            'initialized': True
+        }
+
     cloud_info = sentinel_core.get_cloud_info()
     pub_ip = monitor.get_public_ip()
     ls_cfg = cfg.get('lightsail', {})
     hz_cfg = cfg.get('hetzner', {})
     az_cfg = cfg.get('azure', {})
+    notif_cfg = redact_notifications(cfg.get('notifications', {}))
     return {
         'initialized': is_init,
         'cloud_info': cloud_info,
@@ -631,7 +749,7 @@ async def setup_status():
                 'zone_name': cfg.get('cloudflare', {}).get('zone_name', ''),
                 'record_name': cfg.get('cloudflare', {}).get('record_name', '')
             },
-            'notifications': cfg.get('notifications', {})
+            'notifications': notif_cfg
         }
     }
 
@@ -1185,21 +1303,41 @@ async def get_services(request: Request):
         "xui_port": xui_port
     }
 
+class HealTriggerModel(BaseModel):
+    force: Optional[bool] = False
+
 # --- Healing Sequence ---
 
-async def run_healing_routine(trigger_source='MANUAL'):
+async def run_healing_routine(trigger_source='MANUAL', force=False) -> dict:
     if runtime_state['heal_in_progress']:
-        return
+        return {'ok': False, 'error': 'Healing routine already in progress', 'duration_sec': 0.0, 'new_ip': '', 'dns_ok': False}
 
     cfg = cfg_mgr.load()
     mon_cfg = cfg.get('monitor', {})
     now = time.time()
+    t_start = now
 
-    # Cooldown circuit breaker for AUTO triggers
-    if trigger_source == 'AUTO':
-        cooldown_sec = mon_cfg.get('reip_cooldown_hours', 24) * 3600
-        last_reip = mon_cfg.get('last_reip_timestamp', 0)
-        if (now - last_reip) < cooldown_sec:
+    # P1-7: Rolling 24-hour quota and cooldown checks
+    reip_history = [t for t in mon_cfg.get('reip_history', []) if (now - t) < 86400]
+    max_reip = int(mon_cfg.get('max_reip_per_day', 3))
+    cooldown_sec = mon_cfg.get('reip_cooldown_hours', 24) * 3600
+    last_reip = mon_cfg.get('last_reip_timestamp', 0)
+
+    if not force:
+        if len(reip_history) >= max_reip:
+            msg = f"Daily Re-IP quota exceeded ({len(reip_history)}/{max_reip} in last 24h). Trigger aborted."
+            logger.warning(msg)
+            await broadcast_log(f'[WARN] {msg}', 'WARN')
+            notification.NotificationManager.broadcast(
+                cfg,
+                title="Re-IP Quota Exceeded / 换IP已达每日上限",
+                message=msg,
+                level="WARN"
+            )
+            monitor.consecutive_failures = 0
+            return {'ok': False, 'error': msg, 'duration_sec': 0.0, 'new_ip': '', 'dns_ok': False}
+
+        if trigger_source == 'AUTO' and (now - last_reip) < cooldown_sec:
             rem_h = round((cooldown_sec - (now - last_reip)) / 3600, 1)
             msg = f"Auto Re-IP suppressed by cooldown circuit breaker. Last Re-IP cooldown has {rem_h}h remaining ({mon_cfg.get('reip_cooldown_hours', 24)}h window)."
             logger.warning(msg)
@@ -1211,13 +1349,13 @@ async def run_healing_routine(trigger_source='MANUAL'):
                 level="WARN"
             )
             monitor.consecutive_failures = 0
-            return
+            return {'ok': False, 'error': msg, 'duration_sec': 0.0, 'new_ip': '', 'dns_ok': False}
 
     runtime_state['heal_in_progress'] = True
     runtime_state['status'] = 'healing'
-    t_start = time.time()
-    
-    await broadcast_log(f'[HEAL STEP 1/5] Initiated {trigger_source} Re-IP rebirth routine...', 'WARN')
+
+    old_ip = monitor.get_public_ip()
+    await broadcast_log(f'[HEAL STEP 1/5] Initiated {trigger_source} Re-IP rebirth routine (current IP: {old_ip})...', 'WARN')
     await asyncio.sleep(1)
 
     cf_token = cfg.get('cloudflare', {}).get('api_token')
@@ -1226,14 +1364,29 @@ async def run_healing_routine(trigger_source='MANUAL'):
 
     cloud_prov = sentinel_core.get_cloud_provider(cfg)
     prov_name = cloud_prov.get_name()
+    loop = asyncio.get_running_loop()
 
     try:
+        # P1-10 Pre-flight check before releasing current IP
+        await broadcast_log(f'[HEAL PRE-FLIGHT] Validating credentials and connectivity for {prov_name}...')
+        conn_ok, conn_msg = await loop.run_in_executor(None, cloud_prov.test_connection)
+        if not conn_ok:
+            err_msg = f"Pre-flight provider validation failed: {conn_msg}. Aborting IP rebirth to prevent instance isolation."
+            logger.error(err_msg)
+            await broadcast_log(f'[ERROR] {err_msg}', 'ERROR')
+            notification.NotificationManager.broadcast(
+                cfg,
+                title="Healing Pre-Flight Failed / 自动修复预检失败",
+                message=err_msg,
+                level="ERROR"
+            )
+            runtime_state['status'] = 'warning'
+            dt = round(time.time() - t_start, 1)
+            return {'ok': False, 'error': err_msg, 'duration_sec': dt, 'new_ip': '', 'dns_ok': False}
+
         # Step 2: IP swap via Provider
         await broadcast_log(f'[HEAL STEP 2/5] Initiating IP rebirth via provider: {prov_name}...')
-        
-        loop = asyncio.get_event_loop()
         new_ip = await loop.run_in_executor(None, cloud_prov.change_public_ip)
-        
         await broadcast_log(f'[HEAL STEP 3/5] Fresh Public IP acquired: {new_ip}', 'INFO')
         await asyncio.sleep(1)
 
@@ -1245,40 +1398,44 @@ async def run_healing_routine(trigger_source='MANUAL'):
             try:
                 dns_res = await loop.run_in_executor(None, cf_mgr.update_dns_record, cf_record, new_ip)
                 dns_ok = bool(dns_res)
-                await broadcast_log('[OK] [HEAL STEP 4/5] Cloudflare DNS record updated successfully!')
+                if dns_ok:
+                    await broadcast_log('[OK] [HEAL STEP 4/5] Cloudflare DNS record updated successfully!')
+                else:
+                    await broadcast_log('[WARN] [HEAL STEP 4/5] Cloudflare DNS update returned False/empty.', 'WARN')
             except Exception as cf_err:
                 logger.warning(f"Cloudflare DNS update error: {cf_err}")
                 await broadcast_log(f'[WARN] [HEAL STEP 4/5] Cloudflare DNS update failed: {cf_err}', 'WARN')
         else:
             await broadcast_log('[WARN] [HEAL STEP 4/5] Cloudflare token not set; skipping DNS update.', 'WARN')
 
-        # Step 4: Verification
-        await broadcast_log('[HEAL STEP 5/5] Verifying edge routing & resetting health state...')
-        
-        def test_reachability():
-            try:
-                r = requests.get('https://api.ipify.org', timeout=5)
-                return r.status_code == 200
-            except Exception:
-                return False
+        # Step 4: Verification (P1-10)
+        await broadcast_log('[HEAL STEP 5/5] Verifying edge routing, external egress IP & health state...')
+        actual_ip = await loop.run_in_executor(None, monitor.get_public_ip)
+        ip_matched = (actual_ip == new_ip) if actual_ip and actual_ip != '127.0.0.1' else False
+        dns_required = bool(cf_token and cf_record)
+        dns_matched = (not dns_required) or dns_ok
 
-        reachability_ok = await loop.run_in_executor(None, test_reachability)
+        # Update persistent history and Re-IP state in config atomically
+        def _record_reip(c):
+            mon = c.setdefault('monitor', {})
+            hist = [t for t in mon.get('reip_history', []) if (time.time() - t) < 86400]
+            hist.append(int(time.time()))
+            mon['reip_history'] = hist
+            mon['last_reip_timestamp'] = int(time.time())
+            mon['last_reip_old_ip'] = old_ip
+            mon['last_reip_new_ip'] = new_ip
+            mon['dns_sync_pending'] = not dns_matched
+            return True
 
-        # Record timestamp of successful Re-IP
-        try:
-            cur_cfg = cfg_mgr.load()
-            cur_cfg.setdefault('monitor', {})['last_reip_timestamp'] = int(time.time())
-            cfg_mgr.save(cur_cfg)
-        except Exception as ts_err:
-            logger.warning(f"Failed to record last_reip_timestamp: {ts_err}")
+        cfg_mgr.update(_record_reip)
 
         runtime_state['last_healed'] = time.strftime('%Y-%m-%d %H:%M:%S')
         runtime_state['heal_count'] += 1
         monitor.consecutive_failures = 0
-        
         dt = round(time.time() - t_start, 1)
 
-        if reachability_ok and (not cf_record or dns_ok):
+        is_success = ip_matched and dns_matched
+        if is_success:
             runtime_state['status'] = 'healthy'
             await broadcast_log(f'[OK] Rebirth completed and verified in {dt}s! Server is now operational on IP: {new_ip}')
             notification.NotificationManager.broadcast(
@@ -1287,9 +1444,13 @@ async def run_healing_routine(trigger_source='MANUAL'):
                 message=f"[OK] Rebirth routine succeeded and verified!\nProvider: {prov_name}\nNew IP: {new_ip}\nCloudflare DNS: {cf_record} -> {new_ip}\nDuration: {dt}s",
                 level="SUCCESS"
             )
+            return {'ok': True, 'new_ip': new_ip, 'error': '', 'duration_sec': dt, 'dns_ok': dns_ok}
         else:
             runtime_state['status'] = 'warning'
-            warn_msg = f"[WARN] Rebirth completed in {dt}s on IP {new_ip}, but post-healing verification flagged issues (DNS ok: {dns_ok}, reachability ok: {reachability_ok})."
+            warn_msg = (
+                f"[WARN] Rebirth executed in {dt}s (new IP: {new_ip}), but verification flagged issues: "
+                f"egress IP match: {ip_matched} (actual {actual_ip}), DNS ok: {dns_ok}."
+            )
             await broadcast_log(warn_msg, 'WARN')
             notification.NotificationManager.broadcast(
                 cfg,
@@ -1297,11 +1458,13 @@ async def run_healing_routine(trigger_source='MANUAL'):
                 message=warn_msg,
                 level="WARN"
             )
+            return {'ok': False, 'new_ip': new_ip, 'error': warn_msg, 'duration_sec': dt, 'dns_ok': dns_ok}
 
     except Exception as e:
         logger.error(f'Healing routine failed: {e}', exc_info=True)
         await broadcast_log(f'[ERROR] Healing failed: {str(e)}', 'ERROR')
         runtime_state['status'] = 'warning'
+        dt = round(time.time() - t_start, 1)
 
         notification.NotificationManager.broadcast(
             cfg,
@@ -1309,16 +1472,18 @@ async def run_healing_routine(trigger_source='MANUAL'):
             message=f"[FAILED] Rebirth routine failed for provider {prov_name}: {str(e)}",
             level="ERROR"
         )
+        return {'ok': False, 'new_ip': '', 'error': str(e), 'duration_sec': dt, 'dns_ok': False}
     finally:
         runtime_state['heal_in_progress'] = False
 
 @app.post('/api/heal/trigger')
-async def trigger_healing(request: Request):
+async def trigger_healing(request: Request, body: Optional[HealTriggerModel] = None):
     check_admin(request)
     if runtime_state['heal_in_progress']:
         raise HTTPException(status_code=409, detail='Healing is already in progress')
-    asyncio.create_task(run_healing_routine('MANUAL'))
-    return {'status': 'initiated', 'message': 'Re-IP rebirth sequence started'}
+    force = body.force if body else False
+    asyncio.create_task(run_healing_routine('MANUAL', force=force))
+    return {'status': 'initiated', 'message': f'Re-IP rebirth sequence started (force={force})'}
 
 @app.get('/api/ip/audit')
 async def get_ip_audit(request: Request, force: bool = False):
@@ -1365,7 +1530,8 @@ async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
         cfg = cfg_mgr.load()
-        state = monitor.get_full_state()
+        loop = asyncio.get_running_loop()
+        state = await loop.run_in_executor(None, monitor.get_full_state)
         await websocket.send_json({
             'type': 'initial',
             'state': state,
@@ -1491,23 +1657,21 @@ class CertConfigModel(BaseModel):
 class CertSyncNowModel(BaseModel):
     force: Optional[bool] = False
 
-def verify_cert_access(request: Request) -> bool:
-    """Verifies that the request has permission to access certificate endpoints."""
-    # 1. Admin authenticated session
+def verify_cert_key_access(request: Request) -> bool:
+    """
+    P0-2: Strict security authentication for downloading sensitive TLS private key bundles (/api/cert/bundle).
+    Only allows:
+    1. Active administrator authenticated session.
+    2. Explicit cert_sync.sync_token Bearer header or token query param.
+    Strictly forbids sub_token: subscription clients must never have access to private TLS keys.
+    """
     if auth.is_request_authenticated(request):
         return True
 
-    # 2. Check sync_token or sub_token
     cfg = cfg_mgr.load()
     sync_cfg = cert_sync_mgr.CertSyncManager.get_sync_config(cfg)
-    valid_tokens = []
-    if sync_cfg.get('sync_token'):
-        valid_tokens.append(sync_cfg['sync_token'])
-    sec = cfg.get('security', {})
-    if sec.get('sub_token'):
-        valid_tokens.append(sec['sub_token'])
-
-    if not valid_tokens:
+    sync_token = sync_cfg.get('sync_token', '').strip()
+    if not sync_token:
         return False
 
     req_token = ''
@@ -1520,10 +1684,11 @@ def verify_cert_access(request: Request) -> bool:
     if not req_token:
         return False
 
-    for vt in valid_tokens:
-        if hmac.compare_digest(req_token, vt):
-            return True
-    return False
+    return hmac.compare_digest(req_token, sync_token)
+
+def verify_cert_access(request: Request) -> bool:
+    """Verifies that the request has permission to access certificate sync endpoints."""
+    return verify_cert_key_access(request)
 
 @app.get('/api/cert/info')
 async def get_cert_info(request: Request):
@@ -1568,7 +1733,7 @@ async def get_cert_status(request: Request):
 
 @app.get('/api/cert/bundle')
 async def get_cert_bundle(request: Request):
-    if not verify_cert_access(request):
+    if not verify_cert_key_access(request):
         raise HTTPException(status_code=401, detail="Invalid certificate sync authorization")
     cfg = cfg_mgr.load()
     sync_cfg = cert_sync_mgr.CertSyncManager.get_sync_config(cfg)
@@ -1627,7 +1792,11 @@ async def trigger_cert_sync_now(model: CertSyncNowModel, request: Request):
 @app.get('/api/bot/status')
 async def get_bot_status(request: Request):
     check_admin(request)
-    bot = bot_mgr.get_bot_instance(get_state_func=monitor.get_full_state, get_config_func=cfg_mgr.load)
+    bot = bot_mgr.get_bot_instance(
+        get_state_func=monitor.get_full_state,
+        get_config_func=cfg_mgr.load,
+        run_healing_func=run_healing_routine
+    )
     return bot.get_status()
 
 # Mount static folder and dedicated metacubexd app

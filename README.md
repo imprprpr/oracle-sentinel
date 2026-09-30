@@ -28,7 +28,7 @@
 * **机器吃灰**：机器配置不低（尤其甲骨文 ARM 4核24G/2核12G），只跑代理浪费资源。
 
 **VPSentinel** 把这些杂事整合成一套开箱即用的自动化系统：
-1. **自动换 IP 自愈**：国内探针连续检测超时，自动通过云商 API 更换被封公网 IP，秒级同步 Cloudflare A 记录，发通知到手机。
+1. **自动换 IP 自愈**：出方向探测国内网络（AliDNS/DNSPod/Baidu/Tencent）连续高丢包阻断，且已核验外网基础连通性存活时，自动通过云商 API 更换被封公网 IP，秒级同步 Cloudflare A 记录，发通知到手机。
 2. **全协议统一订阅**：直连 3x-ui 数据库，自动生成 Clash/OpenClash、Sing-box、v2rayN、小火箭订阅，规则全自动分流。
 3. **进阶微服务集群**：内核级 TCP BBR 缓冲区调优、WARP 智能分流（ChatGPT/Claude/流媒体解锁）、Uptime Kuma 高可用态势感知监控、Alist 分布式多存储挂载聚合、Sub-Store 订阅清洗中枢。
 
@@ -468,8 +468,12 @@ EXT_IP="公网IP" EXT_PORT="映射端口" bash scripts/setup-japan-node.sh
 * **多节点网络性能与基准测速 (Speedtest & Network Benchmark)**：集成原生测速内核与国内电信/联通/移动骨干节点链路往返延迟（RTT）、抖动、丢包率与全带宽并发压测。
 
 ### 持续演进路线 (Roadmap)
-* 更多云厂商一键换 IP 驱动适配（AWS Lightsail、Azure、Hetzner 等）。
-* 自动化证书多节点分布式自动同步与热重载。
+* [x] **多云厂商一键换 IP 驱动适配**：完成 Oracle Cloud (OCI)、AWS Lightsail、Azure、Hetzner 与通用 Webhook 自定义换 IP 适配。
+* [x] **自动化证书分布式同步与热重载**：实现主控端自签/CA 证书原子打包下发，边缘子节点定时轮询安全拉取与服务热重载。
+* [x] **多实例集中集群纳管 (Sentinel Mesh)**：主控统一拓扑纳管全球边缘节点，实时健康度聚合与节点统一导出。
+* [x] **三网回程测速与 IP 纯净度体检**：骨干网延迟测速、Scamalytics 风控评分与 AI/流媒体解锁检测。
+* [ ] **IPv6 双栈动态轮换与自愈扩展**：支持多云厂商 IPv6 动态前缀探测与自动刷新。
+* [ ] **多跳智能回程链式路由与自适应降级**：根据三网实时测速数据自动选择最优中转跳板。
 
 ---
 

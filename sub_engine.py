@@ -25,6 +25,17 @@ DEFAULT_RULES_CONFIG = {
     'oracle_bypass': True
 }
 
+def _unique(base: str, used_set: set) -> str:
+    if base not in used_set:
+        used_set.add(base)
+        return base
+    idx = 2
+    while f"{base}-{idx}" in used_set:
+        idx += 1
+    res = f"{base}-{idx}"
+    used_set.add(res)
+    return res
+
 class SubEngine:
     @staticmethod
     def get_rules_config():
@@ -55,7 +66,7 @@ class SubEngine:
                 return ip
         except Exception:
             pass
-        return '129.146.230.81'
+        return '198.51.100.1'
 
     @staticmethod
     def get_server_domain():
@@ -76,7 +87,11 @@ class SubEngine:
 
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, tag, port, protocol, settings, stream_settings, enable FROM inbounds WHERE enable = 1;")
+        cursor.execute("PRAGMA table_info(inbounds);")
+        cols = [c[1] for c in cursor.fetchall()]
+        has_remark = 'remark' in cols
+        q = f"SELECT id, tag, port, protocol, settings, stream_settings, enable{', remark' if has_remark else ''} FROM inbounds WHERE enable = 1;"
+        cursor.execute(q)
         rows = cursor.fetchall()
         conn.close()
 
@@ -84,8 +99,19 @@ class SubEngine:
         domain = SubEngine.get_server_domain()
         server_ip = SubEngine.get_server_ip()
 
+        used_clash_names = set()
+        used_singbox_tags = set()
+
         for row in rows:
-            inbound_id, tag, port, proto, st_raw, ss_raw, enabled = row
+            inbound_id = row[0]
+            tag = row[1] or ''
+            port = row[2]
+            proto = row[3]
+            st_raw = row[4]
+            ss_raw = row[5]
+            enabled = row[6]
+            remark = row[7] if has_remark and len(row) > 7 and row[7] else ''
+
             try:
                 st = json.loads(st_raw) if st_raw else {}
                 ss = json.loads(ss_raw) if ss_raw else {}
@@ -95,11 +121,17 @@ class SubEngine:
             clients = st.get('clients', [])
             client = clients[0] if clients else {}
 
+            label = str(remark).strip() or str(tag).strip()
+
             if proto == 'vless' and ss.get('security') == 'reality':
                 rs = ss.get('realitySettings', {})
                 rs_st = rs.get('settings', {})
+                proto_label = label or 'Oracle-Reality'
+                node_name = _unique(f"[US] {proto_label}", used_clash_names)
+                node_tag = _unique(proto_label, used_singbox_tags)
                 node = {
-                    'name': '[US] Oracle-美西-Reality',
+                    'name': node_name,
+                    'tag': node_tag,
                     'type': 'vless',
                     'server': server_ip,
                     'port': port,
@@ -118,8 +150,12 @@ class SubEngine:
                 nodes.append(('reality', node))
 
             elif proto == 'hysteria':
+                proto_label = label or 'Oracle-Hy2'
+                node_name = _unique(f"[US] {proto_label}", used_clash_names)
+                node_tag = _unique(proto_label, used_singbox_tags)
                 node = {
-                    'name': '[US] Oracle-美西-Hy2',
+                    'name': node_name,
+                    'tag': node_tag,
                     'type': 'hysteria2',
                     'server': server_ip,
                     'port': port,
@@ -130,8 +166,12 @@ class SubEngine:
                 nodes.append(('hy2', node))
 
             elif proto == 'trojan':
+                proto_label = label or 'Oracle-Trojan'
+                node_name = _unique(f"[US] {proto_label}", used_clash_names)
+                node_tag = _unique(proto_label, used_singbox_tags)
                 node = {
-                    'name': '[US] Oracle-美西-Trojan',
+                    'name': node_name,
+                    'tag': node_tag,
                     'type': 'trojan',
                     'server': server_ip,
                     'port': port,
@@ -763,8 +803,8 @@ class SubEngine:
 
         # 1. Direct Nodes
         for ntype, n in raw_nodes:
+            tag = n.get('tag') or _unique(f"Oracle-{ntype.title()}", native_tags)
             if ntype == 'reality':
-                tag = 'Oracle-US'
                 native_outbounds.append({
                     'type': 'vless',
                     'tag': tag,
@@ -791,7 +831,6 @@ class SubEngine:
                 native_tags.append(tag)
 
             elif ntype == 'hy2':
-                tag = 'Oracle-Hy2'
                 native_outbounds.append({
                     'type': 'hysteria2',
                     'tag': tag,
@@ -808,7 +847,6 @@ class SubEngine:
                 native_tags.append(tag)
 
             elif ntype == 'trojan':
-                tag = 'Oracle-Trojan'
                 native_outbounds.append({
                     'type': 'trojan',
                     'tag': tag,
@@ -823,6 +861,7 @@ class SubEngine:
                 native_tags.append(tag)
 
         # 2. Transit Nodes
+        used_transit_tags = set(native_tags)
         for t in transits:
             if not t.get('enabled', True):
                 continue
@@ -832,8 +871,9 @@ class SubEngine:
                 continue
 
             for ntype, n in raw_nodes:
+                base_t_tag = f"[{t_name}] {n.get('tag', ntype.title())} Relay"
+                tag = _unique(base_t_tag, used_transit_tags)
                 if ntype == 'reality':
-                    tag = f'[{t_name}] Reality Relay'
                     native_outbounds.append({
                         'type': 'vless',
                         'tag': tag,
@@ -856,7 +896,6 @@ class SubEngine:
                     })
                     native_tags.append(tag)
                 elif ntype == 'hy2':
-                    tag = f'[{t_name}] Hy2 Relay'
                     native_outbounds.append({
                         'type': 'hysteria2',
                         'tag': tag,
@@ -869,7 +908,6 @@ class SubEngine:
                     })
                     native_tags.append(tag)
                 elif ntype == 'trojan':
-                    tag = f'[{t_name}] Trojan Relay'
                     native_outbounds.append({
                         'type': 'trojan',
                         'tag': tag,

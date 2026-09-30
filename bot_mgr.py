@@ -20,9 +20,10 @@ CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/c
 )
 
 class TelegramInteractiveBot:
-    def __init__(self, get_state_func=None, get_config_func=None):
+    def __init__(self, get_state_func=None, get_config_func=None, run_healing_func=None):
         self.get_state_func = get_state_func
         self.get_config_func = get_config_func
+        self.run_healing_func = run_healing_func
         self._running = False
         self._thread = None
         self._last_update_id = 0
@@ -183,19 +184,46 @@ class TelegramInteractiveBot:
             self.send_message(bot_token, chat_id, f"获取集群信息失败: {e}", self.get_main_keyboard())
 
     def handle_reip_command(self, bot_token, chat_id):
-        self.send_message(bot_token, chat_id, "正在向 OCI 调用公网 IP 轮换指令，预计耗时 15-30 秒，请稍候...")
+        self.send_message(bot_token, chat_id, "正在调用公网 IP 轮换指令，预计耗时 15-30 秒，请稍候...")
         def _task():
             try:
-                import sentinel_core
-                ip_mgr = sentinel_core.IPManager()
-                success, new_ip, err = ip_mgr.execute_auto_reip()
-                if success:
+                import asyncio
+                res = None
+                if self.run_healing_func:
+                    if asyncio.iscoroutinefunction(self.run_healing_func):
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
+                        if loop and loop.is_running():
+                            fut = asyncio.run_coroutine_threadsafe(self.run_healing_func('MANUAL', force=True), loop)
+                            res = fut.result(timeout=60)
+                        else:
+                            res = asyncio.run(self.run_healing_func('MANUAL', force=True))
+                    else:
+                        res = self.run_healing_func(force=True)
+                else:
+                    import app
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = None
+                    if loop and loop.is_running():
+                        fut = asyncio.run_coroutine_threadsafe(app.run_healing_routine('MANUAL', force=True), loop)
+                        res = fut.result(timeout=60)
+                    else:
+                        res = asyncio.run(app.run_healing_routine('MANUAL', force=True))
+
+                if isinstance(res, dict) and res.get('ok'):
+                    new_ip = res.get('new_ip', '未知')
+                    dns_note = "Cloudflare DNS 解析已自动更新生效。" if res.get('dns_ok') else "DNS 同步未完成或未配置。"
                     res_msg = (
                         f"<b>公网 IP 轮换成功！</b>\n"
                         f"新公网 IP: <code>{new_ip}</code>\n"
-                        f"Cloudflare DNS 解析已自动更新生效。"
+                        f"{dns_note}"
                     )
                 else:
+                    err = res.get('error') if isinstance(res, dict) else str(res)
                     res_msg = f"<b>换 IP 失败：</b>\n错误原因: {err}"
                 self.send_message(bot_token, chat_id, res_msg, self.get_main_keyboard())
             except Exception as e:
@@ -364,10 +392,12 @@ class TelegramInteractiveBot:
 
 bot_instance = None
 
-def get_bot_instance(get_state_func=None, get_config_func=None):
+def get_bot_instance(get_state_func=None, get_config_func=None, run_healing_func=None):
     global bot_instance
     if bot_instance is None:
-        bot_instance = TelegramInteractiveBot(get_state_func, get_config_func)
+        bot_instance = TelegramInteractiveBot(get_state_func, get_config_func, run_healing_func)
+    elif run_healing_func is not None and bot_instance.run_healing_func is None:
+        bot_instance.run_healing_func = run_healing_func
     return bot_instance
 
 if __name__ == '__main__':

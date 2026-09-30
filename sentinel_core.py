@@ -81,7 +81,8 @@ DEFAULT_CONFIG = {
         'auto_heal_mode': 'notify_only',
         'reip_cooldown_hours': 24,
         'max_reip_per_day': 2,
-        'last_reip_timestamp': 0
+        'last_reip_timestamp': 0,
+        'reip_history': []
     },
     'notifications': {
         'enabled': False,
@@ -118,7 +119,8 @@ DEFAULT_CONFIG = {
         'secret_path': '/sentinel',
         'sub_token': '',
         'enable_host_guard': True,
-        'allowed_hosts': []
+        'allowed_hosts': [],
+        'trusted_proxy_cidrs': []
     },
     'transits': [],
     'edgetunnel': {
@@ -262,10 +264,28 @@ class ConfigManager:
                     f.flush()
                     os.fsync(f.fileno())
                 os.replace(tmp_path, CONFIG_PATH)
+                try:
+                    os.chmod(CONFIG_PATH, 0o600)
+                except OSError as e:
+                    logger.warning(f"Failed to chmod {CONFIG_PATH}: {e}")
                 return True
             except Exception as e:
                 logger.error(f'Error saving {CONFIG_PATH}: {e}')
                 return False
+
+    @classmethod
+    def update(cls, mutator):
+        """Atomically reads, mutates, and saves config under a single lock."""
+        with cls._lock:
+            cfg = cls.load()
+            try:
+                should_save = mutator(cfg)
+            except Exception as e:
+                logger.error(f"Config mutator failed: {e}")
+                return False
+            if should_save is False:
+                return False
+            return cls.save(cfg)
 
     @classmethod
     def update_key(cls, key, value):
@@ -275,6 +295,12 @@ class ConfigManager:
             return cls.save(cfg)
 
 class SystemMonitor:
+    UPLINK_TARGETS = [
+        ('1.1.1.1', 443),
+        ('8.8.8.8', 53),
+        ('9.9.9.9', 443)
+    ]
+
     def __init__(self):
         self.probes = [
             {'name': 'AliDNS', 'host': '223.5.5.5', 'port': 53},
@@ -285,6 +311,24 @@ class SystemMonitor:
         self.last_net_io = psutil.net_io_counters()
         self.last_net_time = time.time()
         self.consecutive_failures = 0
+        self._state_cache = None
+        self._state_cache_time = 0.0
+        self._cache_ttl = 5.0
+
+    def check_uplink_alive(self, timeout=1.5) -> bool:
+        """Checks global uplink reachability against root/anycast resolvers.
+        Returns True if at least one global target is reachable.
+        """
+        for host, port in self.UPLINK_TARGETS:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(timeout)
+            try:
+                s.connect((host, port))
+                s.close()
+                return True
+            except Exception:
+                s.close()
+        return False
 
     def get_public_ip(self):
         providers = [
@@ -346,12 +390,29 @@ class SystemMonitor:
         loss = round((total - success) / total * 100, 1) if total else 0.0
         avg_rtt = round(sum(latencies) / len(latencies), 1) if latencies else 0.0
 
+        # P1-9: Uplink liveness vs domestic blockage check
+        uplink_alive = True
+        network_down = False
+        blocked_suspected = False
+
+        if loss >= 75.0 or (total > 0 and success == 0):
+            uplink_alive = self.check_uplink_alive()
+            if not uplink_alive:
+                network_down = True
+                blocked_suspected = False
+            else:
+                network_down = False
+                blocked_suspected = True
+
         return {
             'loss_pct': loss,
             'avg_rtt_ms': avg_rtt,
             'success_probes': success,
             'total_probes': total,
             'direction': 'outbound',
+            'uplink_alive': uplink_alive,
+            'network_down': network_down,
+            'blocked_suspected': blocked_suspected,
             'details': details
         }
 
@@ -400,7 +461,11 @@ class SystemMonitor:
             'uptime': uptime_str
         }
 
-    def get_full_state(self):
+    def get_full_state(self, force_refresh: bool = False):
+        now = time.time()
+        if not force_refresh and self._state_cache is not None and (now - self._state_cache_time < self._cache_ttl):
+            return self._state_cache
+
         cfg = ConfigManager.load()
         cloud_info = get_cloud_info()
         metrics = self.get_metrics()
@@ -436,14 +501,16 @@ class SystemMonitor:
         ]
 
         loss_thresh = float(cfg.get('monitor', {}).get('loss_threshold', 75.0))
-        if probes['loss_pct'] >= loss_thresh:
+        if probes.get('network_down'):
+            health = 'network_down'
+        elif probes['loss_pct'] >= loss_thresh:
             health = 'critical'
         elif probes['loss_pct'] > 0:
             health = 'warning'
         else:
             health = 'healthy'
 
-        return {
+        state = {
             'timestamp': int(time.time()),
             'health': health,
             'public_ip': pub_ip,
@@ -453,6 +520,9 @@ class SystemMonitor:
             'nodes': nodes,
             'warp': warp
         }
+        self._state_cache = state
+        self._state_cache_time = time.time()
+        return state
 
 # ==============================================================================
 # Multi-Cloud Provider Abstraction

@@ -58,7 +58,6 @@ class AuthManager:
             initial_pass = secrets.token_urlsafe(16)
             sec["admin_password_hash"] = self.hash_password(initial_pass)
             sec["must_change_password"] = True
-            sec["initial_password"] = initial_pass
             changed = True
             logger.warning("====================================================================")
             logger.warning(f"Generated Random Initial Admin Password: {initial_pass}")
@@ -122,7 +121,7 @@ class AuthManager:
 
     def is_client_locked(self, client_ip: str) -> Tuple[bool, int]:
         """Checks if a client IP is temporarily locked out due to repeated failures."""
-        if not client_ip or client_ip in ("127.0.0.1", "::1", "localhost", "unknown"):
+        if not client_ip or client_ip == "unknown":
             return False, 0
         now = time.time()
         attempts = [t for t in self._failed_attempts.get(client_ip, []) if now - t < LOCKOUT_WINDOW_SEC]
@@ -161,9 +160,10 @@ class AuthManager:
         # Smoothly upgrade legacy salt:sha256 hash to PBKDF2 upon successful login
         if expected_hash and not expected_hash.startswith("pbkdf2_sha256$"):
             try:
-                cfg = self.cfg_mgr.load()
-                cfg.setdefault("security", {})["admin_password_hash"] = self.hash_password(password)
-                self.cfg_mgr.save(cfg)
+                def _upgrade(cfg):
+                    cfg.setdefault("security", {})["admin_password_hash"] = self.hash_password(password)
+                    return True
+                self.cfg_mgr.update(_upgrade)
                 logger.info("Upgraded admin password hash to PBKDF2-HMAC-SHA256.")
             except Exception as e:
                 logger.warning(f"Failed to auto-upgrade password hash: {e}")
@@ -290,8 +290,9 @@ class AuthManager:
         # Extract hostname part without port
         hostname = raw_host.split(":")[0].strip().lower()
 
-        # Local loopback & local probes always allowed
-        if hostname in ("127.0.0.1", "localhost", "::1"):
+        # Local loopback client accessing local loopback host
+        client_host = request.client.host if request.client else ""
+        if hostname in ("127.0.0.1", "localhost", "::1") and client_host in ("127.0.0.1", "::1", "localhost"):
             return True
 
         # Build allowed list
@@ -324,7 +325,6 @@ class AuthManager:
         sec = cfg.setdefault("security", {})
         sec["admin_password_hash"] = self.hash_password(new_password)
         sec["must_change_password"] = False
-        sec.pop("initial_password", None)
         # Invalidate existing sessions by rotating session secret
         sec["session_secret"] = secrets.token_hex(32)
         self.cfg_mgr.save(cfg)

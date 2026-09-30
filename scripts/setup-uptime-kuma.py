@@ -13,6 +13,9 @@ from uptime_kuma_api import UptimeKumaApi, MonitorType
 KUMA_URL = os.getenv("KUMA_URL", "http://127.0.0.1:3001")
 KUMA_USER = os.getenv("KUMA_USER", "admin")
 KUMA_PASS = os.getenv("KUMA_PASS")
+ORACLE_HOST = os.getenv("ORACLE_HOST", "198.51.100.1")
+GREENCLOUD_HOST = os.getenv("GREENCLOUD_HOST", "198.51.100.2")
+XUI_SECRET_PATH = os.getenv("XUI_SECRET_PATH", "/xui/")
 if not KUMA_PASS:
     print("[ERROR] Environment variable KUMA_PASS must be provided to run this setup script.")
     sys.exit(1)
@@ -206,27 +209,27 @@ def main():
                 {
                     "name": "Oracle-US ICMP Ping",
                     "type": MonitorType.PING,
-                    "hostname": "129.146.230.81",
+                    "hostname": ORACLE_HOST,
                     "interval": 60,
                 },
                 {
                     "name": "VPSentinel 控制中心 (:20540)",
                     "type": MonitorType.HTTP,
-                    "url": "https://129.146.230.81:20540",
+                    "url": f"https://{ORACLE_HOST}:20540",
                     "ignoreTls": True,
                     "interval": 60,
                 },
                 {
                     "name": "3x-ui 节点面板 (:20530)",
                     "type": MonitorType.HTTP,
-                    "url": "https://129.146.230.81:20530/ihlcbQXIvfLniA8hO6/",
+                    "url": f"https://{ORACLE_HOST}:20530{XUI_SECRET_PATH}",
                     "ignoreTls": True,
                     "interval": 60,
                 },
                 {
                     "name": "VLESS-Reality 节点 (:8443)",
                     "type": MonitorType.PORT,
-                    "hostname": "129.146.230.81",
+                    "hostname": ORACLE_HOST,
                     "port": 8443,
                     "interval": 60,
                 },
@@ -240,7 +243,7 @@ def main():
                 {
                     "name": "Trojan-TLS 节点 (:2083)",
                     "type": MonitorType.PORT,
-                    "hostname": "129.146.230.81",
+                    "hostname": ORACLE_HOST,
                     "port": 2083,
                     "interval": 60,
                 },
@@ -252,20 +255,20 @@ def main():
                 {
                     "name": "GreenCloud-IIJ ICMP Ping",
                     "type": MonitorType.PING,
-                    "hostname": "85.113.70.183",
+                    "hostname": GREENCLOUD_HOST,
                     "interval": 60,
                 },
                 {
                     "name": "GreenCloud Reality 节点 (:26554)",
                     "type": MonitorType.PORT,
-                    "hostname": "85.113.70.183",
+                    "hostname": GREENCLOUD_HOST,
                     "port": 26554,
                     "interval": 60,
                 },
                 {
                     "name": "GreenCloud SSH 运维端口 (:26553)",
                     "type": MonitorType.PORT,
-                    "hostname": "85.113.70.183",
+                    "hostname": GREENCLOUD_HOST,
                     "port": 26553,
                     "interval": 60,
                 },
@@ -277,13 +280,13 @@ def main():
                 {
                     "name": "Alist 网盘挂载中心 (:5244)",
                     "type": MonitorType.HTTP,
-                    "url": "http://129.146.230.81:5244",
+                    "url": f"http://{ORACLE_HOST}:5244",
                     "interval": 60,
                 },
                 {
                     "name": "Sub-Store 订阅大脑 (:3000)",
                     "type": MonitorType.HTTP,
-                    "url": "http://129.146.230.81:3000",
+                    "url": f"http://{ORACLE_HOST}:3000",
                     "interval": 60,
                 },
                 {
