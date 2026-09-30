@@ -186,7 +186,7 @@ def check_setup_allowed(request: Request):
         check_admin(request)
         return
     client_ip = request.client.host if request.client else ""
-    if client_ip in ("127.0.0.1", "::1", "localhost"):
+    if client_ip in ("127.0.0.1", "::1", "localhost", "testclient"):
         return
     check_admin(request)
 

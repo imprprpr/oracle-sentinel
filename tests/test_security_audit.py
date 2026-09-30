@@ -286,37 +286,41 @@ class TestSecurityAudit(unittest.TestCase):
         self.assertEqual(app.runtime_state['status'], 'healthy')
 
     def test_setup_status_unauthenticated_leak_prevention(self):
-        cfg = sentinel_core.ConfigManager.load()
-        cfg['notifications'] = {
-            'custom_webhook': {
-                'enabled': True,
-                'url': 'https://hooks.slack.com/services/T123/B456/SECRET'
+        orig_cfg = sentinel_core.ConfigManager.load()
+        try:
+            cfg = json.loads(json.dumps(orig_cfg))
+            cfg['notifications'] = {
+                'custom_webhook': {
+                    'enabled': True,
+                    'url': 'https://hooks.slack.com/services/T123/B456/SECRET'
+                }
             }
-        }
-        sentinel_core.ConfigManager.save(cfg)
+            sentinel_core.ConfigManager.save(cfg)
 
-        # Unauthenticated request: config must be None, notifications omitted
-        res_unauth = self.client.get('/api/setup/status')
-        self.assertEqual(res_unauth.status_code, 200)
-        data_unauth = res_unauth.json()
-        self.assertTrue(data_unauth.get('initialized'))
-        self.assertIsNone(data_unauth.get('config'))
-        self.assertIsNone(data_unauth.get('notifications'))
+            # Unauthenticated request: config must be None, notifications omitted
+            res_unauth = self.client.get('/api/setup/status')
+            self.assertEqual(res_unauth.status_code, 200)
+            data_unauth = res_unauth.json()
+            self.assertTrue(data_unauth.get('initialized'))
+            self.assertIsNone(data_unauth.get('config'))
+            self.assertIsNone(data_unauth.get('notifications'))
 
-        # Authenticated request: config present, webhook secret masked
-        res_auth = self.client.get(
-            '/api/setup/status',
-            cookies={'sentinel_session': self.admin_token}
-        )
-        self.assertEqual(res_auth.status_code, 200)
-        data_auth = res_auth.json()
-        self.assertIsNotNone(data_auth.get('config'))
-        notif_cfg = data_auth.get('config', {}).get('notifications', {})
-        expected_masked = app.mask_token('https://hooks.slack.com/services/T123/B456/SECRET', head=8, tail=4)
-        self.assertEqual(
-            notif_cfg.get('custom_webhook', {}).get('url'),
-            expected_masked
-        )
+            # Authenticated request: config present, webhook secret masked
+            res_auth = self.client.get(
+                '/api/setup/status',
+                cookies={'sentinel_session': self.admin_token}
+            )
+            self.assertEqual(res_auth.status_code, 200)
+            data_auth = res_auth.json()
+            self.assertIsNotNone(data_auth.get('config'))
+            notif_cfg = data_auth.get('config', {}).get('notifications', {})
+            expected_masked = app.mask_token('https://hooks.slack.com/services/T123/B456/SECRET', head=8, tail=4)
+            self.assertEqual(
+                notif_cfg.get('custom_webhook', {}).get('url'),
+                expected_masked
+            )
+        finally:
+            sentinel_core.ConfigManager.save(orig_cfg)
 
     def test_cert_bundle_private_key_auth_enforcement(self):
         # 1. Unauthenticated request must return 401
@@ -376,22 +380,32 @@ class TestSecurityAudit(unittest.TestCase):
 
     def test_daily_reip_quota_and_force_override(self):
         import asyncio
+        from unittest.mock import patch, MagicMock
         now = int(time.time())
-        cfg = sentinel_core.ConfigManager.load()
-        cfg.setdefault('monitor', {})['auto_heal_enabled'] = True
-        cfg['monitor']['reip_cooldown_hours'] = 0
-        cfg['monitor']['max_reip_per_day'] = 2
-        cfg['monitor']['reip_history'] = [now - 3600, now - 1800]
-        sentinel_core.ConfigManager.save(cfg)
+        orig_cfg = sentinel_core.ConfigManager.load()
+        try:
+            cfg = json.loads(json.dumps(orig_cfg))
+            cfg.setdefault('monitor', {})['auto_heal_enabled'] = True
+            cfg['monitor']['reip_cooldown_hours'] = 0
+            cfg['monitor']['max_reip_per_day'] = 2
+            cfg['monitor']['reip_history'] = [now - 3600, now - 1800]
+            sentinel_core.ConfigManager.save(cfg)
 
-        app.runtime_state['heal_in_progress'] = False
-        res = asyncio.run(app.run_healing_routine('AUTO', force=False))
-        self.assertFalse(res['ok'])
-        self.assertIn('Daily Re-IP quota exceeded', res['error'])
+            app.runtime_state['heal_in_progress'] = False
+            res = asyncio.run(app.run_healing_routine('AUTO', force=False))
+            self.assertFalse(res['ok'])
+            self.assertIn('Daily Re-IP quota exceeded', res['error'])
 
-        # With force=True, quota is bypassed and routine attempts execution
-        res_forced = asyncio.run(app.run_healing_routine('MANUAL', force=True))
-        self.assertNotIn('Daily Re-IP quota exceeded', res_forced.get('error', ''))
+            # With force=True, quota is bypassed and routine attempts execution
+            mock_prov = MagicMock()
+            mock_prov.get_name.return_value = 'MockCloud'
+            mock_prov.test_connection.return_value = (False, 'Controlled mock validation stop')
+            with patch('sentinel_core.get_cloud_provider', return_value=mock_prov), \
+                 patch.object(app.monitor, 'get_public_ip', return_value='198.51.100.1'):
+                res_forced = asyncio.run(app.run_healing_routine('MANUAL', force=True))
+                self.assertNotIn('Daily Re-IP quota exceeded', res_forced.get('error', ''))
+        finally:
+            sentinel_core.ConfigManager.save(orig_cfg)
 
     def test_uplink_network_down_detection(self):
         from unittest.mock import patch

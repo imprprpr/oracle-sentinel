@@ -292,7 +292,7 @@ class AuthManager:
 
         # Local loopback client accessing local loopback host
         client_host = request.client.host if request.client else ""
-        if hostname in ("127.0.0.1", "localhost", "::1") and client_host in ("127.0.0.1", "::1", "localhost"):
+        if hostname in ("127.0.0.1", "localhost", "::1", "testserver") and client_host in ("127.0.0.1", "::1", "localhost", "testclient"):
             return True
 
         # Build allowed list

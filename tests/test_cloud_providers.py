@@ -362,6 +362,8 @@ class TestProviderRestEndpoints(unittest.TestCase):
             base_url='https://vps.example.com',
             client=('127.0.0.1', 54321)
         )
+        self.admin_token = app.auth.create_session_token("admin")
+        self.client.cookies = {'sentinel_session': self.admin_token}
 
     @patch.object(sentinel_core.LightsailCloudProvider, 'test_connection')
     def test_api_provider_test_lightsail(self, mock_test):
