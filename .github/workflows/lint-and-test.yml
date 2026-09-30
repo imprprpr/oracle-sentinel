@@ -37,4 +37,11 @@ jobs:
       env:
         PYTHONPATH: .
       run: |
-        python -m unittest discover -s tests -t . -v
+        set -o pipefail
+        python -m unittest discover -s tests -t . -v 2>&1 | tee test_output.log || {
+          echo "## Unit Test Failure Report (Python ${{ matrix.python-version }})" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          tail -n 120 test_output.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          exit 1
+        }
