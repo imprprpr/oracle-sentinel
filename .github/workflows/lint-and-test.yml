@@ -39,8 +39,18 @@ jobs:
       run: |
         set -o pipefail
         python -m unittest discover -s tests -t . -v 2>&1 | tee test_output.log || {
-          tail -n 60 test_output.log | while IFS= read -r line; do
-            echo "::warning::$line"
+          grep -A 10 -E "(FAIL|ERROR): " test_output.log | head -n 12 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          tail -n 8 test_output.log | while IFS= read -r line; do
+            echo "::error::$line"
           done
           exit 1
         }
+
+    - name: Upload test log
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-log-${{ matrix.python-version }}
+        path: test_output.log
