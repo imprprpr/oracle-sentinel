@@ -32,10 +32,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('SentinelCore')
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
-    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(BASE_DIR, 'config.json')
-)
+from paths import BASE_DIR, CONFIG_PATH, get_config_path
 METADATA_INSTANCE_URL = 'http://169.254.169.254/opc/v2/instance/'
 METADATA_VNICS_URL = 'http://169.254.169.254/opc/v2/vnics/'
 
@@ -175,8 +172,90 @@ _cloud_info_lock = threading.Lock()
 
 def invalidate_cloud_info_cache():
     global _cached_cloud_info, _cached_cloud_info_ts
-    _cached_cloud_info = None
-    _cached_cloud_info_ts = 0.0
+    with _cloud_info_lock:
+        _cached_cloud_info = None
+        _cached_cloud_info_ts = 0.0
+
+
+def _detect_cloud_info():
+    arch = platform.machine()
+    dmi_str = ""
+    for df in [
+        '/sys/class/dmi/id/product_name',
+        '/sys/class/dmi/id/sys_vendor',
+        '/sys/class/dmi/id/chassis_asset_tag',
+        '/sys/class/dmi/id/board_vendor',
+        '/sys/class/dmi/id/bios_vendor'
+    ]:
+        if os.path.exists(df):
+            try:
+                with open(df, 'r', encoding='utf-8', errors='ignore') as f:
+                    dmi_str += f.read() + " "
+            except Exception:
+                pass
+
+    res = None
+    if 'OracleCloud' in dmi_str:
+        res = {'provider': 'Oracle Cloud', 'region': 'OCI Global', 'arch': arch}
+    elif 'Amazon' in dmi_str or 'EC2' in dmi_str:
+        res = {'provider': 'AWS (Lightsail / EC2)', 'region': 'AWS', 'arch': arch}
+    elif 'Microsoft' in dmi_str or 'Azure' in dmi_str or '7783-7084-3265-9085-8269-3286-77' in dmi_str:
+        res = {'provider': 'Microsoft Azure', 'region': 'Azure Global', 'arch': arch}
+    elif 'Hetzner' in dmi_str:
+        res = {'provider': 'Hetzner Cloud', 'region': 'Hetzner', 'arch': arch}
+    elif 'Alibaba' in dmi_str or 'Aliyun' in dmi_str:
+        res = {'provider': 'Alibaba Cloud (阿里云)', 'region': 'Aliyun', 'arch': arch}
+    elif 'Tencent' in dmi_str:
+        res = {'provider': 'Tencent Cloud (腾讯云)', 'region': 'Tencent', 'arch': arch}
+    elif 'DigitalOcean' in dmi_str:
+        res = {'provider': 'DigitalOcean', 'region': 'DO', 'arch': arch}
+
+    if not res:
+        # Metadata service check (Oracle)
+        try:
+            r = requests.get(METADATA_INSTANCE_URL, headers={'Authorization': 'Bearer Oracle'}, timeout=1)
+            if r.status_code == 200:
+                reg = r.json().get('canonicalRegionName', 'Oracle Cloud')
+                res = {'provider': 'Oracle Cloud', 'region': reg, 'arch': arch}
+        except Exception:
+            pass
+
+    if not res:
+        # Metadata service check (Azure)
+        try:
+            r = requests.get(
+                'http://169.254.169.254/metadata/instance?api-version=2021-02-01',
+                headers={'Metadata': 'true'},
+                timeout=1
+            )
+            if r.status_code == 200:
+                data = r.json()
+                reg = data.get('compute', {}).get('location', 'Azure Global')
+                res = {'provider': 'Microsoft Azure', 'region': reg, 'arch': arch}
+        except Exception:
+            pass
+
+    if not res:
+        # Metadata service check (Hetzner)
+        try:
+            r = requests.get('http://169.254.169.254/hetzner/v1/metadata', timeout=1)
+            if r.status_code == 200:
+                res = {'provider': 'Hetzner Cloud', 'region': 'Hetzner Global', 'arch': arch}
+        except Exception:
+            pass
+
+    if not res:
+        # Metadata service check (AWS IMDS)
+        try:
+            r = requests.get('http://169.254.169.254/latest/meta-data/placement/availability-zone', timeout=1)
+            if r.status_code == 200:
+                res = {'provider': 'AWS (Lightsail / EC2)', 'region': r.text.strip(), 'arch': arch}
+        except Exception:
+            pass
+
+    if not res:
+        res = {'provider': GENERIC_PROVIDER, 'region': 'Global', 'arch': arch}
+    return res
 
 
 def get_cloud_info(use_cache: bool = True):
@@ -184,8 +263,11 @@ def get_cloud_info(use_cache: bool = True):
     Auto-detects host virtualization, cloud provider, and CPU architecture.
     """
     global _cached_cloud_info, _cached_cloud_info_ts
+    if not use_cache:
+        return _detect_cloud_info()
+
     now = time.time()
-    if use_cache and _cached_cloud_info is not None:
+    if _cached_cloud_info is not None:
         is_generic = _cached_cloud_info.get('provider') == GENERIC_PROVIDER
         # Positive results are cached permanently; generic fallback is cached for CLOUD_INFO_TTL seconds
         if not is_generic or (now - _cached_cloud_info_ts) < CLOUD_INFO_TTL:
@@ -193,93 +275,23 @@ def get_cloud_info(use_cache: bool = True):
 
     with _cloud_info_lock:
         now = time.time()
-        if use_cache and _cached_cloud_info is not None:
+        if _cached_cloud_info is not None:
             is_generic = _cached_cloud_info.get('provider') == GENERIC_PROVIDER
             if not is_generic or (now - _cached_cloud_info_ts) < CLOUD_INFO_TTL:
                 return dict(_cached_cloud_info)
 
-        arch = platform.machine()
-        dmi_str = ""
-        for df in [
-            '/sys/class/dmi/id/product_name',
-            '/sys/class/dmi/id/sys_vendor',
-            '/sys/class/dmi/id/chassis_asset_tag',
-            '/sys/class/dmi/id/board_vendor',
-            '/sys/class/dmi/id/bios_vendor'
-        ]:
-            if os.path.exists(df):
-                try:
-                    with open(df, 'r', encoding='utf-8', errors='ignore') as f:
-                        dmi_str += f.read() + " "
-                except Exception:
-                    pass
-
-        res = None
-        if 'OracleCloud' in dmi_str:
-            res = {'provider': 'Oracle Cloud', 'region': 'OCI Global', 'arch': arch}
-        elif 'Amazon' in dmi_str or 'EC2' in dmi_str:
-            res = {'provider': 'AWS (Lightsail / EC2)', 'region': 'AWS', 'arch': arch}
-        elif 'Microsoft' in dmi_str or 'Azure' in dmi_str or '7783-7084-3265-9085-8269-3286-77' in dmi_str:
-            res = {'provider': 'Microsoft Azure', 'region': 'Azure Global', 'arch': arch}
-        elif 'Hetzner' in dmi_str:
-            res = {'provider': 'Hetzner Cloud', 'region': 'Hetzner', 'arch': arch}
-        elif 'Alibaba' in dmi_str or 'Aliyun' in dmi_str:
-            res = {'provider': 'Alibaba Cloud (阿里云)', 'region': 'Aliyun', 'arch': arch}
-        elif 'Tencent' in dmi_str:
-            res = {'provider': 'Tencent Cloud (腾讯云)', 'region': 'Tencent', 'arch': arch}
-        elif 'DigitalOcean' in dmi_str:
-            res = {'provider': 'DigitalOcean', 'region': 'DO', 'arch': arch}
-
-        if not res:
-            # Metadata service check (Oracle)
-            try:
-                r = requests.get(METADATA_INSTANCE_URL, headers={'Authorization': 'Bearer Oracle'}, timeout=1)
-                if r.status_code == 200:
-                    reg = r.json().get('canonicalRegionName', 'Oracle Cloud')
-                    res = {'provider': 'Oracle Cloud', 'region': reg, 'arch': arch}
-            except Exception:
-                pass
-
-        if not res:
-            # Metadata service check (Azure)
-            try:
-                r = requests.get(
-                    'http://169.254.169.254/metadata/instance?api-version=2021-02-01',
-                    headers={'Metadata': 'true'},
-                    timeout=1
-                )
-                if r.status_code == 200:
-                    data = r.json()
-                    reg = data.get('compute', {}).get('location', 'Azure Global')
-                    res = {'provider': 'Microsoft Azure', 'region': reg, 'arch': arch}
-            except Exception:
-                pass
-
-        if not res:
-            # Metadata service check (Hetzner)
-            try:
-                r = requests.get('http://169.254.169.254/hetzner/v1/metadata', timeout=1)
-                if r.status_code == 200:
-                    res = {'provider': 'Hetzner Cloud', 'region': 'Hetzner Global', 'arch': arch}
-            except Exception:
-                pass
-
-        if not res:
-            # Metadata service check (AWS IMDS)
-            try:
-                r = requests.get('http://169.254.169.254/latest/meta-data/placement/availability-zone', timeout=1)
-                if r.status_code == 200:
-                    res = {'provider': 'AWS (Lightsail / EC2)', 'region': r.text.strip(), 'arch': arch}
-            except Exception:
-                pass
-
-        if not res:
-            res = {'provider': GENERIC_PROVIDER, 'region': 'Global', 'arch': arch}
-
-        if use_cache:
-            _cached_cloud_info = dict(res)
-            _cached_cloud_info_ts = time.time()
+        res = _detect_cloud_info()
+        _cached_cloud_info = dict(res)
+        _cached_cloud_info_ts = time.time()
         return res
+
+
+def get_active_config_path() -> str:
+    env_cfg = os.environ.get('VPSENTINEL_CONFIG_PATH')
+    if env_cfg:
+        return env_cfg
+    mod_cfg = getattr(sys.modules.get('sentinel_core', None), 'CONFIG_PATH', None)
+    return mod_cfg or get_config_path()
 
 
 class ConfigManager:
@@ -290,13 +302,14 @@ class ConfigManager:
     @classmethod
     def load(cls):
         with cls._lock:
-            if os.path.exists(CONFIG_PATH):
+            cfg_path = get_active_config_path()
+            if os.path.exists(cfg_path):
                 try:
-                    st = os.stat(CONFIG_PATH)
+                    st = os.stat(cfg_path)
                     current_fp = (st.st_mtime_ns, st.st_size, st.st_ino)
                     if cls._cached_cfg is not None and cls._cached_fingerprint == current_fp:
                         return copy.deepcopy(cls._cached_cfg)
-                    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                    with open(cfg_path, 'r', encoding='utf-8') as f:
                         cfg = json.load(f)
                         merged = _deep_merge_dict(DEFAULT_CONFIG, cfg)
                         if cls._cached_fingerprint is not None and cls._cached_fingerprint != current_fp:
@@ -305,7 +318,7 @@ class ConfigManager:
                         cls._cached_fingerprint = current_fp
                         return copy.deepcopy(merged)
                 except Exception as e:
-                    logger.error(f'Error reading {CONFIG_PATH}: {e}')
+                    logger.error(f'Error reading {cfg_path}: {e}')
                     if cls._cached_cfg is not None:
                         logger.warning('Falling back to last valid cached configuration')
                         return copy.deepcopy(cls._cached_cfg)
@@ -318,21 +331,22 @@ class ConfigManager:
     @classmethod
     def save(cls, cfg):
         with cls._lock:
+            cfg_path = get_active_config_path()
             try:
-                config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
+                config_dir = os.path.dirname(os.path.abspath(cfg_path))
                 os.makedirs(config_dir, exist_ok=True)
-                tmp_path = f"{CONFIG_PATH}.tmp.{os.getpid()}_{time.time_ns()}"
+                tmp_path = f"{cfg_path}.tmp.{os.getpid()}_{time.time_ns()}"
                 with open(tmp_path, 'w', encoding='utf-8') as f:
                     json.dump(cfg, f, indent=2, ensure_ascii=False)
                     f.flush()
                     os.fsync(f.fileno())
-                os.replace(tmp_path, CONFIG_PATH)
+                os.replace(tmp_path, cfg_path)
                 try:
-                    os.chmod(CONFIG_PATH, 0o600)
+                    os.chmod(cfg_path, 0o600)
                 except OSError as e:
-                    logger.warning(f"Failed to chmod {CONFIG_PATH}: {e}")
+                    logger.warning(f"Failed to chmod {cfg_path}: {e}")
                 try:
-                    st = os.stat(CONFIG_PATH)
+                    st = os.stat(cfg_path)
                     cls._cached_cfg = _deep_merge_dict(DEFAULT_CONFIG, cfg)
                     cls._cached_fingerprint = (st.st_mtime_ns, st.st_size, st.st_ino)
                 except Exception:
@@ -341,7 +355,7 @@ class ConfigManager:
                 invalidate_cloud_info_cache()
                 return True
             except Exception as e:
-                logger.error(f'Error saving {CONFIG_PATH}: {e}')
+                logger.error(f'Error saving {cfg_path}: {e}')
                 return False
 
     @classmethod
@@ -1304,10 +1318,27 @@ def get_cloud_provider(cfg):
 OracleManager = OracleCloudProvider
 
 # ==============================================================================
-# Cloudflare DNS Manager
+# DNS Provider Abstraction (Multi-Provider Support)
 # ==============================================================================
 
-class CloudflareManager:
+class BaseDnsProvider:
+    """
+    Abstract interface for managing DNS records and verifying domain zone credentials.
+    """
+    def verify_token(self) -> Tuple[bool, str]:
+        raise NotImplementedError
+
+    def list_zones(self) -> Tuple[bool, list, str]:
+        raise NotImplementedError
+
+    def update_dns_record(self, record_name: str = '', new_ip: str = None) -> bool:
+        raise NotImplementedError
+
+    def get_name(self) -> str:
+        return self.__class__.__name__
+
+
+class CloudflareDnsProvider(BaseDnsProvider):
     def __init__(self, api_token, zone_name=''):
         self.api_token = api_token.strip() if api_token else ''
         self.zone_name = zone_name.strip()
@@ -1315,6 +1346,9 @@ class CloudflareManager:
             'Authorization': f'Bearer {self.api_token}',
             'Content-Type': 'application/json'
         }
+
+    def get_name(self) -> str:
+        return 'Cloudflare DNS'
 
     def verify_token(self):
         if not self.api_token:
@@ -1392,9 +1426,38 @@ class CloudflareManager:
         u_res = r.json()
         if not u_res.get('success'):
             raise RuntimeError(f'Failed to update DNS record: {u_res.get("errors")}')
-        
+
         logger.info(f'Cloudflare DNS updated: {record_name} -> {new_ip}')
         return True
+
+
+# Backwards compatibility alias
+CloudflareManager = CloudflareDnsProvider
+
+
+def get_dns_provider(cfg: dict, zone_name: str = '') -> BaseDnsProvider:
+    """
+    Factory creating a DNS provider instance based on config.
+    Supports 'dns' configuration section, falling back to legacy 'cloudflare' config.
+    """
+    dns_cfg = cfg.get('dns', {})
+    dns_type = dns_cfg.get('type')
+    legacy_cf = cfg.get('cloudflare', {})
+
+    if not dns_type:
+        token = legacy_cf.get('api_token', '')
+        zone = zone_name or legacy_cf.get('zone_name', '')
+        return CloudflareDnsProvider(token, zone)
+
+    if dns_type == 'cloudflare':
+        token = dns_cfg.get('api_token', '') or legacy_cf.get('api_token', '')
+        zone = zone_name or dns_cfg.get('zone_name', '') or legacy_cf.get('zone_name', '')
+        return CloudflareDnsProvider(token, zone)
+    else:
+        logger.warning(f"Unrecognized DNS provider type '{dns_type}', falling back to Cloudflare.")
+        token = dns_cfg.get('api_token', '') or legacy_cf.get('api_token', '')
+        zone = zone_name or dns_cfg.get('zone_name', '') or legacy_cf.get('zone_name', '')
+        return CloudflareDnsProvider(token, zone)
 
 def generate_rsa_keypair(key_dir="/root/.oci"):
     os.makedirs(key_dir, exist_ok=True)

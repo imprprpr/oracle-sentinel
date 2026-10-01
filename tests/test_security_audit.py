@@ -3,12 +3,18 @@ import sys
 import json
 import time
 import threading
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
+
+try:
+    import tests.sandbox  # noqa: F401
+except ImportError:
+    import sandbox  # noqa: F401
 
 from starlette.testclient import TestClient
 
@@ -23,7 +29,13 @@ class TestSecurityAudit(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.orig_env_cfg = os.environ.get('VPSENTINEL_CONFIG_PATH')
         cls.orig_config = sentinel_core.ConfigManager.load()
+        cls.tmp_dir = tempfile.TemporaryDirectory()
+        cls.tmp_cfg_path = os.path.join(cls.tmp_dir.name, 'config.json')
+        os.environ['VPSENTINEL_CONFIG_PATH'] = cls.tmp_cfg_path
+        sentinel_core.ConfigManager.invalidate_cache()
+
         test_cfg = json.loads(json.dumps(cls.orig_config))
         test_cfg["initialized"] = True
         test_cfg["security"] = {
@@ -49,7 +61,12 @@ class TestSecurityAudit(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        sentinel_core.ConfigManager.save(cls.orig_config)
+        if cls.orig_env_cfg is not None:
+            os.environ['VPSENTINEL_CONFIG_PATH'] = cls.orig_env_cfg
+        else:
+            os.environ.pop('VPSENTINEL_CONFIG_PATH', None)
+        cls.tmp_dir.cleanup()
+        sentinel_core.ConfigManager.invalidate_cache()
 
     def test_unauthenticated_sensitive_endpoints_return_401(self):
         endpoints = [
@@ -499,7 +516,7 @@ class TestSecurityAudit(unittest.TestCase):
         loaded = sentinel_core.ConfigManager.load()
         self.assertEqual(loaded.get('test_audit_transaction_key'), 'persisted_successfully')
 
-        st = os.stat(sentinel_core.CONFIG_PATH)
+        st = os.stat(sentinel_core.get_active_config_path())
         self.assertEqual(st.st_mode & 0o777, 0o600)
 
     def test_host_guard_localhost_peer_check(self):

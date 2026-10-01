@@ -18,6 +18,7 @@ import urllib.error
 import ssl
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
+from service_mgr import get_service_manager
 
 logger = logging.getLogger('CertSync')
 
@@ -378,13 +379,13 @@ class CertSyncAgent:
 
             # 3x-ui / Xray reload
             if svc_name in ('x-ui', '3x-ui', 'xray'):
-                cmd = "systemctl reload x-ui 2>/dev/null || systemctl restart x-ui 2>/dev/null"
-                res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                mgr = get_service_manager()
+                ok, detail = mgr.reload('x-ui')
                 results.append({
                     'service': svc_name,
                     'action': 'reload',
-                    'success': res.returncode == 0,
-                    'detail': 'x-ui reloaded' if res.returncode == 0 else res.stderr.strip() or 'Exit non-zero'
+                    'success': ok,
+                    'detail': detail or ('x-ui reloaded' if ok else 'Exit non-zero')
                 })
 
             # Nginx reload
@@ -414,7 +415,8 @@ class CertSyncAgent:
                 # Schedule graceful delayed restart (1s) so HTTP response returns cleanly
                 def _delayed_restart():
                     time.sleep(1.0)
-                    subprocess.run("systemctl restart vpsentinel 2>/dev/null || systemctl restart oracle-sentinel 2>/dev/null", shell=True)
+                    mgr = get_service_manager()
+                    mgr.restart('vpsentinel')
                 threading.Thread(target=_delayed_restart, daemon=True).start()
                 results.append({
                     'service': 'vpsentinel',

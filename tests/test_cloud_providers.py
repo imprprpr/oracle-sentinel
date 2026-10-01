@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import time
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -16,6 +17,11 @@ from unittest.mock import patch, MagicMock
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
+
+try:
+    import tests.sandbox  # noqa: F401
+except ImportError:
+    import sandbox  # noqa: F401
 
 import sentinel_core
 import app
@@ -101,17 +107,19 @@ class TestCloudInfoDetection(unittest.TestCase):
         sentinel_core._cached_cloud_info = {'provider': 'Old Cloud'}
         sentinel_core._cached_cloud_info_ts = time.time()
 
-        orig_cfg = sentinel_core.ConfigManager.load()
-        sentinel_core.ConfigManager.save(orig_cfg)
-        self.assertIsNone(sentinel_core._cached_cloud_info)
-        self.assertEqual(sentinel_core._cached_cloud_info_ts, 0.0)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_cfg = os.path.join(tmp_dir, 'config.json')
+            with patch.dict(os.environ, {'VPSENTINEL_CONFIG_PATH': tmp_cfg}):
+                sentinel_core.ConfigManager.save({'test': 'isolated'})
+                self.assertIsNone(sentinel_core._cached_cloud_info)
+                self.assertEqual(sentinel_core._cached_cloud_info_ts, 0.0)
 
-        # Invalidate via explicit ConfigManager.invalidate_cache()
-        sentinel_core._cached_cloud_info = {'provider': 'Old Cloud'}
-        sentinel_core._cached_cloud_info_ts = time.time()
-        sentinel_core.ConfigManager.invalidate_cache()
-        self.assertIsNone(sentinel_core._cached_cloud_info)
-        self.assertEqual(sentinel_core._cached_cloud_info_ts, 0.0)
+                # Invalidate via explicit ConfigManager.invalidate_cache()
+                sentinel_core._cached_cloud_info = {'provider': 'Old Cloud'}
+                sentinel_core._cached_cloud_info_ts = time.time()
+                sentinel_core.ConfigManager.invalidate_cache()
+                self.assertIsNone(sentinel_core._cached_cloud_info)
+                self.assertEqual(sentinel_core._cached_cloud_info_ts, 0.0)
 
 
 class TestLightsailCloudProvider(unittest.TestCase):

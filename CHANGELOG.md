@@ -5,6 +5,35 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.5] - 2026-10-01
+
+### Decoupling Phase 0 & Phase 1 and R14 Test Hygiene Isolation (路径与服务解耦、DNS提供者抽象与R14测试沙箱隔离)
+- **R14: Universal Test Sandbox & Config Isolation (`tests/sandbox.py`, `tests/__init__.py`, `tests/test_*.py`)**:
+  - Resolved test hygiene issue where running unittests touched or updated the mtime and content of real repository `config.json`.
+  - Added `tests/sandbox.py` creating an isolated temporary sandbox environment targeting `VPSENTINEL_CONFIG_PATH` with atexit cleanup.
+  - Hardened `tests/test_security_audit.py` and `tests/test_decoupling_phase0_phase1.py` with explicit try/finally environment variable restoration to guarantee the sandbox remains strictly active across full discovery test suites.
+- **Section 0: Cloud Detection Concurrency Hardening (`sentinel_core.py`)**:
+  - `invalidate_cloud_info_cache()` now acquires `_cloud_info_lock` to ensure race-free cache evictions across threads.
+  - `get_cloud_info(use_cache=False)` directly calls `_detect_cloud_info()` without locking, eliminating thread lock overhead for explicit live queries.
+- **Phase 0: Centralized Paths Convergence (`paths.py`, `sentinel_core.py`, `app.py`, `traffic_mgr.py`, `bot_mgr.py`)**:
+  - Extracted centralized path resolution into new module `paths.py` (`BASE_DIR`, `CONFIG_PATH`, `STATIC_PATH`, `CERT_DIR`, `TRAFFIC_DB_PATH`, `get_config_path()`).
+  - Added support for `VPSENTINEL_CONFIG_PATH` and `VPSENTINEL_HOME` environment overrides.
+  - Refactored `sentinel_core.py`, `app.py`, `traffic_mgr.py`, and `bot_mgr.py` to import paths from `paths.py`, eliminating redundant ternary fallback boilerplate.
+- **Phase 0: Service Manager Abstraction (`service_mgr.py`, `cert_sync_mgr.py`)**:
+  - Introduced extensible `BaseServiceManager` interface with `SystemdServiceManager` (default) and `NoopServiceManager` (container / no-systemd mode).
+  - Added dependency injection via `get_service_manager()` and `set_service_manager()`.
+  - Updated `cert_sync_mgr.py` to use `get_service_manager().reload()` and `get_service_manager().restart()`, gracefully handling containerized environments without systemctl crashes.
+- **Phase 1: DNS Provider Abstraction (`sentinel_core.py`, `app.py`)**:
+  - Defined `BaseDnsProvider` abstract interface declaring `test_connection()`, `update_record()`, `get_record_ip()`, `list_zones()`, `verify_token()`.
+  - Re-implemented `CloudflareDnsProvider` inheriting from `BaseDnsProvider` and preserved backwards compatibility alias `CloudflareManager = CloudflareDnsProvider`.
+  - Added `get_dns_provider(cfg, zone_name='')` factory with legacy config auto-migration and fallback.
+  - Refactored `app.py` endpoints (`/api/settings/test-cf`, `/api/setup/verify-cf`, and `run_healing_routine`) to use `get_dns_provider()`.
+- **Testing & Quality Assurance (`tests/test_decoupling_phase0_phase1.py`)**:
+  - Added 13 unit tests covering paths environment overrides, service manager dispatch and injection, DNS provider inheritance and factory resolution, and R14 root config mtime immutability.
+  - Full suite expanded to 101 unit tests, completing in ~13s with 0 writes to the host `config.json`, 0 dead references, and 0 flake8 errors.
+
+---
+
 ## [2.6.4] - 2026-10-01
 
 ### Generic Provider TTL Caching & Invalidation Hookup (兜底结果 TTL 缓存与失效挂载闭环 - R12, R13)

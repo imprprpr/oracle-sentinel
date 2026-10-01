@@ -15,9 +15,7 @@ from notification import NotificationManager
 
 logger = logging.getLogger('TrafficManager')
 
-DB_PATH = '/opt/vpsentinel/traffic.db' if os.path.exists('/opt/vpsentinel') else (
-    '/opt/oracle-sentinel/traffic.db' if os.path.exists('/opt/oracle-sentinel') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'traffic.db')
-)
+from paths import TRAFFIC_DB_PATH as DB_PATH
 
 class TrafficManager:
     _lock = threading.Lock()

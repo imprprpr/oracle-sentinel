@@ -38,10 +38,7 @@ logger = logging.getLogger('SentinelAPI')
 
 app = FastAPI(title='VPSentinel Control Center', docs_url=None, redoc_url=None, openapi_url=None)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_PATH = '/opt/vpsentinel/static' if os.path.exists('/opt/vpsentinel/static') else (
-    '/opt/oracle-sentinel/static' if os.path.exists('/opt/oracle-sentinel/static') else os.path.join(BASE_DIR, 'static')
-)
+from paths import BASE_DIR, STATIC_PATH
 METACUBEXD_PATH = os.path.join(STATIC_PATH, 'metacubexd')
 NUXT_PATH = os.path.join(METACUBEXD_PATH, '_nuxt')
 
@@ -624,7 +621,7 @@ async def test_notifications(request: Request, data: Optional[dict] = None):
 async def test_cf_token(data: dict, request: Request):
     check_admin(request)
     token = data.get('token') or cfg_mgr.load().get('cloudflare', {}).get('api_token')
-    cf = sentinel_core.CloudflareManager(token)
+    cf = sentinel_core.get_dns_provider({'dns': {'type': 'cloudflare', 'api_token': token}})
     ok, msg = cf.verify_token()
     return {'success': ok, 'message': msg}
 
@@ -865,7 +862,7 @@ async def verify_cf(data: dict, request: Request):
     token = data.get('token', '').strip()
     if not token:
         return {'success': False, 'message': 'API Token 不能为空'}
-    cf = sentinel_core.CloudflareManager(token)
+    cf = sentinel_core.get_dns_provider({'dns': {'type': 'cloudflare', 'api_token': token}})
     ok, zones, msg = cf.list_zones()
     return {'success': ok, 'zones': zones, 'message': msg}
 
@@ -1428,7 +1425,7 @@ async def run_healing_routine(trigger_source='MANUAL', force=False) -> dict:
         dns_ok = False
         if cf_token and cf_record:
             await broadcast_log(f'[HEAL STEP 4/5] Updating Cloudflare DNS: {cf_record} -> {new_ip}...')
-            cf_mgr = sentinel_core.CloudflareManager(cf_token, cf_zone)
+            cf_mgr = sentinel_core.get_dns_provider(cfg, cf_zone)
             try:
                 dns_res = await loop.run_in_executor(None, cf_mgr.update_dns_record, cf_record, new_ip)
                 dns_ok = bool(dns_res)

@@ -15,9 +15,7 @@ import urllib.error
 
 logger = logging.getLogger('BotManager')
 
-CONFIG_PATH = '/opt/vpsentinel/config.json' if os.path.exists('/opt/vpsentinel/config.json') else (
-    '/opt/oracle-sentinel/config.json' if os.path.exists('/opt/oracle-sentinel/config.json') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-)
+from paths import CONFIG_PATH
 
 class TelegramInteractiveBot:
     def __init__(self, get_state_func=None, get_config_func=None, run_healing_func=None):

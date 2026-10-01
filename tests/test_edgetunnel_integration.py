@@ -19,6 +19,11 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+try:
+    import tests.sandbox  # noqa: F401
+except ImportError:
+    import sandbox  # noqa: F401
+
 from clean_ip_mgr import CleanIPManager, DEFAULT_CLEAN_IPS
 from sentinel_core import ConfigManager
 from sub_engine import SubEngine
