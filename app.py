@@ -111,9 +111,35 @@ def is_trusted_peer(peer_ip: str, custom_cidrs: Optional[List[str]] = None) -> b
                 pass
     return is_ip_in_networks(peer_ip, networks)
 
+def _has_proxy_headers(headers) -> bool:
+    if not headers:
+        return False
+    target = {'x-forwarded-for', 'cf-connecting-ip', 'x-real-ip'}
+    if hasattr(headers, 'items'):
+        for k, v in headers.items():
+            if str(k).lower() in target and v:
+                return True
+    elif hasattr(headers, 'get'):
+        for k in target:
+            if headers.get(k):
+                return True
+    return False
+
+_loopback_proxy_warned = False
+
 def resolve_client_ip(request: Request, custom_cidrs: Optional[List[str]] = None) -> str:
+    global _loopback_proxy_warned
     peer_ip = request.client.host if request.client else ""
     if not is_trusted_peer(peer_ip, custom_cidrs):
+        if is_ip_in_networks(peer_ip, LOOPBACK_NETWORKS):
+            headers = getattr(request, 'headers', {})
+            if _has_proxy_headers(headers) and not _loopback_proxy_warned:
+                _loopback_proxy_warned = True
+                logger.warning(
+                    f"Detected reverse proxy headers from loopback peer {peer_ip}, but loopback is not configured "
+                    f"in security.trusted_proxy_cidrs. Visitor IP is falling back to {peer_ip}. "
+                    f"Configure 'trusted_proxy_cidrs': ['127.0.0.1'] in config.json to restore original client IPs."
+                )
         return peer_ip
 
     headers = getattr(request, 'headers', {})
@@ -209,8 +235,12 @@ def check_setup_allowed(request: Request):
     if cfg.get('initialized', False):
         check_admin(request)
         return
-    client_ip = request.client.host if request.client else ""
-    if client_ip in ("127.0.0.1", "::1", "localhost"):
+    peer_ip = request.client.host if request.client else ""
+    resolved_ip = getattr(request.state, "client_ip", peer_ip)
+    headers = getattr(request, 'headers', {})
+    has_proxy = _has_proxy_headers(headers)
+    # Direct unproxied localhost access ONLY is exempt from admin auth during uninitialized setup
+    if peer_ip in ("127.0.0.1", "::1", "localhost") and resolved_ip in ("127.0.0.1", "::1", "localhost") and not has_proxy:
         return
     check_admin(request)
 

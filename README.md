@@ -9,7 +9,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-20.10+-2496ED.svg)](https://www.docker.com/)
 [![OCI SDK](https://img.shields.io/badge/Oracle%20Cloud-OCI%20SDK-F80000.svg)](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/pythonsdk.htm)
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-DNS%20API-F38020.svg)](https://developers.cloudflare.com/api/)
 
@@ -138,10 +137,20 @@ sudo python3 /opt/vpsentinel/scripts/wizard.py
   * `/sub/clash`、`/sub/v2ray`、`/sub/singbox` 必须携带 `?token=<sub_token>` 凭据或处于管理员登录状态。
   * 外网探测无 Token 访问直接返回 **403 Forbidden**，杜绝节点信息与订阅流量被爬取。
 
-### 3. 方案 3：Cloudflare CDN / WAF 代理就绪 (2096 端口)
-* **放行并映射端口 2096**：系统支持通过 Cloudflare 免费 HTTPS 代理端口（2096）进行访问，流量无缝转发至 20540。
-* **真实访客 IP 还原**：自动解析 `CF-Connecting-IP` 与 `X-Forwarded-For`。
-* **随时开启 CDN**：如果未来希望彻底隐藏甲骨文源站公网 IP，只需在 Cloudflare DNS 将域名开启小黄云（Proxy），即可通过 `https://vps.yourdomain.com:2096/sentinel` 享受 Anycast 全球 CDN 保护。
+> [!IMPORTANT]
+> **反向代理与隧道访问重要安全须知**：
+> 若在宿主机前端部署了反向代理（Nginx / Caddy）或使用 Cloudflare Tunnel (cloudflared)，必须在 `config.json` 的 `security` 段显式配置可信代理网段：
+> ```json
+> "security": {
+>   "trusted_proxy_cidrs": ["127.0.0.1", "::1"]
+> }
+> ```
+> 系统出于安全隔离考虑，默认不采信未经声明的环回伪造请求头；若未显式配置，所有反代访问将被统一识别为本机 IP（`127.0.0.1`），进而导致登录防爆破单点锁死全站与审计失真。
+
+### 3. 方案 3：Cloudflare CDN / WAF 代理就绪
+* **随时开启 CDN**：如果希望彻底隐藏源站公网 IP，只需在 Cloudflare DNS 将域名开启小黄云（Proxy）。系统默认全面信任 Cloudflare 官方 IPv4/IPv6 边缘回源 IP，自动通过 `CF-Connecting-IP` 还原真实客户端 IP。
+* **自定义回源端口支持**：若通过 Cloudflare 免费 HTTPS 代理端口（如 2096、8443）进行访问，可在宿主机通过 Nginx upstream 反代将流量转发至 VPSentinel 后端端口（20540）。
+* **真实访客 IP 还原与防伪验证**：仅在请求来自官方 Cloudflare 边缘节点或配置在 `trusted_proxy_cidrs` 中的可信代理时，系统才采信代理请求头，并对多级代理链自右向左逆向剔除可信跳，防止伪造头逃避限流。
 
 ---
 

@@ -380,7 +380,9 @@ class TestCertRestEndpoints(unittest.TestCase):
         self.assertEqual(data['cert_pem'], self.cert_pem)
         self.assertEqual(data['key_pem'], self.key_pem)
 
-    def test_save_cert_config_and_sync_now(self):
+    @patch('cert_sync_mgr.CertSyncAgent.reload_downstream_services')
+    def test_save_cert_config_and_sync_now(self, mock_reload):
+        mock_reload.return_value = [{'service': 'nginx', 'action': 'reload', 'success': True, 'detail': 'mock'}]
         # Update config via admin
         res = self.client.post(
             '/api/cert/config',

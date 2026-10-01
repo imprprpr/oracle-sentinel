@@ -23,6 +23,12 @@ from starlette.testclient import TestClient
 
 
 class TestCloudInfoDetection(unittest.TestCase):
+    def setUp(self):
+        sentinel_core._cached_cloud_info = None
+
+    def tearDown(self):
+        sentinel_core._cached_cloud_info = None
+
     def test_detection_by_dmi_amazon(self):
         with patch('os.path.exists', return_value=True), \
              patch('builtins.open', unittest.mock.mock_open(read_data="Amazon EC2 Instance")):

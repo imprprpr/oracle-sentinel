@@ -107,6 +107,38 @@ class TestSecurityAudit(unittest.TestCase):
         res_save = client_external.post('/api/setup/save', json={'provider_type': 'auto'})
         self.assertEqual(res_save.status_code, 401)
 
+        # Test check_setup_allowed directly with mock requests
+        class DummySetupReq:
+            def __init__(self, peer_ip, headers=None):
+                self.client = type("Client", (), {"host": peer_ip})()
+                self.headers = headers or {}
+                self.cookies = {}
+                self.state = type("State", (), {"client_ip": peer_ip})()
+
+        orig_cfg = sentinel_core.ConfigManager.load()
+        try:
+            cfg = json.loads(json.dumps(orig_cfg))
+            cfg['initialized'] = False
+            sentinel_core.ConfigManager.save(cfg)
+
+            # Direct localhost request without proxy headers -> Allowed
+            req_direct_local = DummySetupReq('127.0.0.1')
+            app.check_setup_allowed(req_direct_local)
+
+            # Localhost peer but with reverse proxy headers (e.g., from unauthenticated nginx) -> Rejected (401)
+            req_proxied = DummySetupReq('127.0.0.1', {'x-forwarded-for': '203.0.113.199'})
+            with self.assertRaises(app.HTTPException) as ctx:
+                app.check_setup_allowed(req_proxied)
+            self.assertEqual(ctx.exception.status_code, 401)
+
+            # External peer -> Rejected (401)
+            req_ext = DummySetupReq('203.0.113.199')
+            with self.assertRaises(app.HTTPException) as ctx:
+                app.check_setup_allowed(req_ext)
+            self.assertEqual(ctx.exception.status_code, 401)
+        finally:
+            sentinel_core.ConfigManager.save(orig_cfg)
+
     def test_atomic_config_storage_concurrency(self):
         errors = []
 
@@ -286,7 +318,8 @@ class TestSecurityAudit(unittest.TestCase):
         app.runtime_state['status'] = 'healthy'
 
         # Running AUTO heal within 24h window should be suppressed
-        asyncio.run(app.run_healing_routine('AUTO'))
+        with patch('notification.NotificationManager.broadcast'):
+            asyncio.run(app.run_healing_routine('AUTO'))
         # Should not transition to 'healing' because cooldown blocked it
         self.assertFalse(app.runtime_state['heal_in_progress'])
         self.assertEqual(app.runtime_state['status'], 'healthy')
@@ -385,9 +418,11 @@ class TestSecurityAudit(unittest.TestCase):
         self.assertEqual(resolved_ip, '198.51.100.9')
 
         # 3. Loopback peer sending spoofed CF-Connecting-IP without custom_cidrs -> returns 127.0.0.1
+        app._loopback_proxy_warned = False
         req_loopback_cf = DummyReq('127.0.0.1', {'CF-Connecting-IP': '198.51.100.9'})
         resolved_ip = app.resolve_client_ip(req_loopback_cf)
         self.assertEqual(resolved_ip, '127.0.0.1')
+        self.assertTrue(app._loopback_proxy_warned)
 
         # 4. Loopback peer sending spoofed single XFF without custom_cidrs -> returns 127.0.0.1
         req_local_default_xff = DummyReq('127.0.0.1', {'X-Forwarded-For': '1.2.3.4'})
@@ -418,7 +453,8 @@ class TestSecurityAudit(unittest.TestCase):
             sentinel_core.ConfigManager.save(cfg)
 
             app.runtime_state['heal_in_progress'] = False
-            res = asyncio.run(app.run_healing_routine('AUTO', force=False))
+            with patch('notification.NotificationManager.broadcast'):
+                res = asyncio.run(app.run_healing_routine('AUTO', force=False))
             self.assertFalse(res['ok'])
             self.assertIn('Daily Re-IP quota exceeded', res['error'])
 
@@ -426,7 +462,8 @@ class TestSecurityAudit(unittest.TestCase):
             mock_prov = MagicMock()
             mock_prov.get_name.return_value = 'MockCloud'
             mock_prov.test_connection.return_value = (False, 'Controlled mock validation stop')
-            with patch('sentinel_core.get_cloud_provider', return_value=mock_prov), \
+            with patch('notification.NotificationManager.broadcast'), \
+                 patch('sentinel_core.get_cloud_provider', return_value=mock_prov), \
                  patch.object(app.monitor, 'get_public_ip', return_value='198.51.100.1'):
                 res_forced = asyncio.run(app.run_healing_routine('MANUAL', force=True))
                 self.assertNotIn('Daily Re-IP quota exceeded', res_forced.get('error', ''))
@@ -550,7 +587,8 @@ class TestSecurityAudit(unittest.TestCase):
             sentinel_core.ConfigManager.save(cfg)
 
             # Triggering routine must gracefully fallback defaults without TypeError
-            res = asyncio.run(app.run_healing_routine(trigger_source='MANUAL', force=False))
+            with patch('notification.NotificationManager.broadcast'):
+                res = asyncio.run(app.run_healing_routine(trigger_source='MANUAL', force=False))
             self.assertIsInstance(res, dict)
         finally:
             sentinel_core.ConfigManager.save(orig_cfg)

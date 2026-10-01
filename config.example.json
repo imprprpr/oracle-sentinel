@@ -55,7 +55,8 @@
     "admin_username": "admin",
     "secret_path": "/sentinel",
     "enable_host_guard": true,
-    "allowed_hosts": ["vps.example.com"]
+    "allowed_hosts": ["vps.example.com"],
+    "trusted_proxy_cidrs": []
   },
   "transits": [
     {

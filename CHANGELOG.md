@@ -5,6 +5,32 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2026-10-01
+
+### Reverse Proxy Hardening & Setup Auth Closure (反代加固与安装向导闭环 - R7)
+- **R7: Loopback Reverse Proxy Warning & Documentation (`app.py`, `README.md`, `config.example.json`)**:
+  - Added proactive warning log in `resolve_client_ip` when receiving proxy headers (`X-Forwarded-For`, `CF-Connecting-IP`, `X-Real-IP`) from loopback peers without `security.trusted_proxy_cidrs` configured, guiding operators to configure trusted proxy networks.
+  - Documented `security.trusted_proxy_cidrs: ["127.0.0.1", "::1"]` across `README.md` and `config.example.json`.
+  - **Setup Auth Hardening (`app.py:check_setup_allowed`)**: Enforced strict validation during the uninitialized window: only genuine unproxied localhost connections without reverse proxy headers are exempt from admin authentication, preventing external clients from bypassing setup authentication through local reverse proxies.
+
+### Test Suite Comprehensive Offline Optimization (测试套件全量离线化与秒级加速 - R8)
+- **Provider Factory & Metadata Caching (`sentinel_core.py`, `tests/test_cloud_providers.py`)**:
+  - Refactored `get_cloud_provider` to directly instantiate providers when `provider.type` is explicit (`lightsail`, `hetzner`, `azure`, `oracle`, `hook`, `generic`), completely bypassing slow cloud metadata detection.
+  - Added in-memory caching to `get_cloud_info` to prevent repeated 1-second timeout probes during a process lifetime.
+  - Reduced `tests/test_cloud_providers.py` execution time from 20.1s to 0.03s.
+- **Service Reload & Notification Broadcast Mocking (`tests/test_cert_sync.py`, `tests/test_security_audit.py`)**:
+  - Mocked `CertSyncAgent.reload_downstream_services` in `test_cert_sync.py`, dropping runtime from 11.3s to 0.38s.
+  - Mocked `NotificationManager.broadcast` in healing tests, eliminating real network retry timeouts to Telegram/Discord.
+  - **Total Test Suite Speedup**: All 84 unit tests now complete deterministically in **<13s** (down from 282s).
+
+### Legacy Asset & Documentation Reconciliation (历史落差清理与文档对齐 - R9)
+- **R9 Cleanup (`README.md`, `.env.example`)**:
+  - Removed unsupported Docker badge from `README.md`.
+  - Updated Cloudflare CDN section to accurately guide reverse proxy setups for custom ports (2096/8443) via Nginx upstream.
+  - Deleted unconsumed `.env.example` file.
+
+---
+
 ## [2.6.1] - 2026-10-01
 
 ### Security Audit Closure & Refinement (安全审计加固与代码审查收口)
@@ -27,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Test Suite Performance & Mocking (测试套件提速与离线模拟)
 - **Cloud Metadata Network Mocking (`tests/test_security_audit.py`)**:
-  - Mocked Oracle Cloud metadata (`169.254.169.254`) queries and cloud provider interactions during unit tests, eliminating timeout waits and reducing test suite execution time from 264s+ to <30s.
+  - Mocked Oracle Cloud metadata (`169.254.169.254`) queries and cloud provider interactions during unit tests, reducing `test_security_audit` execution time from 208s to ~28s.
 
 ---
 

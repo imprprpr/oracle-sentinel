@@ -165,10 +165,16 @@ def _deep_merge_dict(base, override):
             merged[k] = copy.deepcopy(v)
     return merged
 
-def get_cloud_info():
+_cached_cloud_info = None
+
+def get_cloud_info(use_cache: bool = True):
     """
     Auto-detects host virtualization, cloud provider, and CPU architecture.
     """
+    global _cached_cloud_info
+    if use_cache and _cached_cloud_info is not None:
+        return dict(_cached_cloud_info)
+
     arch = platform.machine()
     dmi_str = ""
     for df in [
@@ -185,57 +191,67 @@ def get_cloud_info():
             except Exception:
                 pass
 
+    res = None
     if 'OracleCloud' in dmi_str:
-        return {'provider': 'Oracle Cloud', 'region': 'OCI Global', 'arch': arch}
+        res = {'provider': 'Oracle Cloud', 'region': 'OCI Global', 'arch': arch}
     elif 'Amazon' in dmi_str or 'EC2' in dmi_str:
-        return {'provider': 'AWS (Lightsail / EC2)', 'region': 'AWS', 'arch': arch}
+        res = {'provider': 'AWS (Lightsail / EC2)', 'region': 'AWS', 'arch': arch}
     elif 'Microsoft' in dmi_str or 'Azure' in dmi_str or '7783-7084-3265-9085-8269-3286-77' in dmi_str:
-        return {'provider': 'Microsoft Azure', 'region': 'Azure Global', 'arch': arch}
+        res = {'provider': 'Microsoft Azure', 'region': 'Azure Global', 'arch': arch}
     elif 'Hetzner' in dmi_str:
-        return {'provider': 'Hetzner Cloud', 'region': 'Hetzner', 'arch': arch}
+        res = {'provider': 'Hetzner Cloud', 'region': 'Hetzner', 'arch': arch}
     elif 'Alibaba' in dmi_str or 'Aliyun' in dmi_str:
-        return {'provider': 'Alibaba Cloud (阿里云)', 'region': 'Aliyun', 'arch': arch}
+        res = {'provider': 'Alibaba Cloud (阿里云)', 'region': 'Aliyun', 'arch': arch}
     elif 'Tencent' in dmi_str:
-        return {'provider': 'Tencent Cloud (腾讯云)', 'region': 'Tencent', 'arch': arch}
+        res = {'provider': 'Tencent Cloud (腾讯云)', 'region': 'Tencent', 'arch': arch}
     elif 'DigitalOcean' in dmi_str:
-        return {'provider': 'DigitalOcean', 'region': 'DO', 'arch': arch}
+        res = {'provider': 'DigitalOcean', 'region': 'DO', 'arch': arch}
 
-    # Metadata service check (Oracle)
-    try:
-        r = requests.get(METADATA_INSTANCE_URL, headers={'Authorization': 'Bearer Oracle'}, timeout=1)
-        if r.status_code == 200:
-            reg = r.json().get('canonicalRegionName', 'Oracle Cloud')
-            return {'provider': 'Oracle Cloud', 'region': reg, 'arch': arch}
-    except Exception:
-        pass
+    if not res:
+        # Metadata service check (Oracle)
+        try:
+            r = requests.get(METADATA_INSTANCE_URL, headers={'Authorization': 'Bearer Oracle'}, timeout=1)
+            if r.status_code == 200:
+                reg = r.json().get('canonicalRegionName', 'Oracle Cloud')
+                res = {'provider': 'Oracle Cloud', 'region': reg, 'arch': arch}
+        except Exception:
+            pass
 
-    # Metadata service check (Azure)
-    try:
-        r = requests.get('http://169.254.169.254/metadata/instance?api-version=2021-02-01', headers={'Metadata': 'true'}, timeout=1)
-        if r.status_code == 200:
-            data = r.json()
-            reg = data.get('compute', {}).get('location', 'Azure Global')
-            return {'provider': 'Microsoft Azure', 'region': reg, 'arch': arch}
-    except Exception:
-        pass
+    if not res:
+        # Metadata service check (Azure)
+        try:
+            r = requests.get('http://169.254.169.254/metadata/instance?api-version=2021-02-01', headers={'Metadata': 'true'}, timeout=1)
+            if r.status_code == 200:
+                data = r.json()
+                reg = data.get('compute', {}).get('location', 'Azure Global')
+                res = {'provider': 'Microsoft Azure', 'region': reg, 'arch': arch}
+        except Exception:
+            pass
 
-    # Metadata service check (Hetzner)
-    try:
-        r = requests.get('http://169.254.169.254/hetzner/v1/metadata', timeout=1)
-        if r.status_code == 200:
-            return {'provider': 'Hetzner Cloud', 'region': 'Hetzner Global', 'arch': arch}
-    except Exception:
-        pass
+    if not res:
+        # Metadata service check (Hetzner)
+        try:
+            r = requests.get('http://169.254.169.254/hetzner/v1/metadata', timeout=1)
+            if r.status_code == 200:
+                res = {'provider': 'Hetzner Cloud', 'region': 'Hetzner Global', 'arch': arch}
+        except Exception:
+            pass
 
-    # Metadata service check (AWS IMDS)
-    try:
-        r = requests.get('http://169.254.169.254/latest/meta-data/placement/availability-zone', timeout=1)
-        if r.status_code == 200:
-            return {'provider': 'AWS (Lightsail / EC2)', 'region': r.text.strip(), 'arch': arch}
-    except Exception:
-        pass
+    if not res:
+        # Metadata service check (AWS IMDS)
+        try:
+            r = requests.get('http://169.254.169.254/latest/meta-data/placement/availability-zone', timeout=1)
+            if r.status_code == 200:
+                res = {'provider': 'AWS (Lightsail / EC2)', 'region': r.text.strip(), 'arch': arch}
+        except Exception:
+            pass
 
-    return {'provider': 'Generic VPS / Dedicated Server', 'region': 'Global', 'arch': arch}
+    if not res:
+        res = {'provider': 'Generic VPS / Dedicated Server', 'region': 'Global', 'arch': arch}
+
+    if use_cache:
+        _cached_cloud_info = dict(res)
+    return res
 
 class ConfigManager:
     _lock = threading.RLock()
@@ -1178,12 +1194,10 @@ def get_cloud_provider(cfg):
     Factory method returning the active Cloud Provider instance based on configuration.
     """
     p_type = cfg.get('provider', {}).get('type', 'auto')
-    cloud_info = get_cloud_info()
-    provider_name = cloud_info.get('provider', '')
 
-    if p_type == 'oracle' or (p_type == 'auto' and 'Oracle' in provider_name):
+    if p_type == 'oracle':
         return OracleCloudProvider(cfg.get('oci', {}).get('config_path'))
-    elif p_type == 'lightsail' or (p_type == 'auto' and 'AWS' in provider_name):
+    elif p_type == 'lightsail':
         ls_cfg = cfg.get('lightsail', {})
         return LightsailCloudProvider(
             access_key_id=ls_cfg.get('access_key_id', ''),
@@ -1191,14 +1205,14 @@ def get_cloud_provider(cfg):
             region=ls_cfg.get('region', 'us-east-1'),
             instance_name=ls_cfg.get('instance_name', '')
         )
-    elif p_type == 'hetzner' or (p_type == 'auto' and 'Hetzner' in provider_name):
+    elif p_type == 'hetzner':
         hz_cfg = cfg.get('hetzner', {})
         return HetznerCloudProvider(
             api_token=hz_cfg.get('api_token', ''),
             server_id=hz_cfg.get('server_id', ''),
             ip_type=hz_cfg.get('ip_type', 'primary')
         )
-    elif p_type == 'azure' or (p_type == 'auto' and 'Azure' in provider_name):
+    elif p_type == 'azure':
         az_cfg = cfg.get('azure', {})
         return AzureCloudProvider(
             subscription_id=az_cfg.get('subscription_id', ''),
@@ -1211,6 +1225,41 @@ def get_cloud_provider(cfg):
         )
     elif p_type == 'hook':
         return CustomHookProvider(cfg.get('provider', {}).get('hook_cmd', ''))
+    elif p_type == 'generic':
+        return GenericProvider()
+
+    # auto mode: inspect host platform
+    cloud_info = get_cloud_info()
+    provider_name = cloud_info.get('provider', '')
+
+    if 'Oracle' in provider_name:
+        return OracleCloudProvider(cfg.get('oci', {}).get('config_path'))
+    elif 'AWS' in provider_name:
+        ls_cfg = cfg.get('lightsail', {})
+        return LightsailCloudProvider(
+            access_key_id=ls_cfg.get('access_key_id', ''),
+            secret_access_key=ls_cfg.get('secret_access_key', ''),
+            region=ls_cfg.get('region', 'us-east-1'),
+            instance_name=ls_cfg.get('instance_name', '')
+        )
+    elif 'Hetzner' in provider_name:
+        hz_cfg = cfg.get('hetzner', {})
+        return HetznerCloudProvider(
+            api_token=hz_cfg.get('api_token', ''),
+            server_id=hz_cfg.get('server_id', ''),
+            ip_type=hz_cfg.get('ip_type', 'primary')
+        )
+    elif 'Azure' in provider_name:
+        az_cfg = cfg.get('azure', {})
+        return AzureCloudProvider(
+            subscription_id=az_cfg.get('subscription_id', ''),
+            resource_group=az_cfg.get('resource_group', ''),
+            vm_name=az_cfg.get('vm_name', ''),
+            nic_name=az_cfg.get('nic_name', ''),
+            client_id=az_cfg.get('client_id', ''),
+            client_secret=az_cfg.get('client_secret', ''),
+            tenant_id=az_cfg.get('tenant_id', '')
+        )
     else:
         return GenericProvider()
 
