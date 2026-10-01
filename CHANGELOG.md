@@ -5,6 +5,22 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.6] - 2026-10-01
+
+### Telemetry Field Alignment & Overview Dashboard Rendering Fix (概览监控字段双契约对齐与域名RTT渲染修复)
+- **Frontend/Backend Field Contract Alignment (`sentinel_core.py`, `static/index.html`)**:
+  - Fixed public IP not displaying (`--.--.--.--`) due to key discrepancy between frontend (`state.current_ip`) and backend (`state.public_ip`). Both keys are now populated by backend and safely read by frontend.
+  - Fixed domestic latency showing `-- ms RTT` while loss was `0% 丢包` caused by key mismatch between frontend (`state.probes.avg_latency`) and backend (`state.probes.avg_rtt_ms`). Dual-contract keys and nullish checks are now implemented.
+  - Fixed domain placeholder stuck at `vps.yourdomain.com` by injecting resolved record domain into `state.domain` and rendering `disp-domain` dynamically in the Web UI.
+- **Instant Overview Preloading & WebSocket Fallback (`static/index.html`)**:
+  - Added `loadOverviewStatus()` pulling `/api/status` on `DOMContentLoaded` to eliminate blank/default states during WebSocket negotiation.
+  - Wired `loadOverviewStatus()` into WebSocket `onclose` as an automatic polling fallback.
+- **Testing & Quality Assurance (`tests/test_decoupling_phase0_phase1.py`)**:
+  - Added `TestTelemetryContractCompatibility` validating probe RTT and full state public IP/domain dual-contract integrity.
+  - Test suite expanded to 103 tests, all passing in ~17s with 0 host config writes.
+
+---
+
 ## [2.6.5] - 2026-10-01
 
 ### Decoupling Phase 0 & Phase 1 and R14 Test Hygiene Isolation (路径与服务解耦、DNS提供者抽象与R14测试沙箱隔离)

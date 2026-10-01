@@ -336,7 +336,7 @@
             <span>WARP 出站解锁</span>
             <span class="badge bg-emerald-950/60 border border-emerald-600/30 text-emerald-400 text-[10px]">Wireproxy</span>
           </div>
-          <div class="text-lg font-mono font-semibold text-emerald-400">ACTIVE</div>
+          <div class="text-lg font-mono font-semibold text-emerald-400" id="disp-warp-status">ACTIVE</div>
           <div class="text-xs text-zinc-400 font-mono mt-1 flex items-center gap-1.5" id="disp-warp-ip">
             <span>出口:</span>
             <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏" id="disp-warp-val">104.28.205.115 (US)</span>
@@ -3553,6 +3553,7 @@
           document.getElementById('login-modal').classList.add('active');
           return;
         }
+        loadOverviewStatus();
         setTimeout(connectWS, 3000);
       };
     }
@@ -3573,7 +3574,17 @@
 
     function updateOverview(state, sentinel) {
       if (!state) return;
-      if (state.current_ip) document.getElementById('disp-ip').innerText = state.current_ip;
+      const ip = state.public_ip || state.current_ip;
+      if (ip) {
+        const ipEl = document.getElementById('disp-ip');
+        if (ipEl) ipEl.innerText = ip;
+      }
+
+      const dom = state.domain || state.record_name;
+      if (dom) {
+        const domEl = document.getElementById('disp-domain');
+        if (domEl) domEl.innerText = dom;
+      }
 
       if (state.cloud_info) {
         const ci = state.cloud_info;
@@ -3584,9 +3595,19 @@
       }
       
       if (state.probes) {
-        document.getElementById('disp-latency').innerText = state.probes.avg_latency || '--';
-        document.getElementById('disp-loss').innerText = `${state.probes.loss_pct}% 丢包`;
-        document.getElementById('disp-loss').className = state.probes.loss_pct > 0 ? 'text-amber-400 font-mono text-[11px]' : 'text-emerald-400 font-mono text-[11px]';
+        const latency = (state.probes.avg_rtt_ms !== undefined && state.probes.avg_rtt_ms !== null)
+          ? state.probes.avg_rtt_ms
+          : state.probes.avg_latency;
+        const latEl = document.getElementById('disp-latency');
+        if (latEl) {
+          latEl.innerText = (latency !== undefined && latency !== null && latency !== '') ? latency : '--';
+        }
+        const lossEl = document.getElementById('disp-loss');
+        if (lossEl) {
+          const lossVal = state.probes.loss_pct !== undefined ? state.probes.loss_pct : 0;
+          lossEl.innerText = `${lossVal}% 丢包`;
+          lossEl.className = lossVal > 0 ? 'text-amber-400 font-mono text-[11px]' : 'text-emerald-400 font-mono text-[11px]';
+        }
       }
 
       if (state.metrics) {
@@ -3605,6 +3626,11 @@
           wVal.innerText = `${state.warp.ip || 'N/A'} (${state.warp.loc || 'US'})`;
         } else {
           document.getElementById('disp-warp-ip').innerHTML = `<span>出口:</span> <span class="privacy-blur" onclick="togglePrivacy(this)" title="点击展开/隐藏" id="disp-warp-val">${state.warp.ip || 'N/A'} (${state.warp.loc || 'US'})</span>`;
+        }
+        const wStatus = document.getElementById('disp-warp-status');
+        if (wStatus) {
+          wStatus.innerText = state.warp.active ? 'ACTIVE' : 'OFFLINE';
+          wStatus.className = state.warp.active ? 'text-lg font-mono font-semibold text-emerald-400' : 'text-lg font-mono font-semibold text-zinc-500';
         }
       }
 
@@ -3626,6 +3652,19 @@
           pill.className = 'badge bg-emerald-950/70 border border-emerald-600/30 text-emerald-400 font-mono text-[11px]';
           text.innerText = 'HEALTHY';
         }
+      }
+    }
+
+    async function loadOverviewStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.state) {
+          updateOverview(data.state, data.sentinel);
+        }
+      } catch (e) {
+        console.error('Failed to load initial overview status:', e);
       }
     }
 
@@ -5542,6 +5581,7 @@
 
       const authed = await checkAuthStatus();
       if (authed) {
+        loadOverviewStatus();
         connectWS();
         checkFirstRun();
         loadServicesStatus();

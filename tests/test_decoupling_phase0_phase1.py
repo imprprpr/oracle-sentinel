@@ -174,6 +174,27 @@ class TestDnsProviderAbstraction(unittest.TestCase):
         self.assertEqual(zones[0]['name'], 'example.com')
 
 
+class TestTelemetryContractCompatibility(unittest.TestCase):
+    def test_probes_avg_rtt_and_avg_latency_dual_contract(self):
+        mon = sentinel_core.SystemMonitor()
+        with patch('socket.socket.connect', return_value=None):
+            res = mon.check_domestic_probes()
+            self.assertIn('avg_rtt_ms', res)
+            self.assertIn('avg_latency', res)
+            self.assertEqual(res['avg_rtt_ms'], res['avg_latency'])
+            self.assertIn('loss_pct', res)
+
+    def test_full_state_public_ip_and_current_ip_and_domain(self):
+        mon = sentinel_core.SystemMonitor()
+        with patch.object(mon, 'get_public_ip', return_value='198.51.100.22'):
+            state = mon.get_full_state(force_refresh=True)
+            self.assertIn('public_ip', state)
+            self.assertIn('current_ip', state)
+            self.assertEqual(state['public_ip'], '198.51.100.22')
+            self.assertEqual(state['current_ip'], '198.51.100.22')
+            self.assertIn('domain', state)
+
+
 class TestR14ConfigIsolation(unittest.TestCase):
     def test_root_config_json_not_modified_by_sandbox(self):
         real_cfg_path = os.path.join(BASE_DIR, 'config.json')

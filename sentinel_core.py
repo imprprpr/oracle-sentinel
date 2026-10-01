@@ -499,6 +499,7 @@ class SystemMonitor:
         return {
             'loss_pct': loss,
             'avg_rtt_ms': avg_rtt,
+            'avg_latency': avg_rtt,
             'success_probes': success,
             'total_probes': total,
             'direction': 'outbound',
@@ -565,6 +566,13 @@ class SystemMonitor:
         pub_ip = self.get_public_ip()
         warp = self.get_warp_status()
 
+        domain = (
+            cfg.get('dns', {}).get('record_name') or
+            cfg.get('cloudflare', {}).get('record_name') or
+            (cfg.get('security', {}).get('allowed_hosts', [None])[0] if cfg.get('security', {}).get('allowed_hosts') else '') or
+            ''
+        )
+
         nodes = [
             {
                 'id': 'vless-reality',
@@ -587,7 +595,7 @@ class SystemMonitor:
                 'name': 'Oracle-Trojan',
                 'proto': 'Trojan-TLS',
                 'port': 2083,
-                'sni': cfg.get('cloudflare', {}).get('record_name', 'vps.example.com'),
+                'sni': domain or 'vps.example.com',
                 'status': 'online' if self.check_port_listening(2083, 'tcp') else 'offline'
             }
         ]
@@ -606,6 +614,8 @@ class SystemMonitor:
             'timestamp': int(time.time()),
             'health': health,
             'public_ip': pub_ip,
+            'current_ip': pub_ip,
+            'domain': domain,
             'cloud_info': cloud_info,
             'probes': probes,
             'metrics': metrics,
