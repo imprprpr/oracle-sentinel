@@ -5,6 +5,20 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] - 2026-10-01
+
+### Cloud Detection Cache Hardening & Docs Alignment (云识别缓存加固与文档彻底清洗)
+- **R10: Positive Cloud Detection Caching & Invalidation (`sentinel_core.py`, `tests/test_cloud_providers.py`)**:
+  - Fixed cache pollution where generic fallback (`Generic VPS / Dedicated Server`) was cached upon transient network or metadata failure, preventing permanent locking of `auto` mode into `GenericProvider`.
+  - Only positive, verified cloud detections are now cached in `_cached_cloud_info`.
+  - Added `invalidate_cloud_info_cache()` and wired it into `ConfigManager.invalidate_cache()` and test teardowns.
+  - Added warning log when an unrecognized `provider.type` is configured, falling back gracefully to auto-detection.
+- **R11: Complete Legacy Documentation & IP Sanitization (`README.md`)**:
+  - Fully sanitized the real public IP address `129.146.230.81` across `README.md`, replacing it with RFC 5737 compliant documentation address `198.51.100.1`.
+  - Removed all remaining unsupported `2096` port claims in `README.md:43` and `README.md:475`, aligning them with the upstream proxy and CDN support documentation.
+
+---
+
 ## [2.6.2] - 2026-10-01
 
 ### Reverse Proxy Hardening & Setup Auth Closure (反代加固与安装向导闭环 - R7)

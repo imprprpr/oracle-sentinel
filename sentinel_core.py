@@ -165,7 +165,13 @@ def _deep_merge_dict(base, override):
             merged[k] = copy.deepcopy(v)
     return merged
 
+GENERIC_PROVIDER = 'Generic VPS / Dedicated Server'
+
 _cached_cloud_info = None
+
+def invalidate_cloud_info_cache():
+    global _cached_cloud_info
+    _cached_cloud_info = None
 
 def get_cloud_info(use_cache: bool = True):
     """
@@ -247,9 +253,10 @@ def get_cloud_info(use_cache: bool = True):
             pass
 
     if not res:
-        res = {'provider': 'Generic VPS / Dedicated Server', 'region': 'Global', 'arch': arch}
+        res = {'provider': GENERIC_PROVIDER, 'region': 'Global', 'arch': arch}
 
-    if use_cache:
+    # Only cache positive cloud detection results to avoid locking into generic fallback
+    if use_cache and res.get('provider') != GENERIC_PROVIDER:
         _cached_cloud_info = dict(res)
     return res
 
@@ -316,6 +323,7 @@ class ConfigManager:
         with cls._lock:
             cls._cached_cfg = None
             cls._cached_fingerprint = None
+        invalidate_cloud_info_cache()
 
     @classmethod
     def update(cls, mutator):
@@ -1229,6 +1237,9 @@ def get_cloud_provider(cfg):
         return GenericProvider()
 
     # auto mode: inspect host platform
+    if p_type != 'auto':
+        logger.warning(f"Unrecognized provider type '{p_type}', falling back to auto-detection.")
+
     cloud_info = get_cloud_info()
     provider_name = cloud_info.get('provider', '')
 

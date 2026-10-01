@@ -40,7 +40,7 @@
 | **全自动换 IP 自愈** | 支持甲骨文云（OCI 原生秒级换 IP）、通用 VPS（多探针监控+告警）、自定义脚本 Hook。换完自动改 Cloudflare DNS。 |
 | **智能订阅引擎** | 自动提取 VLESS-Reality、Hysteria 2、Trojan。输出直连 IP 节点，免疫国内 DNS 污染，彻底解决软路由 Fake-IP 冲突。 |
 | **EdgeTunnel 边缘与优选调度** | 深度纳管 Cloudflare Pages / Workers Serverless 端点，集成电信、联通、移动三网 Anycast Clean IP 自动测速与动态节点拼装，策略组物理隔离与容灾自愈回退。 |
-| **渐进式安全防御加固** | **Host Guard** 域名嗅探拦截（裸 IP 扫描直接丢弃返回空白 404）、根路径 `/` 逼真 Nginx 欢迎页伪装、安全隐蔽路径（`/sentinel`）、加盐哈希管理员认证网关、多协议订阅 Token 防抓取，以及 Cloudflare CDN 代理就绪（2096 端口支持）。 |
+| **渐进式安全防御加固** | **Host Guard** 域名嗅探拦截（裸 IP 扫描直接丢弃返回空白 404）、根路径 `/` 逼真 Nginx 欢迎页伪装、安全隐蔽路径（`/sentinel`）、加盐哈希管理员认证网关、多协议订阅 Token 防抓取，以及 Cloudflare CDN 代理就绪支持。 |
 | **IP 纯净度与解锁体检** | 实时公网画像、Scamalytics 权威欺诈分与风控评估、4 项 DNSBL 黑名单洁净监测，以及 OpenAI (ChatGPT)、Anthropic (Claude)、Gemini、Netflix、YouTube Premium、Disney+ 解锁状态体检。 |
 | **多节点三网性能测速** | 集成原生测速内核与国内电信、联通、移动骨干节点链路往返延迟（RTT）、抖动、丢包率与全带宽并发压测，输出综合链路评级。 |
 | **多节点与中转聚合** | 支持挂载外部独立节点（如日本原生机、香港低延迟机）及国内跳板机（Realm 端口转发），自动合并到统一订阅中。 |
@@ -123,7 +123,7 @@ sudo python3 /opt/vpsentinel/scripts/wizard.py
 针对网络空间测绘引擎（Shodan / Censys / ZoomEye）的无差别端口扫描、协议嗅探与 GFW 针对管理端口的主动探测，VPSentinel 内置了三层立体防御体系：
 
 ### 1. 方案 1：Host Guard 域名嗅探与直接 IP 扫描防御
-* **直接 IP 探测拦截**：任何通过裸 IP（如 `https://129.146.230.81:20540/` 或 `https://129.146.230.81:2096/`）发起的扫描，中间件直接丢弃并返回 **0 字节空白 404**，不泄露任何 Server 签名与页面信息。
+* **直接 IP 探测拦截**：任何通过裸 IP（如 `https://198.51.100.1:20540/`）发起的扫描，中间件直接丢弃并返回 **0 字节空白 404**，不泄露任何 Server 签名与页面信息。
 * **白名单域名校验**：仅允许通过配置的受信域名（如 `vps.example.com`）以及本机回环接口访问。
 
 ### 2. 方案 2：隐蔽路径 + 逼真伪装页 + 管理员鉴权体系
@@ -472,7 +472,7 @@ EXT_IP="公网IP" EXT_PORT="映射端口" bash scripts/setup-japan-node.sh
 * **多实例集中集群纳管 (Multi-Node Sentinel Mesh)**：单控制台统筹管理全球多台分散 VPS 节点（Hub-Spoke 拓扑），轻量探针定时探活、延迟探测与健康度聚合，并支持子节点一键合并至主控多协议订阅。
 * **Telegram 双向交互式 Bot (Interactive Telegram Bot)**：采用纯长轮询（Long Polling）安全架构，无需公网入站端口与 SSL 证书，支持通过 /status、/sub、/mesh、/reip（二次确认防误触）、/speedtest 等指令或内嵌按钮与控制中枢双向交互。
 * **渐进式立体安全防御**：Host Guard 域名嗅探阻断（裸 IP 返回 404）、Decoy Nginx 伪装页、安全隐蔽路径 `/sentinel`、加盐管理员鉴权与多协议订阅 Token 防探查。
-* **Cloudflare CDN 代理就绪**：开放 2096 端口支持，支持 Anycast 全球 CDN 隐藏源站公网 IP。
+* **Cloudflare CDN 代理就绪**：支持通过 Cloudflare Anycast 全球 CDN 隐藏源站公网 IP，支持反向代理回源端口自定义。
 * **IP 纯净度与风控体检中心 (IP Purity & Fraud Audit)**：集成 Scamalytics 欺诈分、4 项 DNSBL 黑名单监测，以及 OpenAI (ChatGPT)、Anthropic (Claude)、Gemini、Netflix、YouTube、Disney+ 全球流媒体与 AI 解锁体检。
 * **多节点网络性能与基准测速 (Speedtest & Network Benchmark)**：集成原生测速内核与国内电信/联通/移动骨干节点链路往返延迟（RTT）、抖动、丢包率与全带宽并发压测。
 

@@ -53,6 +53,30 @@ class TestCloudInfoDetection(unittest.TestCase):
             info = sentinel_core.get_cloud_info()
             self.assertIn("Generic", info['provider'])
 
+    def test_generic_fallback_not_cached(self):
+        # 1. First probe fails with exception -> returns Generic VPS and MUST NOT cache
+        with patch('os.path.exists', return_value=False), \
+             patch('requests.get', side_effect=Exception("Metadata unreachable")):
+            info1 = sentinel_core.get_cloud_info()
+            self.assertEqual(info1['provider'], sentinel_core.GENERIC_PROVIDER)
+            self.assertIsNone(sentinel_core._cached_cloud_info)
+
+        # 2. Network/metadata recovers -> next call successfully detects Oracle Cloud without cache invalidation
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {'canonicalRegionName': 'us-phoenix-1'}
+        with patch('os.path.exists', return_value=False), \
+             patch('requests.get', return_value=mock_resp):
+            info2 = sentinel_core.get_cloud_info()
+            self.assertEqual(info2['provider'], 'Oracle Cloud')
+            self.assertIsNotNone(sentinel_core._cached_cloud_info)
+            self.assertEqual(sentinel_core._cached_cloud_info['provider'], 'Oracle Cloud')
+
+    def test_invalidate_cloud_info_cache(self):
+        sentinel_core._cached_cloud_info = {'provider': 'Test Cloud'}
+        sentinel_core.invalidate_cloud_info_cache()
+        self.assertIsNone(sentinel_core._cached_cloud_info)
+
 
 class TestLightsailCloudProvider(unittest.TestCase):
     def setUp(self):
@@ -359,6 +383,12 @@ class TestCloudProviderFactory(unittest.TestCase):
         ok, msg = prov.test_connection()
         self.assertTrue(ok)
         self.assertIn("Generic VPS", msg)
+
+    def test_factory_dispatch_unrecognized_falls_back_to_auto(self):
+        cfg = {'provider': {'type': 'unknown_provider'}}
+        with patch('sentinel_core.get_cloud_info', return_value={'provider': 'Generic VPS / Dedicated Server'}):
+            prov = sentinel_core.get_cloud_provider(cfg)
+            self.assertIsInstance(prov, sentinel_core.GenericProvider)
 
 
 class TestProviderRestEndpoints(unittest.TestCase):
