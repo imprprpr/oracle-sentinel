@@ -240,8 +240,7 @@ def get_cloud_info():
 class ConfigManager:
     _lock = threading.RLock()
     _cached_cfg = None
-    _cached_mtime = None
-    _cached_size = None
+    _cached_fingerprint = None  # (mtime_ns, size, inode)
 
     @classmethod
     def load(cls):
@@ -249,23 +248,23 @@ class ConfigManager:
             if os.path.exists(CONFIG_PATH):
                 try:
                     st = os.stat(CONFIG_PATH)
-                    if cls._cached_cfg is not None and cls._cached_mtime == st.st_mtime and cls._cached_size == st.st_size:
+                    current_fp = (st.st_mtime_ns, st.st_size, st.st_ino)
+                    if cls._cached_cfg is not None and cls._cached_fingerprint == current_fp:
                         return copy.deepcopy(cls._cached_cfg)
                     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
                         cfg = json.load(f)
                         merged = _deep_merge_dict(DEFAULT_CONFIG, cfg)
                         cls._cached_cfg = merged
-                        cls._cached_mtime = st.st_mtime
-                        cls._cached_size = st.st_size
+                        cls._cached_fingerprint = current_fp
                         return copy.deepcopy(merged)
                 except Exception as e:
                     logger.error(f'Error reading {CONFIG_PATH}: {e}')
                     if cls._cached_cfg is not None:
+                        logger.warning(f'Falling back to last valid cached configuration')
                         return copy.deepcopy(cls._cached_cfg)
             else:
                 cls._cached_cfg = None
-                cls._cached_mtime = None
-                cls._cached_size = None
+                cls._cached_fingerprint = None
             return copy.deepcopy(DEFAULT_CONFIG)
 
     @classmethod
@@ -287,12 +286,10 @@ class ConfigManager:
                 try:
                     st = os.stat(CONFIG_PATH)
                     cls._cached_cfg = _deep_merge_dict(DEFAULT_CONFIG, cfg)
-                    cls._cached_mtime = st.st_mtime
-                    cls._cached_size = st.st_size
+                    cls._cached_fingerprint = (st.st_mtime_ns, st.st_size, st.st_ino)
                 except Exception:
                     cls._cached_cfg = None
-                    cls._cached_mtime = None
-                    cls._cached_size = None
+                    cls._cached_fingerprint = None
                 return True
             except Exception as e:
                 logger.error(f'Error saving {CONFIG_PATH}: {e}')
@@ -302,8 +299,7 @@ class ConfigManager:
     def invalidate_cache(cls):
         with cls._lock:
             cls._cached_cfg = None
-            cls._cached_mtime = None
-            cls._cached_size = None
+            cls._cached_fingerprint = None
 
     @classmethod
     def update(cls, mutator):

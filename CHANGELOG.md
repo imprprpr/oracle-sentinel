@@ -5,6 +5,32 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] - 2026-10-01
+
+### Security Audit Closure & Refinement (安全审计加固与代码审查收口)
+- **R1: Strict Proxy Anti-Spoofing & Leak Prevention (`app.py`, `auth_mgr.py`)**:
+  - Removed loopback networks from `DEFAULT_TRUSTED_PROXY_NETWORKS`. Local reverse proxies (Nginx/Caddy) now require explicit configuration in `security.trusted_proxy_cidrs`, preventing header spoofing when unauthenticated clients connect via localhost.
+  - Enforced official Cloudflare CIDR verification before trusting `CF-Connecting-IP`.
+  - Implemented right-to-left `X-Forwarded-For` chain traversal, stripping trusted proxy hops to identify the true client IP.
+  - Eliminated memory leak in login rate limiter by pruning expired attempt timestamps during lock checks.
+- **R2: Secure Initial Admin Password Generation (`scripts/install.sh`)**:
+  - Switched password generation to virtual environment Python (`$INSTALL_DIR/venv/bin/python3`) and captured raw stdout, preventing subshell parsing errors.
+- **R3: Test Scaffolding Production Cleanup (`app.py`, `auth_mgr.py`)**:
+  - Completely purged production-adjacent `testclient` and `testserver` bypass credentials from authentication checks.
+- **R4: Nanosecond Fingerprint Config Caching & Resilient Fallback (`sentinel_core.py`)**:
+  - Upgraded `ConfigManager` caching to validate file fingerprints using `(st_mtime_ns, st_size, st_ino)`, avoiding stale cache hits on same-second edits.
+  - Load failures gracefully fall back to the last valid cached in-memory configuration instead of resetting to defaults.
+- **R5: Notification Redaction & Config Alignment (`app.py`)**:
+  - Aligned notification redaction in `/api/settings` with Telegram Bot Token prefix masking (`****abcd`), Discord / Bark webhook token masking, and aligned `max_reip_per_day: 2`.
+- **R6: Defensive Null Cooldown & Quota Fallback (`app.py`)**:
+  - Handled null or missing cooldown and quota values defensively to prevent runtime comparison TypeErrors.
+
+### Test Suite Performance & Mocking (测试套件提速与离线模拟)
+- **Cloud Metadata Network Mocking (`tests/test_security_audit.py`)**:
+  - Mocked Oracle Cloud metadata (`169.254.169.254`) queries and cloud provider interactions during unit tests, eliminating timeout waits and reducing test suite execution time from 264s+ to <30s.
+
+---
+
 ## [2.6.0] - 2026-09-30
 
 ### Comprehensive Security Audit Remediation (代码安全与架构审计全面落地)

@@ -49,7 +49,9 @@ monitor = sentinel_core.SystemMonitor()
 cfg_mgr = sentinel_core.ConfigManager()
 auth = auth_mgr.AuthManager(cfg_mgr)
 
-# Default trusted proxy networks: loopback and Cloudflare official edge ranges
+# Cloudflare official edge ranges are trusted by default.
+# Loopback networks are NOT trusted by default to eliminate header spoofing risks;
+# operators deploying local reverse proxies (e.g., nginx/caddy) must explicitly configure security.trusted_proxy_cidrs.
 LOOPBACK_NETWORKS = [
     ipaddress.ip_network('127.0.0.0/8', strict=False),
     ipaddress.ip_network('::1/128', strict=False)
@@ -80,7 +82,7 @@ CLOUDFLARE_NETWORKS = [
     ipaddress.ip_network('2c0f:f248::/32', strict=False)
 ]
 
-DEFAULT_TRUSTED_PROXY_NETWORKS = LOOPBACK_NETWORKS + CLOUDFLARE_NETWORKS
+DEFAULT_TRUSTED_PROXY_NETWORKS = list(CLOUDFLARE_NETWORKS)
 
 def is_ip_in_networks(ip_str: str, networks: List[Any]) -> bool:
     if not ip_str:

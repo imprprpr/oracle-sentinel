@@ -4,6 +4,7 @@ import json
 import time
 import threading
 import unittest
+from unittest.mock import patch, MagicMock
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
@@ -383,19 +384,24 @@ class TestSecurityAudit(unittest.TestCase):
         resolved_ip = app.resolve_client_ip(req_trusted)
         self.assertEqual(resolved_ip, '198.51.100.9')
 
-        # 3. Loopback peer sending spoofed CF-Connecting-IP -> NOT accepted (not authentic CF edge)
+        # 3. Loopback peer sending spoofed CF-Connecting-IP without custom_cidrs -> returns 127.0.0.1
         req_loopback_cf = DummyReq('127.0.0.1', {'CF-Connecting-IP': '198.51.100.9'})
         resolved_ip = app.resolve_client_ip(req_loopback_cf)
         self.assertEqual(resolved_ip, '127.0.0.1')
 
-        # 4. Loopback proxy with XFF: spoofed_ip, real_client_ip -> rightmost untrusted hop picked
-        req_local_xff = DummyReq('127.0.0.1', {'X-Forwarded-For': '1.2.3.4, 198.51.100.9'})
-        resolved_ip = app.resolve_client_ip(req_local_xff)
+        # 4. Loopback peer sending spoofed single XFF without custom_cidrs -> returns 127.0.0.1
+        req_local_default_xff = DummyReq('127.0.0.1', {'X-Forwarded-For': '1.2.3.4'})
+        resolved_ip = app.resolve_client_ip(req_local_default_xff)
+        self.assertEqual(resolved_ip, '127.0.0.1')
+
+        # 5. Loopback configured in custom_cidrs with XFF -> traverses right-to-left
+        req_local_configured = DummyReq('127.0.0.1', {'X-Forwarded-For': '1.2.3.4, 198.51.100.9'})
+        resolved_ip = app.resolve_client_ip(req_local_configured, custom_cidrs=['127.0.0.1'])
         self.assertEqual(resolved_ip, '198.51.100.9')
 
-        # 5. Custom trusted proxy network in XFF -> skips trusted hops from right to left
+        # 6. Multi-proxy network in XFF -> skips trusted hops from right to left
         req_multi_proxy = DummyReq('127.0.0.1', {'X-Forwarded-For': '198.51.100.9, 10.0.0.1'})
-        resolved_ip = app.resolve_client_ip(req_multi_proxy, custom_cidrs=['10.0.0.0/8'])
+        resolved_ip = app.resolve_client_ip(req_multi_proxy, custom_cidrs=['127.0.0.1', '10.0.0.0/8'])
         self.assertEqual(resolved_ip, '198.51.100.9')
 
     def test_daily_reip_quota_and_force_override(self):
@@ -526,7 +532,13 @@ class TestSecurityAudit(unittest.TestCase):
             cfg_reloaded['test_cache_key'] = orig_key
         sentinel_core.ConfigManager.save(cfg_reloaded)
 
-    def test_reip_cooldown_and_quota_null_handling(self):
+    @patch('sentinel_core.get_cloud_provider')
+    def test_reip_cooldown_and_quota_null_handling(self, mock_get_prov):
+        mock_prov = MagicMock()
+        mock_prov.test_connection.return_value = (True, "Mock Provider OK")
+        mock_prov.change_public_ip.return_value = "198.51.100.88"
+        mock_get_prov.return_value = mock_prov
+
         import asyncio
         orig_cfg = sentinel_core.ConfigManager.load()
         try:
@@ -543,7 +555,17 @@ class TestSecurityAudit(unittest.TestCase):
         finally:
             sentinel_core.ConfigManager.save(orig_cfg)
 
-    def test_settings_api_redact_notifications(self):
+    @patch('sentinel_core.OracleManager')
+    def test_settings_api_redact_notifications(self, mock_oci):
+        mock_mgr = MagicMock()
+        mock_mgr.client = None
+        mock_mgr.instance_id = None
+        mock_mgr.vnic_id = None
+        mock_mgr.compartment_id = None
+        mock_mgr.region = "us-phoenix-1"
+        mock_mgr.init_error = None
+        mock_oci.return_value = mock_mgr
+
         orig_cfg = sentinel_core.ConfigManager.load()
         try:
             cfg = json.loads(json.dumps(orig_cfg))
