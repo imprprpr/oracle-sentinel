@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Purged obsolete `IPManager` references in `bot_mgr.py`, consolidating all healing routines into `sentinel_core.run_healing_routine`.
   - Added AST-based static regression test `test_no_dead_references.py` to continuously verify zero unresolved imports/calls.
 - **P1-7: Rolling 24h Re-IP Quota Enforcement (`app.py`, `sentinel_core.py`)**:
-  - Implemented 24-hour rolling window quota enforcement (`max_daily_reip: 2`) preventing excessive cloud API IP rebirth triggers, with manual override support (`force: true`).
+  - Implemented 24-hour rolling window quota enforcement (`max_reip_per_day: 2`) preventing excessive cloud API IP rebirth triggers, with manual override support (`force: true`).
 - **P1-8: Inbound Deduplication & Sing-box Tag Sanitization (`sub_engine.py`)**:
   - Deduplicated inbound proxy nodes sharing identical server and port configurations.
   - Sanitized Sing-box outbound tags to guarantee uniqueness and prevent core configuration parse errors.

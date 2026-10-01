@@ -138,6 +138,15 @@ class AuthManager:
         if success:
             self._failed_attempts.pop(client_ip, None)
         else:
+            # Prevent unbounded memory growth by pruning expired entries
+            if len(self._failed_attempts) > 1000:
+                expired_keys = [
+                    ip for ip, attempts in self._failed_attempts.items()
+                    if not attempts or (now - attempts[-1] >= LOCKOUT_WINDOW_SEC)
+                ]
+                for ip in expired_keys:
+                    self._failed_attempts.pop(ip, None)
+
             attempts = [t for t in self._failed_attempts.get(client_ip, []) if now - t < LOCKOUT_WINDOW_SEC]
             attempts.append(now)
             self._failed_attempts[client_ip] = attempts
@@ -292,7 +301,7 @@ class AuthManager:
 
         # Local loopback client accessing local loopback host
         client_host = request.client.host if request.client else ""
-        if hostname in ("127.0.0.1", "localhost", "::1", "testserver") and client_host in ("127.0.0.1", "::1", "localhost", "testclient"):
+        if hostname in ("127.0.0.1", "localhost", "::1") and client_host in ("127.0.0.1", "::1", "localhost"):
             return True
 
         # Build allowed list

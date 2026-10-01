@@ -239,17 +239,33 @@ def get_cloud_info():
 
 class ConfigManager:
     _lock = threading.RLock()
+    _cached_cfg = None
+    _cached_mtime = None
+    _cached_size = None
 
     @classmethod
     def load(cls):
         with cls._lock:
             if os.path.exists(CONFIG_PATH):
                 try:
+                    st = os.stat(CONFIG_PATH)
+                    if cls._cached_cfg is not None and cls._cached_mtime == st.st_mtime and cls._cached_size == st.st_size:
+                        return copy.deepcopy(cls._cached_cfg)
                     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
                         cfg = json.load(f)
-                        return _deep_merge_dict(DEFAULT_CONFIG, cfg)
+                        merged = _deep_merge_dict(DEFAULT_CONFIG, cfg)
+                        cls._cached_cfg = merged
+                        cls._cached_mtime = st.st_mtime
+                        cls._cached_size = st.st_size
+                        return copy.deepcopy(merged)
                 except Exception as e:
                     logger.error(f'Error reading {CONFIG_PATH}: {e}')
+                    if cls._cached_cfg is not None:
+                        return copy.deepcopy(cls._cached_cfg)
+            else:
+                cls._cached_cfg = None
+                cls._cached_mtime = None
+                cls._cached_size = None
             return copy.deepcopy(DEFAULT_CONFIG)
 
     @classmethod
@@ -268,10 +284,26 @@ class ConfigManager:
                     os.chmod(CONFIG_PATH, 0o600)
                 except OSError as e:
                     logger.warning(f"Failed to chmod {CONFIG_PATH}: {e}")
+                try:
+                    st = os.stat(CONFIG_PATH)
+                    cls._cached_cfg = _deep_merge_dict(DEFAULT_CONFIG, cfg)
+                    cls._cached_mtime = st.st_mtime
+                    cls._cached_size = st.st_size
+                except Exception:
+                    cls._cached_cfg = None
+                    cls._cached_mtime = None
+                    cls._cached_size = None
                 return True
             except Exception as e:
                 logger.error(f'Error saving {CONFIG_PATH}: {e}')
                 return False
+
+    @classmethod
+    def invalidate_cache(cls):
+        with cls._lock:
+            cls._cached_cfg = None
+            cls._cached_mtime = None
+            cls._cached_size = None
 
     @classmethod
     def update(cls, mutator):

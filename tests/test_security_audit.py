@@ -373,19 +373,29 @@ class TestSecurityAudit(unittest.TestCase):
                 self.client = DummyClient(host_peer)
                 self.headers = headers or {}
 
-        # 1. Untrusted peer trying to spoof CF-Connecting-IP
+        # 1. Untrusted peer trying to spoof CF-Connecting-IP -> ignored, use peer IP
         req_untrusted = DummyReq('203.0.113.10', {'CF-Connecting-IP': '198.51.100.9'})
         resolved_ip = app.resolve_client_ip(req_untrusted)
         self.assertEqual(resolved_ip, '203.0.113.10')
 
-        # 2. Trusted Cloudflare proxy sending CF-Connecting-IP
+        # 2. Trusted Cloudflare proxy sending CF-Connecting-IP -> accepted
         req_trusted = DummyReq('173.245.48.10', {'CF-Connecting-IP': '198.51.100.9'})
         resolved_ip = app.resolve_client_ip(req_trusted)
         self.assertEqual(resolved_ip, '198.51.100.9')
 
-        # 3. Localhost proxy sending X-Forwarded-For
-        req_local = DummyReq('127.0.0.1', {'X-Forwarded-For': '198.51.100.9, 10.0.0.1'})
-        resolved_ip = app.resolve_client_ip(req_local)
+        # 3. Loopback peer sending spoofed CF-Connecting-IP -> NOT accepted (not authentic CF edge)
+        req_loopback_cf = DummyReq('127.0.0.1', {'CF-Connecting-IP': '198.51.100.9'})
+        resolved_ip = app.resolve_client_ip(req_loopback_cf)
+        self.assertEqual(resolved_ip, '127.0.0.1')
+
+        # 4. Loopback proxy with XFF: spoofed_ip, real_client_ip -> rightmost untrusted hop picked
+        req_local_xff = DummyReq('127.0.0.1', {'X-Forwarded-For': '1.2.3.4, 198.51.100.9'})
+        resolved_ip = app.resolve_client_ip(req_local_xff)
+        self.assertEqual(resolved_ip, '198.51.100.9')
+
+        # 5. Custom trusted proxy network in XFF -> skips trusted hops from right to left
+        req_multi_proxy = DummyReq('127.0.0.1', {'X-Forwarded-For': '198.51.100.9, 10.0.0.1'})
+        resolved_ip = app.resolve_client_ip(req_multi_proxy, custom_cidrs=['10.0.0.0/8'])
         self.assertEqual(resolved_ip, '198.51.100.9')
 
     def test_daily_reip_quota_and_force_override(self):
@@ -481,6 +491,81 @@ class TestSecurityAudit(unittest.TestCase):
         self.assertEqual(tag1, 'VLESS-Proxy')
         self.assertEqual(tag2, 'VLESS-Proxy-2')
         self.assertEqual(tag3, 'VLESS-Proxy-3')
+
+    def test_login_rate_limiter_memory_pruning(self):
+        # Populate _failed_attempts with expired entries past threshold
+        now = time.time()
+        for i in range(1050):
+            app.auth._failed_attempts[f"198.51.100.{i}"] = [now - 2000]
+
+        self.assertGreater(len(app.auth._failed_attempts), 1000)
+        # Next failed attempt must trigger pruning of expired entries
+        app.auth.record_login_attempt("203.0.113.99", success=False)
+        self.assertLessEqual(len(app.auth._failed_attempts), 50)
+        self.assertIn("203.0.113.99", app.auth._failed_attempts)
+        app.auth._failed_attempts.pop("203.0.113.99", None)
+
+    def test_config_manager_mtime_caching(self):
+        # 1. Warm cache
+        cfg1 = sentinel_core.ConfigManager.load()
+        cfg2 = sentinel_core.ConfigManager.load()
+        self.assertEqual(cfg1, cfg2)
+
+        # 2. Update via save and ensure cache is synchronized
+        orig_key = cfg1.get('test_cache_key')
+        cfg1['test_cache_key'] = 'cache_val_123'
+        sentinel_core.ConfigManager.save(cfg1)
+
+        cfg_reloaded = sentinel_core.ConfigManager.load()
+        self.assertEqual(cfg_reloaded.get('test_cache_key'), 'cache_val_123')
+
+        # Clean up
+        if orig_key is None:
+            cfg_reloaded.pop('test_cache_key', None)
+        else:
+            cfg_reloaded['test_cache_key'] = orig_key
+        sentinel_core.ConfigManager.save(cfg_reloaded)
+
+    def test_reip_cooldown_and_quota_null_handling(self):
+        import asyncio
+        orig_cfg = sentinel_core.ConfigManager.load()
+        try:
+            cfg = json.loads(json.dumps(orig_cfg))
+            mon = cfg.setdefault('monitor', {})
+            mon['reip_cooldown_hours'] = None
+            mon['max_reip_per_day'] = None
+            mon['last_reip_timestamp'] = None
+            sentinel_core.ConfigManager.save(cfg)
+
+            # Triggering routine must gracefully fallback defaults without TypeError
+            res = asyncio.run(app.run_healing_routine(trigger_source='MANUAL', force=False))
+            self.assertIsInstance(res, dict)
+        finally:
+            sentinel_core.ConfigManager.save(orig_cfg)
+
+    def test_settings_api_redact_notifications(self):
+        orig_cfg = sentinel_core.ConfigManager.load()
+        try:
+            cfg = json.loads(json.dumps(orig_cfg))
+            cfg['notifications'] = {
+                'enabled': True,
+                'telegram': {'enabled': True, 'bot_token': '123456789:ABCDEFsecret', 'chat_id': '999'},
+                'discord': {'enabled': True, 'webhook_url': 'https://discord.com/api/webhooks/123/xyz'},
+                'bark': {'enabled': True, 'bark_key': 'barksecretkey123'},
+                'custom_webhook': {'enabled': True, 'url': 'https://example.com/hook?key=secret'}
+            }
+            sentinel_core.ConfigManager.save(cfg)
+
+            res = self.client.get('/api/settings', cookies={'sentinel_session': self.admin_token})
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            notifs = data.get('notifications', {})
+            self.assertEqual(notifs['telegram']['bot_token'], '****cret')
+            self.assertIn('****', notifs['discord']['webhook_url'])
+            self.assertEqual(notifs['bark']['bark_key'], '****y123')
+            self.assertIn('****', notifs['custom_webhook']['url'])
+        finally:
+            sentinel_core.ConfigManager.save(orig_cfg)
 
 if __name__ == '__main__':
     unittest.main()

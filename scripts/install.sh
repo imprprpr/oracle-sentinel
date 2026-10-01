@@ -147,25 +147,29 @@ echo "[OK] VPSentinel 核心服务已成功安装并启动就绪！"
 echo "===================================================================="
 
 # Retrieve or generate random initial admin password (P0-4: No plaintext initial_password on disk)
-INITIAL_PASS=$(python3 -c "
+PYTHON_BIN="$INSTALL_DIR/venv/bin/python3"
+if [ ! -x "$PYTHON_BIN" ]; then
+    PYTHON_BIN="python3"
+fi
+
+INITIAL_PASS=$("$PYTHON_BIN" -c "
 import sys, secrets
 sys.path.insert(0, '$INSTALL_DIR')
 try:
-    from auth_mgr import AuthManager
     from sentinel_core import ConfigManager
-    mgr = AuthManager(ConfigManager)
+    from auth_mgr import AuthManager
     cfg = ConfigManager.load()
     sec = cfg.setdefault('security', {})
     sec.pop('initial_password', None)
-    if not sec.get('admin_password_hash'):
+    if sec.get('admin_password_hash'):
+        ConfigManager.save(cfg)
+        print('[EXISTING]')
+    else:
         raw_pass = secrets.token_urlsafe(16)
-        sec['admin_password_hash'] = mgr.hash_password(raw_pass)
+        sec['admin_password_hash'] = AuthManager.hash_password(raw_pass)
         sec['must_change_password'] = True
         ConfigManager.save(cfg)
         print(raw_pass)
-    else:
-        ConfigManager.save(cfg)
-        print('[EXISTING]')
 except Exception:
     print('[ERROR]')
 " 2>/dev/null || echo "[ERROR]")

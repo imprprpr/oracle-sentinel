@@ -12,7 +12,7 @@ import threading
 import hmac
 import secrets
 import ipaddress
-from typing import List, Optional
+from typing import List, Optional, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
@@ -50,9 +50,12 @@ cfg_mgr = sentinel_core.ConfigManager()
 auth = auth_mgr.AuthManager(cfg_mgr)
 
 # Default trusted proxy networks: loopback and Cloudflare official edge ranges
-DEFAULT_TRUSTED_PROXY_NETWORKS = [
+LOOPBACK_NETWORKS = [
     ipaddress.ip_network('127.0.0.0/8', strict=False),
-    ipaddress.ip_network('::1/128', strict=False),
+    ipaddress.ip_network('::1/128', strict=False)
+]
+
+CLOUDFLARE_NETWORKS = [
     ipaddress.ip_network('173.245.48.0/20', strict=False),
     ipaddress.ip_network('103.21.244.0/22', strict=False),
     ipaddress.ip_network('103.22.200.0/22', strict=False),
@@ -77,14 +80,26 @@ DEFAULT_TRUSTED_PROXY_NETWORKS = [
     ipaddress.ip_network('2c0f:f248::/32', strict=False)
 ]
 
+DEFAULT_TRUSTED_PROXY_NETWORKS = LOOPBACK_NETWORKS + CLOUDFLARE_NETWORKS
+
+def is_ip_in_networks(ip_str: str, networks: List[Any]) -> bool:
+    if not ip_str:
+        return False
+    try:
+        ip_obj = ipaddress.ip_address(ip_str.strip())
+    except ValueError:
+        return False
+    for net in networks:
+        if ip_obj in net:
+            return True
+    return False
+
+def is_cloudflare_peer(peer_ip: str) -> bool:
+    return is_ip_in_networks(peer_ip, CLOUDFLARE_NETWORKS)
+
 def is_trusted_peer(peer_ip: str, custom_cidrs: Optional[List[str]] = None) -> bool:
     if not peer_ip:
         return False
-    try:
-        ip_obj = ipaddress.ip_address(peer_ip)
-    except ValueError:
-        return False
-
     networks = list(DEFAULT_TRUSTED_PROXY_NETWORKS)
     if custom_cidrs:
         for cidr in custom_cidrs:
@@ -92,11 +107,7 @@ def is_trusted_peer(peer_ip: str, custom_cidrs: Optional[List[str]] = None) -> b
                 networks.append(ipaddress.ip_network(cidr, strict=False))
             except ValueError:
                 pass
-
-    for net in networks:
-        if ip_obj in net:
-            return True
-    return False
+    return is_ip_in_networks(peer_ip, networks)
 
 def resolve_client_ip(request: Request, custom_cidrs: Optional[List[str]] = None) -> str:
     peer_ip = request.client.host if request.client else ""
@@ -104,23 +115,32 @@ def resolve_client_ip(request: Request, custom_cidrs: Optional[List[str]] = None
         return peer_ip
 
     headers = getattr(request, 'headers', {})
-    cf_ip = None
-    xfwd = None
-    if hasattr(headers, 'items'):
-        for k, v in headers.items():
-            kl = k.lower()
-            if kl == 'cf-connecting-ip' and not cf_ip:
-                cf_ip = v
-            elif kl == 'x-forwarded-for' and not xfwd:
-                xfwd = v
-    elif hasattr(headers, 'get'):
-        cf_ip = headers.get('cf-connecting-ip') or headers.get('CF-Connecting-IP')
-        xfwd = headers.get('x-forwarded-for') or headers.get('X-Forwarded-For')
 
-    if cf_ip:
-        return cf_ip.strip()
+    # 1. CF-Connecting-IP is strictly accepted ONLY when peer is an authentic Cloudflare edge node
+    if is_cloudflare_peer(peer_ip):
+        cf_ip = headers.get('cf-connecting-ip') if hasattr(headers, 'get') else None
+        if not cf_ip and hasattr(headers, 'items'):
+            for k, v in headers.items():
+                if k.lower() == 'cf-connecting-ip':
+                    cf_ip = v
+                    break
+        if cf_ip and cf_ip.strip():
+            return cf_ip.strip()
+
+    # 2. X-Forwarded-For: traverse right-to-left to find the first untrusted upstream hop
+    xfwd = headers.get('x-forwarded-for') if hasattr(headers, 'get') else None
+    if not xfwd and hasattr(headers, 'items'):
+        for k, v in headers.items():
+            if k.lower() == 'x-forwarded-for':
+                xfwd = v
+                break
+
     if xfwd:
-        return xfwd.split(',')[0].strip()
+        hops = [h.strip() for h in xfwd.split(',') if h.strip()]
+        for hop in reversed(hops):
+            if not is_trusted_peer(hop, custom_cidrs):
+                return hop
+
     return peer_ip
 
 def mask_token(token: str, head: int = 4, tail: int = 4) -> str:
@@ -128,6 +148,8 @@ def mask_token(token: str, head: int = 4, tail: int = 4) -> str:
         return ""
     if len(token) <= head + tail:
         return "****"
+    if head == 0:
+        return f"****{token[-tail:]}"
     return f"{token[:head]}****{token[-tail:]}"
 
 def redact_notifications(notifications: dict) -> dict:
@@ -136,13 +158,13 @@ def redact_notifications(notifications: dict) -> dict:
     redacted = json.loads(json.dumps(notifications))
     tg = redacted.get('telegram', {})
     if isinstance(tg, dict) and tg.get('bot_token'):
-        tg['bot_token'] = mask_token(tg['bot_token'])
+        tg['bot_token'] = mask_token(tg['bot_token'], head=0, tail=4)
     dc = redacted.get('discord', {})
     if isinstance(dc, dict) and dc.get('webhook_url'):
         dc['webhook_url'] = mask_token(dc['webhook_url'], head=8, tail=4)
     bark = redacted.get('bark', {})
     if isinstance(bark, dict) and bark.get('bark_key'):
-        bark['bark_key'] = mask_token(bark['bark_key'])
+        bark['bark_key'] = mask_token(bark['bark_key'], head=0, tail=4)
     cw = redacted.get('custom_webhook', {})
     if isinstance(cw, dict) and cw.get('url'):
         cw['url'] = mask_token(cw['url'], head=8, tail=4)
@@ -186,7 +208,7 @@ def check_setup_allowed(request: Request):
         check_admin(request)
         return
     client_ip = request.client.host if request.client else ""
-    if client_ip in ("127.0.0.1", "::1", "localhost", "testclient"):
+    if client_ip in ("127.0.0.1", "::1", "localhost"):
         return
     check_admin(request)
 
@@ -384,10 +406,6 @@ async def get_settings(request: Request):
     }
 
     notify_cfg = cfg.get('notifications', {})
-    tg = notify_cfg.get('telegram', {})
-    discord = notify_cfg.get('discord', {})
-    bark = notify_cfg.get('bark', {})
-    custom = notify_cfg.get('custom_webhook', {})
     sec_cfg = auth.get_security_config()
 
     ls_cfg = cfg.get('lightsail', {})
@@ -431,26 +449,7 @@ async def get_settings(request: Request):
             'enable_host_guard': sec_cfg.get('enable_host_guard', True),
             'sub_token': sec_cfg.get('sub_token', '')
         },
-        'notifications': {
-            'enabled': notify_cfg.get('enabled', False),
-            'telegram': {
-                'enabled': tg.get('enabled', False),
-                'bot_token': f"{tg.get('bot_token', '')[:4]}****" if tg.get('bot_token') else '',
-                'chat_id': tg.get('chat_id', '')
-            },
-            'discord': {
-                'enabled': discord.get('enabled', False),
-                'webhook_url': f"{discord.get('webhook_url', '')[:25]}****" if discord.get('webhook_url') else ''
-            },
-            'bark': {
-                'enabled': bark.get('enabled', False),
-                'bark_key': f"{bark.get('bark_key', '')[:4]}****" if bark.get('bark_key') else '',
-            },
-            'custom_webhook': {
-                'enabled': custom.get('enabled', False),
-                'url': mask_token(custom.get('url', ''), head=8, tail=4) if custom.get('url') else ''
-            }
-        }
+        'notifications': redact_notifications(notify_cfg)
     }
 
 @app.post('/api/settings')
@@ -1319,9 +1318,12 @@ async def run_healing_routine(trigger_source='MANUAL', force=False) -> dict:
 
     # P1-7: Rolling 24-hour quota and cooldown checks
     reip_history = [t for t in mon_cfg.get('reip_history', []) if (now - t) < 86400]
-    max_reip = int(mon_cfg.get('max_reip_per_day', 3))
-    cooldown_sec = mon_cfg.get('reip_cooldown_hours', 24) * 3600
-    last_reip = mon_cfg.get('last_reip_timestamp', 0)
+    mr = mon_cfg.get('max_reip_per_day')
+    max_reip = 2 if mr is None else int(mr)
+    ch = mon_cfg.get('reip_cooldown_hours')
+    cooldown_hours = 24 if ch is None else int(ch)
+    cooldown_sec = cooldown_hours * 3600
+    last_reip = mon_cfg.get('last_reip_timestamp') or 0
 
     if not force:
         if len(reip_history) >= max_reip:
@@ -1339,7 +1341,7 @@ async def run_healing_routine(trigger_source='MANUAL', force=False) -> dict:
 
         if trigger_source == 'AUTO' and (now - last_reip) < cooldown_sec:
             rem_h = round((cooldown_sec - (now - last_reip)) / 3600, 1)
-            msg = f"Auto Re-IP suppressed by cooldown circuit breaker. Last Re-IP cooldown has {rem_h}h remaining ({mon_cfg.get('reip_cooldown_hours', 24)}h window)."
+            msg = f"Auto Re-IP suppressed by cooldown circuit breaker. Last Re-IP cooldown has {rem_h}h remaining ({cooldown_hours}h window)."
             logger.warning(msg)
             await broadcast_log(f'[WARN] {msg}', 'WARN')
             notification.NotificationManager.broadcast(
