@@ -24,10 +24,10 @@ from starlette.testclient import TestClient
 
 class TestCloudInfoDetection(unittest.TestCase):
     def setUp(self):
-        sentinel_core._cached_cloud_info = None
+        sentinel_core.invalidate_cloud_info_cache()
 
     def tearDown(self):
-        sentinel_core._cached_cloud_info = None
+        sentinel_core.invalidate_cloud_info_cache()
 
     def test_detection_by_dmi_amazon(self):
         with patch('os.path.exists', return_value=True), \
@@ -53,29 +53,65 @@ class TestCloudInfoDetection(unittest.TestCase):
             info = sentinel_core.get_cloud_info()
             self.assertIn("Generic", info['provider'])
 
-    def test_generic_fallback_not_cached(self):
-        # 1. First probe fails with exception -> returns Generic VPS and MUST NOT cache
+    def test_generic_fallback_cached_with_ttl_and_recovers(self):
+        # 1. First probe fails with exception -> returns Generic VPS and caches with TTL
         with patch('os.path.exists', return_value=False), \
-             patch('requests.get', side_effect=Exception("Metadata unreachable")):
+             patch('requests.get', side_effect=Exception("Metadata unreachable")) as mock_get:
             info1 = sentinel_core.get_cloud_info()
             self.assertEqual(info1['provider'], sentinel_core.GENERIC_PROVIDER)
-            self.assertIsNone(sentinel_core._cached_cloud_info)
+            self.assertEqual(mock_get.call_count, 4)
+            self.assertIsNotNone(sentinel_core._cached_cloud_info)
+            self.assertEqual(sentinel_core._cached_cloud_info['provider'], sentinel_core.GENERIC_PROVIDER)
 
-        # 2. Network/metadata recovers -> next call successfully detects Oracle Cloud without cache invalidation
+            # 2. Second call immediately within TTL: returns from cache, zero additional network calls
+            t0 = time.time()
+            info_cached = sentinel_core.get_cloud_info()
+            dt = time.time() - t0
+            self.assertEqual(info_cached['provider'], sentinel_core.GENERIC_PROVIDER)
+            self.assertEqual(mock_get.call_count, 4)
+            self.assertLess(dt, 0.1)
+
+        # 3. Simulate TTL expiry and network recovery -> next call re-probes and detects Oracle Cloud
+        sentinel_core._cached_cloud_info_ts = time.time() - (sentinel_core.CLOUD_INFO_TTL + 10)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {'canonicalRegionName': 'us-phoenix-1'}
         with patch('os.path.exists', return_value=False), \
-             patch('requests.get', return_value=mock_resp):
+             patch('requests.get', return_value=mock_resp) as mock_get_recovered:
             info2 = sentinel_core.get_cloud_info()
             self.assertEqual(info2['provider'], 'Oracle Cloud')
             self.assertIsNotNone(sentinel_core._cached_cloud_info)
             self.assertEqual(sentinel_core._cached_cloud_info['provider'], 'Oracle Cloud')
+            self.assertEqual(mock_get_recovered.call_count, 1)
+
+            # 4. Positive cloud result does NOT expire after TTL
+            sentinel_core._cached_cloud_info_ts = time.time() - (sentinel_core.CLOUD_INFO_TTL + 10)
+            info_positive = sentinel_core.get_cloud_info()
+            self.assertEqual(info_positive['provider'], 'Oracle Cloud')
+            self.assertEqual(mock_get_recovered.call_count, 1)
 
     def test_invalidate_cloud_info_cache(self):
         sentinel_core._cached_cloud_info = {'provider': 'Test Cloud'}
+        sentinel_core._cached_cloud_info_ts = time.time()
         sentinel_core.invalidate_cloud_info_cache()
         self.assertIsNone(sentinel_core._cached_cloud_info)
+        self.assertEqual(sentinel_core._cached_cloud_info_ts, 0.0)
+
+    def test_config_manager_save_and_reload_invalidates_cloud_cache(self):
+        sentinel_core._cached_cloud_info = {'provider': 'Old Cloud'}
+        sentinel_core._cached_cloud_info_ts = time.time()
+
+        orig_cfg = sentinel_core.ConfigManager.load()
+        sentinel_core.ConfigManager.save(orig_cfg)
+        self.assertIsNone(sentinel_core._cached_cloud_info)
+        self.assertEqual(sentinel_core._cached_cloud_info_ts, 0.0)
+
+        # Invalidate via explicit ConfigManager.invalidate_cache()
+        sentinel_core._cached_cloud_info = {'provider': 'Old Cloud'}
+        sentinel_core._cached_cloud_info_ts = time.time()
+        sentinel_core.ConfigManager.invalidate_cache()
+        self.assertIsNone(sentinel_core._cached_cloud_info)
+        self.assertEqual(sentinel_core._cached_cloud_info_ts, 0.0)
 
 
 class TestLightsailCloudProvider(unittest.TestCase):

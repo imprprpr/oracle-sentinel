@@ -5,6 +5,22 @@ All notable changes to the **Oracle Sentinel** project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.4] - 2026-10-01
+
+### Generic Provider TTL Caching & Invalidation Hookup (兜底结果 TTL 缓存与失效挂载闭环 - R12, R13)
+- **R12: Generic Fallback TTL Caching (`sentinel_core.py`, `tests/test_cloud_providers.py`)**:
+  - Implemented `CLOUD_INFO_TTL = 300.0` (5 minutes) for `Generic VPS / Dedicated Server` fallback results while keeping positive cloud detections permanently cached.
+  - Eliminated the 4-second latency penalty per round on non-cloud VPS in `get_full_state()`, `/api/setup/status`, and mesh overview endpoints.
+  - Added thread-safe locking with double-checked caching to prevent duplicate concurrent metadata probes during TTL expiration or cold startup.
+- **R13: Live Cache Invalidation Hookup (`sentinel_core.py`, `tests/test_cloud_providers.py`)**:
+  - Wired `invalidate_cloud_info_cache()` into `ConfigManager.save()` and external configuration file reload in `ConfigManager.load()`.
+  - Ensures administrative settings changes immediately evict cached provider discovery results.
+- **Testing & Quality Assurance (`tests/test_cloud_providers.py`)**:
+  - Added `test_generic_fallback_cached_with_ttl_and_recovers` verifying that repeated calls on generic VPS within TTL execute with 0 additional network calls (<0.1s), and re-probe only after TTL expiration or invalidation.
+  - Added `test_config_manager_save_and_reload_invalidates_cloud_cache` ensuring save operations flush cloud detection state.
+
+---
+
 ## [2.6.3] - 2026-10-01
 
 ### Cloud Detection Cache Hardening & Docs Alignment (云识别缓存加固与文档彻底清洗)
